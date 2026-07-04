@@ -35,6 +35,7 @@
 #include "mpconfigboard.h"
 
 // Board and hardware specific configuration
+#ifndef MICROPY_HW_MCU_NAME
 #if PICO_RP2040
 #define MICROPY_HW_MCU_NAME                     "RP2040"
 #elif PICO_RP2350 && PICO_ARM
@@ -43,6 +44,7 @@
 #define MICROPY_HW_MCU_NAME                     "RP2350-RISCV"
 #else
 #error Unknown MCU
+#endif
 #endif
 
 #ifndef MICROPY_HW_ENABLE_UART_REPL
@@ -73,9 +75,9 @@
 #endif
 
 // Number of bytes of flash to allocate to read/write filesystem storage.
-#ifndef MICROPY_HW_FLASH_STORAGE_BYTES
-#define MICROPY_HW_FLASH_STORAGE_BYTES (1408 * 1024)
-#endif
+#undef  MICROPY_HW_FLASH_STORAGE_BYTES
+#define MICROPY_HW_FLASH_STORAGE_BYTES (12 * 1024 * 1024)
+
 
 #ifndef MICROPY_CONFIG_ROM_LEVEL
 #define MICROPY_CONFIG_ROM_LEVEL                (MICROPY_CONFIG_ROM_LEVEL_EXTRA_FEATURES)
@@ -120,7 +122,9 @@
 #define MICROPY_STACK_CHECK_MARGIN              (256)
 #define MICROPY_ENABLE_EMERGENCY_EXCEPTION_BUF  (1)
 #define MICROPY_LONGINT_IMPL                    (MICROPY_LONGINT_IMPL_MPZ)
+#ifndef MICROPY_FLOAT_IMPL
 #define MICROPY_FLOAT_IMPL                      (MICROPY_FLOAT_IMPL_FLOAT)
+#endif
 #define MICROPY_SCHEDULER_DEPTH                 (8)
 #define MICROPY_SCHEDULER_STATIC_NODES          (1)
 #ifndef MICROPY_USE_INTERNAL_ERRNO
@@ -168,6 +172,9 @@
 #define MICROPY_PY_MACHINE_PULSE                (1)
 #define MICROPY_PY_MACHINE_PWM                  (1)
 #define MICROPY_PY_MACHINE_PWM_INCLUDEFILE      "ports/rp2/machine_pwm.c"
+#ifndef MICROPY_PY_MACHINE_SDCARD
+#define MICROPY_PY_MACHINE_SDCARD               (0)
+#endif
 #define MICROPY_PY_MACHINE_I2C                  (1)
 #ifndef MICROPY_PY_MACHINE_I2C_TARGET
 #define MICROPY_PY_MACHINE_I2C_TARGET           (1)
@@ -198,7 +205,21 @@
 #define MICROPY_VFS_FAT                         (1)
 #define MICROPY_VFS_ROM                         (MICROPY_HW_ROMFS_BYTES > 0)
 #define MICROPY_SSL_MBEDTLS                     (1)
-
+#define MICROPY_PY_ULAB                         (1)
+#define MICROPY_PY_JSON                         (1)
+#define MICROPY_PY_RE                           (1)
+#define MICROPY_PY_COLLECTIONS                  (1)
+#define MICROPY_PY_BUILTINS_SET                 (1)
+#define MICROPY_PY_BUILTINS_FROZENSET           (1)
+#define MICROPY_PY_BUILTINS_SLICE               (1)
+#define MICROPY_PY_MATH                         (1)
+#define MICROPY_PY_CMATH                        (1)
+#define MICROPY_PY_TIME                         (1)
+#define MICROPY_PY_STRUCT                       (1)
+#define MICROPY_PY_ERRNO                        (1)
+#define MICROPY_PY_GC                           (1)
+#define MICROPY_PY_RE_MATCH_GROUPS              (1)
+#define MICROPY_PY_RE_SUB                       (1)
 // Hardware timer alarm index. Available range 0-3.
 // Number 3 is currently used by pico-sdk alarm pool (PICO_TIME_DEFAULT_ALARM_POOL_HARDWARE_ALARM_NUM)
 #define MICROPY_HW_SOFT_TIMER_ALARM_NUM         (2)

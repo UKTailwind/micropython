@@ -71,6 +71,13 @@
 extern uint8_t __StackTop, __StackBottom;
 extern uint8_t __GcHeapStart, __GcHeapEnd;
 
+// System clock frequency at startup. Boards may override this to run faster than
+// the pico-sdk default (e.g. 252 MHz for HDMI). The flash (QMI/SSI) and PSRAM
+// timings adapt to clk_sys automatically (see rp2_flash.c and rp2_psram.c).
+#ifndef MICROPY_HW_CLK_SYS_KHZ
+#define MICROPY_HW_CLK_SYS_KHZ (SYS_CLK_KHZ)
+#endif
+
 // Embed version info in the binary in machine readable form
 bi_decl(bi_program_version_string(MICROPY_GIT_TAG));
 
@@ -89,8 +96,13 @@ int main(int argc, char **argv) {
     pendsv_init();
     soft_timer_init();
 
-    // Set the MCU frequency and as a side effect the peripheral clock to 48 MHz.
-    set_sys_clock_khz(SYS_CLK_KHZ, false);
+    // Set the MCU frequency. clk_peri and clk_hstx are sourced from clk_sys so
+    // they track it. Raise the flash (QMI/SSI) divider to be safe for the target
+    // frequency *before* moving the PLL, so XIP flash is never briefly overclocked
+    // during the switch; rp2_flash_set_timing() below reasserts it for the final
+    // clk_sys (set_sys_clock can rewrite the QSPI pads).
+    rp2_flash_set_timing_for_freq(MICROPY_HW_CLK_SYS_KHZ * 1000);
+    set_sys_clock_khz(MICROPY_HW_CLK_SYS_KHZ, false);
 
     // Hook for setting up anything that needs to be super early in the boot-up process.
     MICROPY_BOARD_STARTUP();
@@ -157,6 +169,19 @@ int main(int argc, char **argv) {
 
     #if MICROPY_PY_NETWORK_CYW43 || MICROPY_PY_BLUETOOTH_CYW43
     {
+        // Scale the cyw43 gSPI PIO clock divider with clk_sys before the bus is
+        // brought up (SCK = clk_sys / (2 * div)). The SDK's fixed default (2) is
+        // tuned for ~125 MHz and overclocks SCK at our higher clocks, causing
+        // "hdr mismatch" / ioctl timeouts. Algorithm from MMBasic (proven
+        // 48-396 MHz); needs CYW43_PIO_CLOCK_DIV_DYNAMIC=1.
+        #if CYW43_PIO_CLOCK_DIV_DYNAMIC
+        extern void cyw43_set_pio_clkdiv_int_frac8(uint32_t clock_div_int, uint8_t clock_div_frac8);
+        uint32_t cyw43_div = (clock_get_hz(clk_sys) / 1000 + 99999) / 100000;
+        if (cyw43_div < 2) {
+            cyw43_div = 2;
+        }
+        cyw43_set_pio_clkdiv_int_frac8(cyw43_div, 0);
+        #endif
         cyw43_init(&cyw43_state);
         cyw43_irq_init();
         cyw43_post_poll_hook(); // enable the irq
@@ -179,6 +204,11 @@ int main(int argc, char **argv) {
 
     // Hook for setting up anything that can wait until after other hardware features are initialised.
     MICROPY_BOARD_EARLY_INIT();
+
+    #if MICROPY_HW_USB_HOST
+    // Bring up the USB host stack once; tuh_task() is then pumped from the event hook.
+    mp_usbh_init();
+    #endif
 
     for (;;) {
 

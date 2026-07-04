@@ -2285,6 +2285,11 @@ typedef time_t mp_timestamp_t;
 #endif
 #endif
 
+// Separator printed in the REPL banner between the name/version and machine parts.
+#ifndef MICROPY_BANNER_MACHINE_SEP
+#define MICROPY_BANNER_MACHINE_SEP "; "
+#endif
+
 // Number of bytes in an object word: mp_obj_t, mp_uint_t, mp_uint_t
 #ifndef MP_BYTES_PER_OBJ_WORD
 #define MP_BYTES_PER_OBJ_WORD (sizeof(mp_uint_t))

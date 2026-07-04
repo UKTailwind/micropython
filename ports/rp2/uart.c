@@ -45,6 +45,19 @@ void uart_irq(void) {
             return;
         }
         #endif
+        #ifdef MICROPY_HW_UART_REPL_DEL_FORWARD
+        if (c == 0x7f) {
+            // Terminals like TeraTerm (Backspace = 0x08) send a lone 0x7F for
+            // their Delete key, but readline/pye read 0x7F as backspace.
+            // Translate it to the VT100 forward-delete sequence so Delete
+            // deletes forwards (matching the USB keyboard).
+            ringbuf_put(&stdin_ringbuf, 0x1b);
+            ringbuf_put(&stdin_ringbuf, '[');
+            ringbuf_put(&stdin_ringbuf, '3');
+            ringbuf_put(&stdin_ringbuf, '~');
+            return;
+        }
+        #endif
         ringbuf_put(&stdin_ringbuf, c);
     }
 }

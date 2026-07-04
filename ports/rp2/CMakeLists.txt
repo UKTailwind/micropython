@@ -134,6 +134,9 @@ set(MICROPY_SOURCE_LIB
     ${MICROPY_DIR}/shared/tinyusb/mp_usbd_descriptor.c
     ${MICROPY_DIR}/shared/tinyusb/mp_usbd_runtime.c
 )
+if(MICROPY_PY_ULAB)
+    include(${CMAKE_SOURCE_DIR}/lib/ulab/code/micropython.cmake)
+endif()
 
 if(PICO_ARM)
     list(APPEND MICROPY_SOURCE_LIB
@@ -152,13 +155,25 @@ set(MICROPY_SOURCE_DRIVERS
 
 set(MICROPY_SOURCE_PORT
     clocks_extra.c
+    audio.c
+    dr_wav.c
+    dr_mp3.c
+    dr_flac.c
+    jpeg.c
+    picojpeg.c
+    bmp.c
+    bmp_decoder.c
+    png.c
+    upng.c
     datetime_patch.c
     fatfs_port.c
+    hdmi.c
     help.c
     machine_bitstream.c
     machine_i2c.c
     machine_pin.c
     machine_rtc.c
+    machine_sdcard.c
     machine_spi.c
     machine_timer.c
     main.c
@@ -174,6 +189,12 @@ set(MICROPY_SOURCE_PORT
     rp2_dma.c
     uart.c
     usbd.c
+    mp_usbh.c
+    usb_keyboard.c
+    usb_touch.c
+    usb_touch_mod.c
+    usb_mouse.c
+    usb_mouse_mod.c
     msc_disk.c
     mbedtls/mbedtls_port.c
     ${CMAKE_BINARY_DIR}/pins_${MICROPY_BOARD}.c
@@ -185,10 +206,19 @@ set(MICROPY_SOURCE_QSTR
     ${MICROPY_DIR}/shared/runtime/mpirq.c
     ${MICROPY_DIR}/shared/runtime/sys_stdio_mphal.c
     ${MICROPY_DIR}/shared/tinyusb/mp_usbd_runtime.c
+    ${MICROPY_PORT_DIR}/audio.c
+    ${MICROPY_PORT_DIR}/jpeg.c
+    ${MICROPY_PORT_DIR}/bmp.c
+    ${MICROPY_PORT_DIR}/png.c
+    ${MICROPY_PORT_DIR}/hdmi.c
+    ${MICROPY_PORT_DIR}/usb_keyboard.c
+    ${MICROPY_PORT_DIR}/usb_touch_mod.c
+    ${MICROPY_PORT_DIR}/usb_mouse_mod.c
     ${MICROPY_PORT_DIR}/machine_adc.c
     ${MICROPY_PORT_DIR}/machine_i2c.c
     ${MICROPY_PORT_DIR}/machine_pin.c
     ${MICROPY_PORT_DIR}/machine_rtc.c
+    ${MICROPY_PORT_DIR}/machine_sdcard.c
     ${MICROPY_PORT_DIR}/machine_spi.c
     ${MICROPY_PORT_DIR}/machine_timer.c
     ${MICROPY_PORT_DIR}/machine_uart.c
@@ -245,8 +275,14 @@ set(PICO_SDK_COMPONENTS
     pico_unique_id
     pico_util
     tinyusb_common
-    tinyusb_device
 )
+
+# Link the TinyUSB host or device stack (mutually exclusive on the one controller).
+if(MICROPY_HW_USB_HOST)
+    list(APPEND PICO_SDK_COMPONENTS tinyusb_host)
+else()
+    list(APPEND PICO_SDK_COMPONENTS tinyusb_device)
+endif()
 
 if(PICO_ARM)
     list(APPEND PICO_SDK_COMPONENTS

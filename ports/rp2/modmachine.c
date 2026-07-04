@@ -55,10 +55,19 @@
 #define RP2_RESET_PWRON (1)
 #define RP2_RESET_WDT (3)
 
+#if MICROPY_PY_MACHINE_SDCARD
+extern const mp_obj_type_t machine_sdcard_type;
+#define MICROPY_PY_MACHINE_SDCARD_ENTRY \
+    { MP_ROM_QSTR(MP_QSTR_SDCard),              MP_ROM_PTR(&machine_sdcard_type) },
+#else
+#define MICROPY_PY_MACHINE_SDCARD_ENTRY
+#endif
+
 #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
     { MP_ROM_QSTR(MP_QSTR_Pin),                 MP_ROM_PTR(&machine_pin_type) }, \
     { MP_ROM_QSTR(MP_QSTR_RTC),                 MP_ROM_PTR(&machine_rtc_type) }, \
     { MP_ROM_QSTR(MP_QSTR_Timer),               MP_ROM_PTR(&machine_timer_type) }, \
+    MICROPY_PY_MACHINE_SDCARD_ENTRY \
     \
     { MP_ROM_QSTR(MP_QSTR_PWRON_RESET),         MP_ROM_INT(RP2_RESET_PWRON) }, \
     { MP_ROM_QSTR(MP_QSTR_WDT_RESET),           MP_ROM_INT(RP2_RESET_WDT) }, \
@@ -99,6 +108,16 @@ static mp_obj_t mp_machine_get_freq(void) {
 }
 
 static void mp_machine_set_freq(size_t n_args, const mp_obj_t *args) {
+    #ifdef MICROPY_HW_MACHINE_FREQ_LOCKED
+    // On boards where clk_sys is coupled to the HDMI pixel clock (which core1
+    // derives per display mode), changing the CPU speed on its own would desync
+    // the display. The clock must be changed together with the mode -- via
+    // screen(mode, clock) -- so the raw setter is disabled here. machine.freq()
+    // (no argument) still reports the current speed.
+    (void)n_args;
+    (void)args;
+    mp_raise_ValueError(MP_ERROR_TEXT("use screen(mode, clock) to change the clock (252/315/378 MHz)"));
+    #else
     mp_int_t freq = mp_obj_get_int(args[0]);
 
     // If necessary, increase the flash divider before increasing the clock speed
@@ -135,6 +154,7 @@ static void mp_machine_set_freq(size_t n_args, const mp_obj_t *args) {
     #if MICROPY_HW_ENABLE_PSRAM
     psram_init(MICROPY_HW_PSRAM_CS_PIN);
     #endif
+    #endif // MICROPY_HW_MACHINE_FREQ_LOCKED
 }
 
 static void mp_machine_idle(void) {

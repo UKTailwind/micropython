@@ -146,4 +146,21 @@
 
 #endif // MICROPY_HW_ENABLE_USBDEV
 
+#if MICROPY_HW_USB_HOST
+
+// USB host on the native controller (root-hub port 0). Mutually exclusive with
+// USB-device (which must be disabled). Common CFG_TUSB_MCU/OS come from the
+// pico-sdk tinyusb component.
+#define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST)
+#define CFG_TUH_ENABLED             (1)
+#define CFG_TUH_RPI_PIO_USB         (0)
+#define CFG_TUH_HUB                 (2) // composite devices w/ built-in hub (e.g. Pi keyboard)
+#define CFG_TUH_DEVICE_MAX          (3 * CFG_TUH_HUB + 1)
+#define CFG_TUH_ENUMERATION_BUFSIZE (1024) // composite descriptors exceed 256 (matches MMBasic)
+#define CFG_TUH_HID                 (4 * CFG_TUH_DEVICE_MAX) // a device may have several HID itfs
+#define CFG_TUH_HID_EPIN_BUFSIZE    (64)
+#define CFG_TUH_HID_EPOUT_BUFSIZE   (64)
+
+#endif // MICROPY_HW_USB_HOST
+
 #endif // MICROPY_INCLUDED_SHARED_TINYUSB_TUSB_CONFIG_H

@@ -50,7 +50,7 @@ const char rp2_help_text[] =
     "  machine.Timer(freq, callback) -- create a software timer object\n"
     "    eg: machine.Timer(freq=1, callback=lambda t:print(t))\n"
     "\n"
-    "Pins are numbered 0-29, and 26-29 have ADC capabilities\n"
+    "Pins are numbered 0-47, and 40 - 47 have ADC capabilities\n"
     "Pin IO modes are: Pin.IN, Pin.OUT, Pin.ALT\n"
     "Pin pull modes are: Pin.PULL_UP, Pin.PULL_DOWN\n"
     "\n"

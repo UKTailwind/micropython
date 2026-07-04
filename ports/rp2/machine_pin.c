@@ -314,6 +314,13 @@ mp_obj_t mp_pin_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, 
 
     const machine_pin_obj_t *self = machine_pin_find(args[0]);
 
+    // Prevent user code from grabbing GPIOs that the board reserves for system
+    // functions (e.g. the REPL UART). Internal drivers configure their GPIOs
+    // directly and do not go through this constructor, so they are unaffected.
+    if (!is_ext_pin(self) && MICROPY_HW_PIN_RESERVED(self->id)) {
+        mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("Pin(%u) is reserved"), self->id);
+    }
+
     if (n_args > 1 || n_kw > 0) {
         // pin mode given, so configure this GPIO
         mp_map_t kw_args;

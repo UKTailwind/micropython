@@ -1,0 +1,863 @@
+# Pico Computer 3 — MicroPython port development notes
+
+Progress log and design record for turning the MicroPython **rp2** port into a
+stand-alone Python computer on the **Pico Computer 3** board. The end goal is an
+editor, SD-card storage, and basic OS functionality, bringing HDMI and (later)
+USB-host support across from the existing MMBasic (PicoMite) firmware.
+
+## Board summary
+
+- MCU: **RP2350B** (Cortex-M33, ARM; `PICO_RISCV=0`), QFN-80, 48 GPIOs.
+- Base board definition: `pimoroni_pico_plus2_w_rp2350`.
+- 16 MB external flash, 8 MB PSRAM (CS on GP47), CYW43 Wi-Fi/BT.
+- SD card on **SPI1**: SCK=GP30, MOSI=GP31, MISO=GP28, CS=GP33.
+- Console UART on **UART1**: TX=GP8, RX=GP9.
+- Flash filesystem (LittleFS2) sized to **12 MB** (`MICROPY_HW_FLASH_STORAGE_BYTES`
+  in `mpconfigport.h`).
+
+## Build & flash
+
+Build runs in **WSL Ubuntu** (Windows 11 host). The editor/terminal tools run on
+Windows, so build commands are wrapped with `wsl`:
+
+```bash
+wsl -d Ubuntu bash -lc "cd ~/src/micropython/ports/rp2 && make BOARD=PICO_COMPUTER_3"
+```
+
+Output firmware: `ports/rp2/build-PICO_COMPUTER_3/firmware.uf2`.
+
+Flashing: hold **BOOTSEL** at power-up, the `RPI-RP2` drive appears, drop the
+`.uf2`. (USB device mode is disabled in the app — see below — but the bootrom's
+BOOTSEL USB is independent and still works.)
+
+Approx. footprint after all changes: FLASH ~7.4 %, RAM ~44 % of 512 KB SRAM. The
+RAM figure is dominated by the **153 KB HDMI framebuffer** (320×240 RGB565, must
+be SRAM for scanout); before HDMI it was ~14 %. The MicroPython GC heap lives in
+PSRAM (split heap), so this SRAM use doesn't reduce the Python heap. (pye adds
+~150 KB of frozen *flash*; imported lazily, no RAM cost until `edit()`.)
+
+---
+
+## Changes
+
+### 1. 64-bit integers and double-precision floats
+
+- Integers: already arbitrary precision via `MICROPY_LONGINT_IMPL_MPZ` (default
+  in the rp2 port) — 64-bit and beyond work transparently, no change needed.
+  Small ints (≤31-bit on this 32-bit core) live inline in the object word; only
+  larger values allocate an `mpz` bignum, so the common case is not slow.
+- Floats: switched from single to **double precision**.
+  - `mpconfigport.h`: made `MICROPY_FLOAT_IMPL` `#ifndef`-guarded so a board can
+    override it (keeps the upstream default for other boards).
+  - `boards/PICO_COMPUTER_3/mpconfigboard.h`: `MICROPY_FLOAT_IMPL_DOUBLE`.
+  - RP2350 has hardware-accelerated `double` routines via the bootrom (pico-sdk
+    wraps `__aeabi_dadd`/`__aeabi_dmul`); floats are now heap-boxed (a 64-bit
+    double can't pack into the 32-bit object word).
+
+### 2. Console on UART1 (GP8/GP9), USB fully disabled
+
+- `mpconfigboard.h`: `MICROPY_HW_ENABLE_UART_REPL (1)`.
+- `mpconfigboard.cmake`: the pico-sdk default UART must point at UART1/GP8/GP9.
+  Because `setup_default_uart()` lives in pico-sdk source that never sees
+  `mpconfigboard.h`, and the Pimoroni board header's `PICO_DEFAULT_UART*` are
+  `#ifndef`-guarded, these are set as compile definitions (seen first):
+  ```cmake
+  add_compile_definitions(
+      PICO_DEFAULT_UART=1
+      PICO_DEFAULT_UART_TX_PIN=8
+      PICO_DEFAULT_UART_RX_PIN=9
+  )
+  ```
+- Console params: **115200 8N1**. stdout goes to the UART; the UART RX IRQ feeds
+  the same stdin ring buffer the REPL reads.
+- `mpconfigboard.h`: `MICROPY_HW_ENABLE_USBDEV (0)` — disables USB-CDC, MSC and
+  `machine.USBDevice` (they cascade off this in `mpconfigport.h`). This frees the
+  single USB controller for future USB-host use. (RP2350 has one USB controller,
+  so host and device/CDC are mutually exclusive — the UART console is what makes
+  USB-host bring-up possible later.)
+
+USB-serial wiring for the console: adapter RX ← GP8, adapter TX → GP9, GND↔GND.
+
+### 3. Pin reservation (protecting system pins)
+
+The rp2 port already had a board-overridable `MICROPY_HW_PIN_RESERVED(i)` hook,
+but it was only consulted in `machine_pin_deinit()` — nothing stopped user code
+from grabbing a system pin.
+
+- `machine_pin.c` (`mp_pin_make_new`): the constructor now raises
+  `ValueError: Pin(n) is reserved` for non-ext reserved pins. Guarded by the same
+  macro, so it's a no-op (`0`) on all other boards. Internal drivers configure
+  their GPIOs directly and don't go through this constructor, so they're
+  unaffected.
+- `mpconfigboard.h`: reserved list currently covers the console UART and SD pins:
+  ```c
+  #define MICROPY_HW_PIN_RESERVED(i) \
+      (mp_hal_is_pin_reserved(i) || (i) == 8 || (i) == 9 \
+       || (i) == 28 || (i) == 30 || (i) == 31 || (i) == 33)
+  ```
+  Extend this line as PSRAM/HDMI pins are brought up.
+
+Limitation: this protects the `Pin` constructor. A pin passed *by number* into
+another peripheral (e.g. `UART(0, tx=8)`) resolves via `machine_pin_find()`, not
+the constructor, so it isn't blocked. Airtight protection would move the check
+into `machine_pin_find()` with a user-vs-internal flag — deferred for now.
+
+### 4. Native SD card driver — `machine.SDCard`
+
+Architecture chosen: **MicroPython-native**. The SD card is exposed as a block
+device on MicroPython's existing `oofatfs` + `VfsFat` stack (not MMBasic's
+FatFs). Only the SD-over-SPI protocol was taken from MMBasic; the filesystem is
+MicroPython's, so `open()`, `import`, and `os` all work on the card.
+
+New file `machine_sdcard.c`:
+- SPI/SD protocol adapted from MMBasic `SDCard.c` (itself from ChaN's FatFs SPI
+  sample): CRC7, `send_cmd`, `rcvr`/`xmit_datablock`, card identification,
+  single- and multi-block read/write.
+- Simplified for fixed hardware: pico-sdk `spi1` on the determinate pins, no
+  function-pointer dispatch, no MMBasic `Option`/`Timer1` globals (uses pico-sdk
+  `absolute_time` deadlines instead).
+- Exposes the block-device protocol (`readblocks`/`writeblocks`/`ioctl`) plus
+  `present()` and `info()`.
+- Speeds: 400 kHz during identification, then 12 MHz
+  (`MICROPY_HW_SD_SPI_BAUD_FAST`, board-overridable). 512-byte blocks, SPI mode 0.
+
+Integration:
+- `mpconfigport.h`: `MICROPY_PY_MACHINE_SDCARD` default `(0)`.
+- `mpconfigboard.h`: enables it and defines `MICROPY_HW_SD_SPI_ID/SCK/MOSI/MISO/CS`.
+- `modmachine.c`: registers `machine.SDCard` (conditional entry in the module dict).
+- `CMakeLists.txt`: `machine_sdcard.c` added to both the source and QSTR lists.
+- `boards/.../manifest.py`: dropped `require("sdcard")` — the pure-Python driver
+  is replaced by the native one (and it also resolved a `MP_QSTR_SDCard` clash).
+
+Note: an rp2 board-cmake `set(MICROPY_PY_...)` is **inert** unless turned into a
+`-D` via `target_compile_definitions`; the real switch is the C `#define` in the
+board header.
+
+**Critical hardware detail:** MISO needs a pull-up. Without it the line floats
+low between transfers / during identification, `wait_ready()` never sees `0xFF`,
+and init times out (~500 ms) reporting no card. The driver now sets
+`gpio_pull_up(MISO)` plus 8 mA drive strength and input hysteresis, matching
+MMBasic's setup.
+
+Manual use:
+```python
+import machine, os
+sd = machine.SDCard()
+sd.present()          # True if initialised
+sd.info()             # (capacity_bytes, 512)
+os.mount(os.VfsFat(sd), "/sd")
+# blank card, once: os.VfsFat.mkfs(sd)
+```
+
+### 5. SD auto-mount at boot
+
+`modules/_boot.py`, after the flash root is mounted:
+```python
+if hasattr(machine, "SDCard"):
+    try:
+        _sd = machine.SDCard()
+        if _sd.present():
+            vfs.mount(vfs.VfsFat(_sd), "/sd")
+        del _sd
+    except Exception:
+        pass
+```
+- `hasattr` guard makes it inert on boards without the native driver.
+- Only mounts if a card actually initialised; `try/except` means a missing,
+  unformatted, or faulty card never blocks boot.
+- Does **not** auto-`mkfs` (that could wipe a card that merely failed to mount).
+- No hot-plug detect line is wired, so a card inserted after boot needs a manual
+  mount.
+
+### 6b. System clock at 252 MHz
+
+Startup clock raised from the pico-sdk default (150 MHz) to **252 MHz** for HDMI
+headroom (HSTX is clocked from `clk_sys`; 378 MHz is the other planned option).
+
+- `main.c`: new board-overridable `MICROPY_HW_CLK_SYS_KHZ` (default `SYS_CLK_KHZ`).
+  Startup now pre-sets the flash (QMI) divider for the *target* frequency
+  **before** the PLL switch, then raises the clock, then reasserts flash timing
+  (`set_sys_clock` can rewrite the QSPI pads). Ordering matches MMBasic.
+- `mpconfigboard.h`: `MICROPY_HW_CLK_SYS_KHZ = 252000`.
+- **No vreg change**: DVDD is supplied by an external 1.3 V regulator on this
+  board, so `vreg_set_voltage()` is unnecessary.
+- `clk_peri` and `clk_hstx` are sourced from `clk_sys`, so they track it to
+  252 MHz automatically. The UART console and SD SPI are initialised after the
+  clock change, so their dividers are computed against the final `clk_peri`.
+- **Flash**: `MICROPY_HW_FLASH_MAX_FREQ` set to **63 MHz** in the board header.
+  The QMI divisor is `ceil(clk_sys / MAX_FREQ)` and RXDELAY (a 3-bit field, max 7)
+  is set equal to the divisor. The default cap (`SYS_CLK_HZ/4` = 37.5 MHz) would
+  give divisor/RXDELAY = 7 at 252 (just fits) but 11 at 378 (overflows the field
+  and corrupts timing). 63 MHz gives divisor 4 @252 and 6 @378 — both valid, and
+  matches the flash speed MMBasic uses on this board.
+- **PSRAM**: `rp2_psram.c` already derives its timing from live `clk_sys` and has
+  explicit handling for `clk_sys > 200 MHz` (divisor/rxdelay bumps), so it needed
+  no change — divisor 2 @252, 3 @378.
+
+Verify at the REPL: `machine.freq()` → `252000000`. `machine.freq(378000000)` also
+works at runtime (flash cap and PSRAM init both handle it).
+
+### 6. REPL convenience imports
+
+`_boot.py` runs as a frozen *module*, so its imports don't reach the REPL, which
+lives in `__main__`. To pre-populate the prompt we assign onto `__main__`
+directly (its `.globals` is `MP_STATE_VM(dict_main)`, the same dict the REPL
+uses):
+```python
+if "PICO COMPUTER 3" in os.uname().machine:
+    import __main__
+    import pcshell
+    __main__.os = os
+    __main__.machine = machine
+    __main__.Pin = machine.Pin
+    for _name in pcshell.COMMANDS:          # ls, run, edit, pwd, cd, mkdir, ...
+        setattr(__main__, _name, getattr(pcshell, _name))
+```
+Gated by board name so other rp2 boards keep standard behavior. `os`, `machine`,
+`Pin` and the whole shell command set are available at the prompt with no import.
+They persist until soft-reset (Ctrl-D), after which `_boot.py` re-runs and
+re-injects them.
+
+### 7. REPL banner tidy-up
+
+Banner changed from
+`MicroPython v1.29.0-preview.450.g562d6be365.dirty on 2026-07-02; PICO COMPUTER 3 with RP2350`
+to `MicroPython v1.29.0 on PICO COMPUTER 3 with RP2350B`.
+
+- `mpconfigboard.h`: `MICROPY_HW_MCU_NAME "RP2350B"`;
+  `MICROPY_BANNER_NAME_AND_VERSION "MicroPython v" MICROPY_VERSION_STRING_BASE`
+  (clean version, no git hash / date); `MICROPY_BANNER_MACHINE_SEP " on "`.
+- `mpconfigport.h`: `#ifndef`-guard the MCU name so the board can override it.
+- `py/mpconfig.h`: added a `MICROPY_BANNER_MACHINE_SEP` default (`"; "`); used in
+  `shared/runtime/pyexec.c`. So only this board opts into `" on "`; every other
+  board keeps the standard banner.
+- Side effect (intended): `os.uname().machine` / `sys.implementation._machine`
+  now report `PICO COMPUTER 3 with RP2350B` (the `_boot` auto-import gate matches
+  on the `"PICO COMPUTER 3"` substring, so still fires).
+
+### 8. Shell layer, editor and program launcher
+
+A small frozen module `pcshell.py` provides unix-style helpers, injected into the
+REPL (see §6). Files handled through MicroPython's VFS (flash + `/sd`).
+
+- **Directory / files:** `pwd()`, `cd(path="/")`, `ls(path=None)` (dirs first,
+  then files A–Z, with size and mtime), `mkdir`, `rmdir`, `rm` (file), `cat`
+  (print a text file), `cp(src,dst)`, `mv(src,dst)`.
+  - `cp`/`mv`: if dst is an existing directory the file lands inside it.
+  - `mv` across filesystems (SD ↔ flash) falls back to copy+remove, since
+    `os.rename` only works within one filesystem.
+  - Errors surface as normal Python `OSError` (kept Pythonic, not swallowed).
+  - Extend by writing the function and adding its name to `pcshell.COMMANDS`.
+- **`run(path)`** — launch a `.py` from anywhere in a *fresh* namespace
+  (`__name__ == "__main__"`, cwd temporarily set to the program's folder and
+  restored after). Program can't clobber REPL globals.
+- **`edit(*args)`** — full-screen editor. Lazily imports **pye**
+  (robert-hh/Micropython-Editor, **MIT**, `V2.79`) which is vendored verbatim as
+  `boards/PICO_COMPUTER_3/pye.py` and frozen via `manifest.py`. Works over the
+  UART VT100 console now (and will keep working when HDMI+USB-keyboard become the
+  console, since it only uses `sys.stdin`/`sys.stdout`). `edit("/sd/x.py")` opens
+  or creates a file; **Ctrl-S** save, **Ctrl-Q**/Esc quit, **Ctrl-F** find.
+  - One **local patch** to `pye.py`: remapped `"\x08"` (Ctrl-H) from Replace to
+    Backspace, so terminals that send Ctrl-H for Backspace work (DEL `0x7F` was
+    already mapped; Replace stays on Ctrl-R). Marked with a `# local:` comment.
+    Provenance: sha256 `17867248…` of the upstream `master/pye.py`.
+
+### 9. core1 dedicated to HDMI (threads disabled)
+
+`mpconfigboard.h`: `MICROPY_PY_THREAD (0)`. The rp2 port only ever launches core1
+for `_thread`; disabling it (and never registering the HDMI core1 as a multicore
+lockout victim) means the HDMI scanout has sole, uninterrupted use of core1. The
+flash erase/write lockout path (`use_multicore_lockout()`) is gated on threads, so
+with threads off and core1 not a registered victim, **core0 flash writes never
+pause the scanout** — provided the scanout code is RAM-resident and the
+framebuffer/line-buffers are in SRAM (both true here). GC's stop-the-other-core
+path is also gone. See the core1 discussion for the full mechanics.
+
+### 10. HDMI — WORKING (dual-mode, 640×480@60 DVI)
+
+`hdmi.c` + `hdmi` module: 640×480@60 DVI via the RP2350 **HSTX hardware TMDS
+encoder** + ping-pong command DMA on **core1**. Adapted from MMBasic
+`graphics/HDMI.c`; distilled to two modes, single framebuffer, no layers/tiles.
+The framebuffer is a static SRAM array sized for the largest mode (640×480×8 =
+307,200 bytes) — hence RAM ~74 %.
+
+Two modes selected at `init()`:
+- **`hdmi.RGB332`** — 640×480 RGB332 (8bpp), **native** resolution and native HSTX
+  format, so DMA scans the framebuffer directly (no doubling, no fill-loop). 256
+  colours, crisp 80×60 text with an 8×8 font. **Boot default.**
+- **`hdmi.RGB565`** — 320×240 RGB565, H-doubled by the core1 fill-loop, V-doubled
+  by DMA (source line = active/2). 65536 colours, 40×30 text.
+
+Details:
+- **Ownership / core1:** `multicore_launch_core1_with_stack`, own 4 KB stack
+  (`0xf00dbeef` sentinel, `hdmi.stack_ok()`), not a lockout victim (§9).
+- **DMA IRQ line 1:** `DMA_IRQ_0` has MicroPython's shared `rp2.DMA` handler, so
+  an exclusive handler there hard-asserts. HDMI uses `DMA_IRQ_1` exclusively
+  (clashes with `machine.I2S(id=1)` if used later).
+- **Clock:** `clk_hstx = clk_sys/2 = 126 MHz` → pixel 25.2 MHz → ~60 Hz (both modes).
+- **Encoders** (NBITS field = bits−1; both confirmed by colour-bar test):
+  - RGB565: L0 blue rot29/4, L1 green rot3/5, L2 red rot8/4; `expand_shift` 2×16bit.
+  - RGB332: L2 red rot0/3, L1 green rot29/3, L0 blue rot26/2 (verbatim from
+    MMBasic non-FullColour); `expand_shift` 4×8bit.
+- **Pins:** `MICROPY_HW_HDMI_CLK/D0/D1/D2 = 1/3/5/7` (HSTX bit; bit N → GP12+N;
+  positive on the odd bit, negative on bit−1). GP12–19 reserved from `machine.Pin`.
+- **`deinit()`** stops the scanout (halt core1 via `multicore_reset_core1`; break
+  both DMA chains via the non-triggering `al1_ctrl` alias, then abort both
+  together with bounded waits; stop HSTX) so `init(other_mode)` can relaunch.
+  Claimed DMA channels are kept. Fresh core1 vector on relaunch, so the exclusive
+  handler re-registers cleanly.
+- **Python API:** `hdmi.init(mode=RGB565)`, `hdmi.deinit()`, `hdmi.fill(colour)`,
+  `hdmi.framebuffer()` (writable bytearray alias, mode-sized), `hdmi.width()`,
+  `hdmi.height()`, `hdmi.stack_ok()`, `hdmi.RGB332/RGB565`, and **`hdmi.fb()`**
+  which returns a ready-made **`pcgfx.Display`** at the current geometry/format
+  (built from C via `mp_import_name`/`mp_call_function`).
+- **Framebuffer memory:** static SRAM (DMA can't scan PSRAM; the GC heap is in
+  PSRAM so a heap buffer wouldn't be SRAM). 307 KB committed for the firmware's
+  life regardless of mode. Nothing to free; `deinit()` releases no memory.
+
+### 11. Graphics helper — `pcgfx.Display` + colour palette
+
+Frozen board module `boards/PICO_COMPUTER_3/pcgfx.py`:
+- **`Display(framebuf.FrameBuffer)`** — subclass adding `colour(r,g,b)` /
+  `colour(0xRRGGBB)` (+ `color` alias) that converts RGB888 → the framebuffer's
+  real format (RGB332 or RGB565, from the stored `fmt`). So drawing code is
+  resolution-agnostic: `fb.text(s, x, y, fb.colour(RED))` works in either mode.
+- **Palette** — the MMBasic 16-colour set (`WHITE`, `YELLOW`, `LILAC`, `BROWN`,
+  `FUCHSIA`, `RUST`, `MAGENTA`, `RED`, `CYAN`, `GREEN`, `CERULEAN`, `MIDGREEN`,
+  `COBALT`, `MYRTLE`, `BLUE`, `BLACK`) + `GRAY`/`LITEGRAY`/`ORANGE`/`PINK`/`GOLD`/
+  `SALMON`, as 24-bit RGB888.
+- `_boot.py` (this board) auto-`hdmi.init(hdmi.RGB332)` at boot, injects `hdmi`,
+  `framebuf`, `Display`, and the palette (all-uppercase names) into `__main__`.
+  Note: palette globals live in `__main__` (REPL); `run()`-launched scripts should
+  `from pcgfx import *`.
+
+### 12. On-screen text console — WORKING
+
+Frozen board module `pcconsole.py` + C helpers in `hdmi.c`. `console()` mirrors
+the REPL to the HDMI screen via `os.dupterm`; **auto-started at boot** so the
+banner/prompt appear on the monitor. Input still comes from the UART (USB-host
+keyboard is the next step) — the console is output-only (`readinto` → `None`).
+
+- **`Console(io.IOBase)`** — must subclass `io.IOBase` for `os.dupterm` to accept
+  it as a stream (routes the C stream protocol to Python `write`/`readinto`).
+- **8×12 font, 80×40.** MMBasic `font1` vendored as `console_font.h`; blitted by
+  **`hdmi.putc(px,py,ch,fg,bg)`** (C, opaque — fg where set, bg elsewhere).
+  framebuf's `text` is 8×8-only, so we don't use it.
+- **ANSI/CSI interpreter** — honours the sequences the REPL line editor emits:
+  `\x1b[nD`/`\x1b[nC` (cursor back/forward, needed for **backspace** & arrows),
+  `\x1b[K` (erase to EOL), plus `A/B` (up/down), `H`/`f` (position), `J` (erase
+  display). SGR colour (`m`), device queries (`n`), private (`?…`) are ignored.
+  This also renders most of pye on-screen (minus colour).
+- **Blinking underline cursor** (like MMBasic) — `machine.Timer` toggles a
+  bottom-row underline ~1 Hz. `write()` erases it before rendering and redraws
+  after (and an `_in_write` guard), so it's never left behind or scrolled.
+- **Fast scroll** — framebuf's `scroll` is a per-pixel double loop (catastrophic
+  for 307 KB). Replaced with **`hdmi.scroll(rows, colour)`** (C): a single bulk
+  `memmove` of `(height−rows)` rows + `memset`/clear of the freed rows.
+- **Terminal sync** — `sync_terminal()` sends xterm `CSI 8;rows;cols t`
+  (`\x1b[8;40;80t`) at boot and on `console()`, resizing the serial terminal to
+  the screen's 80×40 grid (as MMBasic does entering its editor).
+- **API:** `console(on=True, fg=0xFFFFFF, bg=0)` (RGB888), injected into `__main__`.
+  `console(False)` detaches and stops the blink timer. After a resolution swap,
+  re-run `console()` to rebind.
+
+### 13. USB host (TinyUSB) — enumeration + HID reports WORKING
+
+The RP2350's USB controller runs in **host mode** (freed by disabling USB-device).
+Built up in stages; enumeration and raw HID reports confirmed on mouse,
+touchscreen, and a composite hub-keyboard.
+
+- **Config flip (not a vendored file):** `shared/tinyusb/tusb_config.h` gains a
+  `#if MICROPY_HW_USB_HOST` block — `CFG_TUSB_RHPORT0_MODE = OPT_MODE_HOST`,
+  `CFG_TUH_ENABLED`, native controller (`CFG_TUH_RPI_PIO_USB 0`). The device glue
+  (`mp_usbd.c`/`usbd.c`/`msc_disk.c`) is all `#if MICROPY_HW_ENABLE_USBDEV`, so
+  it's inert. `CFG_TUSB_OS` defaults to `OPT_OS_NONE` (polling) since the pico-sdk
+  only forces `OPT_OS_PICO` on `tinyusb_device`, and we link `tinyusb_host`.
+- **CMake:** `CMakeLists.txt` links `tinyusb_host` vs `tinyusb_device` on the
+  board's `MICROPY_HW_USB_HOST` cmake flag; adds `mp_usbh.c`.
+- **`mp_usbh.c`:** `tuh_init(0)` at startup (`main.c`), callbacks for mount/unmount
+  and HID mount/report/unmount (currently diagnostic hex dumps).
+- **Pumping `tuh_task()`:** from `MICROPY_INTERNAL_EVENT_HOOK` (→ `mp_usbh_task`),
+  which runs in **thread context** during any `mp_event_wait_*` (never in an IRQ —
+  TinyUSB polling must not be pumped from an ISR). A 1 ms repeating timer
+  (`add_repeating_timer_us`, empty callback) just **wakes WFE** so the hook keeps
+  pumping through enumeration's timed steps (which generate no IRQ of their own).
+- **Two config gotchas that mattered** (both matched to MMBasic):
+  `CFG_TUH_ENUMERATION_BUFSIZE = 1024` — a composite/hub device's config
+  descriptor exceeds 256 and enumeration aborts silently (simple devices have
+  tiny descriptors, so they worked); `CFG_TUH_HUB = 2` (with
+  `CFG_TUH_DEVICE_MAX = 3*HUB+1`) for devices with a built-in hub.
+- **HID:** `CFG_TUH_HID = 4*CFG_TUH_DEVICE_MAX`. `tuh_hid_mount_cb` must call
+  `tuh_hid_receive_report()` to start the flow, and `tuh_hid_report_received_cb`
+  must **re-arm** it after every report (else reports stop).
+
+### 14. USB keyboard → REPL — WORKING (standalone input)
+
+`mp_usbh.c` keyboard driver: HID boot-keyboard reports → keystrokes into
+`stdin_ringbuf` (the same buffer the UART IRQ feeds), so a USB keyboard drives
+the REPL/console — the board is now self-contained.
+
+- US-layout HID-usage→ASCII table (unshifted/shifted); **shift/ctrl/caps** handled
+  (Ctrl-A..Z → 0x01..0x1a; caps affects letters only).
+- **Special keys → VT100 escape sequences** (arrows `\x1b[A/B/C/D`, Home/End,
+  Ins/Del `\x1b[2~`/`3~`, PgUp/Dn) so readline and pye navigation work.
+- **Ctrl-C** → `mp_sched_keyboard_interrupt()` (matches the UART path).
+- **Auto-repeat** (400 ms delay / 40 ms rate) synthesised from the held key —
+  HID only reports on change — checked in `mp_usbh_task` (thread context).
+- Forces **boot protocol** on keyboard mount for a reliable 8-byte report.
+- Only keyboard-protocol interfaces feed stdin; mouse/gamepad/touch reports are
+  ignored for now (to be handled later).
+
+Selectable **layout** via a `keyboard` C module: `keymap("UK")` / `keymap()` /
+`keymaps()`, injected into `__main__`. The six MMBasic tables (US/UK/DE/FR/ES/BE)
+are vendored verbatim as `keyboard_maps.h` (`table[usage*2 + shift]`); the decoder
+indexes the active layout. Module lives in `usb_keyboard.c` (not `mp_usbh.c`)
+because it needs QSTR scanning, which can't see `tusb.h`; they share the active
+`kbd_layout` pointer via `extern`. Switch is live; **resets to US on reboot** (no
+persistence yet).
+
+Next: mouse/gamepad/touch handling; caps/num-lock LEDs; USB-MSC (drives);
+persist the keymap choice.
+
+### 15. Editing-key fixes (Delete / Backspace)
+
+- **Delete deleted backwards.** The vendored layout tables hold Delete-forward
+  (usage 0x4c) as `0x7f`, which both readline and pye read as **backspace**. The
+  table lookup ran before the special-key switch, so Delete never reached its
+  VT100 case. Fix: the caps/nav cluster (`0x39`, `0x49..0x52`) now **bypasses the
+  table** and emits its escape sequence — Delete → `\x1b[3~` (forward delete).
+- **Delete over a serial terminal.** TeraTerm (Backspace = `0x08`) sends a lone
+  `0x7f` for its Delete key, which readline reads as backspace. The UART RX IRQ
+  (`uart.c`) now translates `0x7f` → `\x1b[3~`, gated by board macro
+  `MICROPY_HW_UART_REPL_DEL_FORWARD` (stock rp2 boards, where Backspace may be
+  `0x7f`, are unaffected). The USB keyboard never emits `0x7f`, so this is
+  unambiguous here.
+
+### 16. Audio — WAV / MP3 / FLAC over the PCM5102 I2S DAC — WORKING
+
+Pins **BCLK=GP10, LRCK=GP11 (=BCLK+1), DIN=GP22** (SCK grounded → internal PLL).
+Driven through **`machine.I2S(0)`**, which runs on **DMA_IRQ_0** (shared with
+`rp2.DMA`) and so never clashes with HDMI's exclusive DMA_IRQ_1. Left
+**unreserved** — I2S claims the pins via `Pin()`.
+
+- **Background / non-blocking playback.** `i2s.irq()` puts I2S in non-blocking
+  mode; `write()` returns immediately and a **scheduler callback** queues each
+  next chunk, so the REPL stays live (MMBasic-style). Single-buffer reuse is safe
+  because the callback fires only once the previous buffer is fully consumed.
+- **Python front-end** `pcaudio.py`: `play(path)` dispatches by extension
+  (`.wav`/`.mp3`/`.flac`), `stop()` (hard — deinits I2S so no buffered tail),
+  `volume(0..100)` (≈50 dB **log taper**, applied in C by `audio.scale`),
+  `beep()`, `is_playing()`. `play_wav` kept as an alias.
+- **Decoders** (single-header, streamed via `mp_stream` read/seek/tell callbacks
+  over a Python file — no loading whole files into RAM): **dr_wav** vendored from
+  MMBasic `third_party_mod`; **dr_mp3 / dr_flac** are the **stock** headers from
+  github.com/mackron/dr_libs (MMBasic's copies are patched with
+  `GetMemory`/`Memory.h` and won't build). C glue in `audio.c`; each impl in its
+  own TU (`dr_wav.c`/`dr_mp3.c`/`dr_flac.c`).
+- **Two critical gotchas:**
+  1. **Allocator must be the GC heap (PSRAM), not the C heap.** dr_* default
+     `malloc` hits the tiny pico C heap, whose wrapper **panics** ("Out of
+     memory"). Routed to `m_malloc_maybe`. But dr_mp3/dr_flac keep **persistent**
+     buffers across reads, and a static C pointer isn't a GC root → the collector
+     would reclaim them mid-song. So live allocations are held in a rooted table
+     (`MP_REGISTER_ROOT_POINTER(audio_allocs[16])`). dr_wav's buffers are
+     transient (stack-referenced), so it was fine before — the table covers all.
+  2. **Seek must map all three origins SET/CUR/END.** dr_mp3/dr_flac seek to
+     **END** during init to size the stream; collapsing END→SET makes init fail
+     on VBR / MPEG-2 files (e.g. a 22050 Hz MP3) with "not a valid …". dr_wav has
+     only two origins (start/current) so was unaffected.
+- Verified: WAV (incl. 8-bit stereo), MP3 (incl. MPEG-2 VBR), FLAC all play; no
+  memory leak across repeats.
+
+Next (deferred): USB connect/disconnect sounds (`Connect.h`/`Remove.h` = 8-bit
+8 kHz WAV).
+
+### 17. DS3231 hardware RTC
+
+`ds3231.py` (frozen) on **I2C0 GP20=SDA / GP21=SCL**, addr `0x68`, BCD registers,
+24-hour (12-hour-aware read), weekday derived from the date.
+`settime(y,mo,d,h,mi,s)` sets chip **and** system clock; `settime()` copies the
+current system clock to the chip; `gettime()` reads it; `synctime()` reads → sets
+the system clock. `_boot` calls `synctime()` in a `try/except` so the clock is
+right at boot and a missing chip/dead battery never blocks boot. Pins left
+unreserved (I2C claims them via `Pin()`).
+
+### 18. cyw43 Wi-Fi — gSPI PIO clock divider must scale with clk_sys
+
+Wi-Fi broke after the boot clock rose to 252 MHz ("hdr mismatch" / ioctl
+timeout). The SDK's cyw43 gSPI PIO divider is a **fixed** default of 2, tuned for
+~125 MHz; at 252 MHz it doubles SCK out of the cyw43439's range. Fix (MMBasic's
+algorithm, proven 48–396 MHz): enable `CYW43_PIO_CLOCK_DIV_DYNAMIC=1` (board
+cmake) and, in `main.c` **before `cyw43_init`**, set
+`div = ceil(clk_sys_khz / 100000)` (min 2) via `cyw43_set_pio_clkdiv_int_frac8`
+— SCK = clk_sys/(2·div); 252 MHz → div 3 → 42 MHz. (This was a PIO *clock* issue,
+not a PIO-instance clash with I2S.) When a **live** clk_sys switch is added, this
+must re-run *and* re-tune the running cyw43 PIO SMs (`pio_sm_set_clkdiv…`+restart),
+not just the stored value.
+
+### 19. HDMI live clock switch (252/315/378 MHz)
+
+`hdmi.init(mode, clock)` — clock ∈ {252, 315, 378} MHz. `hdmi_set_clock()` (core0,
+before core1 launches) reuses **`machine.freq()`'s proven sequence** — flash
+pre/post-timing, `set_sys_clock_khz`, `setup_default_uart`/`mp_uart_init` (baud
+re-derive, since clk_peri follows clk_sys) and **`psram_init()`** (re-times the
+PSRAM QMI window — our GC heap lives there) — plus the cyw43 stored-divider
+update. Then core1 sets clk_hstx to keep a valid pixel clock:
+`378 → clk_sys×332/1000` (25.1 MHz, 60 Hz), `252/315 → clk_sys/2`
+(25.2/31.5 MHz = 60/75 Hz). Verified 252↔378 with a 2 MB PSRAM heap array
+intact both ways and the UART console surviving. (Wi-Fi *across* a switch still
+needs the live cyw43 PIO-SM retune — for now bring it up after a switch.)
+
+### 20. HDMI modes renamed + RGB512 / 1024x600 — WORKING
+
+Modes renamed by resolution: **`hdmi.RGB640`** (640×480×8, native, was RGB332),
+**`hdmi.RGB320`** (320×240×16 doubled, was RGB565), and new **`hdmi.RGB512`**
+(512×300×16 → doubled to **1024×600**).
+
+- RGB512 uses the 1024×600 timing (MMBasic Screens.h "X"), the **RGB565
+  "fullcolour" expand config** (16-bit — *not* MMBasic's 8-bit 1024×600),
+  `clk_hstx = clk_sys` (÷1 → 50.4 MHz pixel), forced to 252 MHz.
+- **Key:** MMBasic emits **fixed negative-sync command lists for every mode**
+  (the `MODE_*_SYNC_POLARITY` metadata never reaches the HSTX output), so
+  1024×600's positive H-sync is *not* special-cased — the command-list structure
+  is identical to 640×480, only the H/V constants differ.
+- **Per-resolution hot path:** the per-scanline DMA IRQ is hardcoded per
+  resolution — a **separate `hdmi_dma_irq_x`** with 1024×600 constants
+  compile-time (parameterising the IRQ is too slow). The fill-loop branches once
+  on mode then runs a hardcoded 512→1024 (or 320→640) inner loop. core1 installs
+  the correct handler.
+- **Bandwidth result:** clean, stable 1024×600 **even while playing an MP3** —
+  HDMI DMA (IRQ_1) + I2S DMA (IRQ_0) + core1 fill (512→1024/line) + MP3 decode
+  all coexist. No fallback to 8-bit needed.
+- **Gotcha fixed:** `hdmi.deinit()` now `irq_remove_handler(DMA_IRQ_1)` —
+  `irq_set_exclusive_handler` hard-asserts if a *different* handler is already
+  installed (switching between the 640×480 IRQ and `hdmi_dma_irq_x`).
+
+### 21. Images — JPEG / BMP / PNG load + BMP save
+
+All decode straight into the HDMI framebuffer (RGB565 for RGB320/RGB512, RGB332
+for RGB640; `hdmi.rgb565()` reports which). Vendored decoders, MMBasic-derived:
+
+- **`draw_jpg(path, x, y, scale)`** — vendored **picojpeg** (unmodified) + `jpeg.c`
+  adapting MMBasic's `cmd_LoadJPGImage`: MCU-row decode, **binning downscale**
+  (scale 1/2/4/8, averaged), no dithering. picojpeg's 9 work buffers are static
+  (~2 KB); only the per-image MCU-row buffer is PSRAM (freed after). Baseline
+  JPEG only (progressive unsupported).
+- **`draw_bmp(path, x, y)`** — vendored **BmpDecoder.c** *decode engine* (display
+  half dropped, truncated at `decodeBMP`) as `bmp_decoder.c`. Handles every
+  variant: 1/4/8/16/24-bit, RLE4/RLE8, BI_BITFIELDS, V4/V5 headers. Its per-line
+  `linecallback` is pointed at a framebuffer blit in `bmp.c`; `decodeBMP(false)`
+  (sequential read; `screenRow` is already the display row).
+- **`draw_png(path, x, y, cutoff)`** — vendored **upng** (`upng.c`) + `png.c`. PNG
+  read in Python, handed to `upng_new_from_bytes`; RGB8/RGBA8 → framebuffer with
+  **alpha-cutoff transparency** (alpha ≤ cutoff leaves the pixel). Non-interlaced
+  RGB8/RGBA8 only (indexed/grey/16-bit rejected with a clear error).
+- **`save_image(path)`** — `bmp.c` writes the framebuffer to a **24-bit** BMP
+  (full colour, not MMBasic's 16-colour SAVE IMAGE).
+
+Two reused patterns from the audio decoders: MMBasic's `GetMemory`/`FreeMemorySafe`
+become **PSRAM `m_malloc`/`m_free` shims**, and `error()`→a raised `ValueError`.
+GC safety differs per decoder: picojpeg/BMP hold their PSRAM buffer in a C stack
+local (scanned); upng holds everything inside the GC-scanned `upng_t` (reachable
+from the stack) — so none get reclaimed mid-decode. File I/O is the mp_stream
+protocol on a Python file (or, for PNG, the whole file as `bytes`).
+
+### 22. Persistent settings (keymap + HDMI mode/clock)
+
+`pcconfig.py` stores settings as JSON in **`/settings.json`** on the flash FS.
+`_boot` reads it and applies the saved **keyboard layout** and **HDMI mode +
+clock** at start-up (defaults: US, RGB640 @ 252 MHz), all in try/except so a
+missing/corrupt file or a failing mode falls back to 640×480 and boots normally.
+
+- **`keymap("UK")`** — now a `pcconfig` wrapper that applies (via the C
+  `keyboard` module) *and* persists; `keymaps()` still just lists.
+- **`screen(mode, clock)`** — new command: `hdmi.deinit()`+`hdmi.init(mode,
+  clock)`, persists both, and re-runs `console()` at the new geometry.
+  `screen()` returns the saved `(mode, clock)`.
+
+Raw `hdmi.init()`/`keyboard.keymap()` still work for one-off (non-persisted)
+changes. Recovery from a monitor-incompatible saved mode: the UART console
+survives, so `screen(hdmi.RGB640)` (or `rm("/settings.json")`) resets it.
+
+---
+
+### 23. Hot-swappable SD card (replicates MMBasic CheckSDCard)
+
+Cards can now be inserted/removed while running. This mirrors MMBasic's
+`CheckSDCard` (FileIO.c): a background poll, ~2×/second, that verifies the card
+is still present and clears down the mount if it has been pulled.
+
+- **Liveness probe (C, `machine_sdcard.c`):** `SDCard.check()` issues a
+  **READ_OCR (CMD58)** and discards the OCR — the exact lightweight,
+  non-destructive test MMBasic uses (`disk_ioctl(MMC_GET_OCR)`). The MISO
+  pull-up makes it return fast when the card has been removed.
+- **Deferred by activity:** every `readblocks`/`writeblocks` stamps
+  `sd_last_activity = mp_hal_ticks_ms()`. `check()` skips the probe (reports
+  "present") while the card was used within **500 ms** — the direct analog of
+  MMBasic resetting `diskchecktimer` to `DISKCHECKRATE` on every access, so the
+  poll never interrupts an active transfer (e.g. FLAC streaming off SD).
+- **On removal:** `check()` marks the card `STA_NOINIT` and returns False;
+  `pcsd` unmounts `/sd` and prints `Warning: SDcard removed`.
+- **On insertion:** while unmounted, the poll calls `SDCard.reinit()`
+  (re-runs card identification) and, on success, mounts `/sd` and prints
+  `SDcard inserted`. (MMBasic re-mounts lazily on next access via `InitSDCard`;
+  we fold insertion into the same poll, which is cleaner in MicroPython's VFS.)
+
+**Driver:** `pcsd.py` owns the `machine.SDCard`, the `/sd` mount and a soft
+`machine.Timer` (period 500 ms). The Timer callback is *scheduled* (not a hard
+IRQ), so mount/umount/print from it are safe. `_boot` calls `pcsd.start()` for
+this board and the generic `_boot` SD auto-mount is skipped on the Pico
+Computer 3. `pcsd.verbose = False` silences the notices; `pcsd.stop()` halts the
+poll.
+
+---
+
+### 24. USB plug-in / unplug sounds
+
+A short sound plays whenever a USB device is connected or removed (vendored from
+MMBasic: `ezyZip_wav` plug-in, `remove_wav` unplug — both 8-bit unsigned mono
+8 kHz WAVs, copied verbatim as `usb_connect_sound.h` / `usb_remove_sound.h`).
+
+- **Trigger (C):** `mp_usbh.c`'s `tuh_mount_cb`/`tuh_umount_cb` call
+  `usbh_notify_event(connect)`, which `mp_sched_schedule`s a registered Python
+  callback as `cb(True)`/`cb(False)`. These run in `tuh_task()` (thread) context,
+  so scheduling is safe.
+- **Callback registration:** `keyboard.on_usb_event(cb)` stores `cb` in a rooted
+  pointer (`MP_REGISTER_ROOT_POINTER(usbh_event_cb)` in `usb_keyboard.c` — it
+  must live in a QSTR/root-scanned file, which `mp_usbh.c` is not). `_boot` sets
+  it to `pcaudio.system_sound`.
+- **Decode (C):** `audio.usb_sound(connect)` skips the 44-byte header and expands
+  the 8-bit unsigned mono PCM to a fresh 16-bit signed **stereo** bytearray
+  (sample copied to both channels), returning `(samples, rate)`.
+- **Playback (Python):** `pcaudio.system_sound()` applies the current volume
+  (`audio.scale`) and plays through the normal background I2S path in 4096-byte
+  chunks. Like MMBasic's `PlayMemWav`, it **returns immediately if audio is
+  already playing** (`_pb is not None`), so it never cuts off music. Set
+  `pcaudio.usb_sounds = False` to silence.
+
+A plug-in sound therefore also plays shortly after boot when the keyboard
+enumerates — expected. MMBasic ties these to USB-MSC mount/unmount; we have no
+MSC yet, so they fire for *any* device (keyboard/mouse/…).
+
+---
+
+### 25. USB multi-touch + gestures — `touch()`
+
+USB touchscreens (multi-touch HID digitizers) are supported, with the same
+gesture vocabulary as MMBasic's `TOUCH()` (`fun_touch` in Pointer.c). Ported
+faithfully from MMBasic and adapted to our event-driven USB host.
+
+**User function** (`touch(subcommand [, n])`, injected into the REPL):
+
+| Subcommand | Returns |
+|---|---|
+| `"X"` / `"Y"` | contact-0 coords, or **-1** when nothing is touching |
+| `"DOWN"` / `"UP"` | 1/0 — is the screen being touched |
+| `"X2"` / `"Y2"` | second contact, or -1 |
+| `"XN", n` / `"YN", n` | nth contact (n=1..); **n=0 → live contact count** |
+| `"SWIPE"` | 0 none / 1 L / 2 R / 3 U / 4 D (clears on read) |
+| `"SWL"/"SWR"/"SWU"/"SWD"` | 1 if that swipe just happened (clears) |
+| `"TAP"/"HOLD"/"DTAP"` | tap / long-press / double-tap (clears) |
+| `"PINCH"` | 0 none / 1 expand / 2 contract (clears) |
+| `"EXPAND"/"CONTRACT"` | 1 if that pinch just happened (clears) |
+| `"ROTATE"` | 0 none / 1 CW / 2 CCW (clears) |
+| `"CW"/"CCW"/"TTAP"` | rotate / two-finger tap (clears) |
+| `"PRESENT"` | 1 if a USB touch panel is connected |
+
+Latched gestures are **clear-on-read** one-shots (reading the matching code
+consumes it), exactly like MMBasic — so a polling loop can `SELECT CASE` on
+`touch("SWIPE")` or test `touch("SWL")` then `touch("SWR")` without losing the
+event.
+
+**Architecture:**
+- **`usb_touch.c`** (includes tusb.h; not QSTR-scanned) holds it all: the HID
+  report-descriptor parser (`analyze_touch_descriptor` — Windows Precision
+  Touchscreen layout: Digitizer page 0x0D, Finger collections, Tip/ContactID/
+  X/Y/ContactCount), the report decoder + coordinate scaler, report
+  **reassembly** (RP2350 host splits long reports across 64-byte packets and
+  coalesces short ones), the **digitizer-init handshake** (Input-Mode feature
+  write / cert-blob GET_FEATURE reads to switch dual-mode panels out of mouse
+  mode), a **100 ms no-report watchdog** (some panels omit the release report),
+  and the single- + two-finger **gesture state machine** (from Pointer.c).
+- Contacts are scaled to the **current framebuffer geometry** (`hdmi_get_width/
+  height()`), so coordinates match the pixel space you draw in — and follow a
+  `screen()` mode change automatically.
+- **`usb_touch_mod.c`** is the QSTR-scanned `touch` module (`touch.query`),
+  reading state via `usb_touch_query()` — no USB access, safe from Python.
+  `touch(sub[, slot])`, or `touch("XN"/"YN", n[, slot])` — the slot is optional
+  and last (default = the panel's own slot).
+
+**HID handling — ported VERBATIM from MMBasic (do not reinvent this).** Getting
+two devices (keyboard + touch) to coexist required replicating MMBasic's exact
+model in `mp_usbh.c`; my first attempts (continuous re-arm in the callback,
+`set_protocol` from the mount cb) caused order-dependent enumeration and cost a
+long debug cycle. The proven model:
+- **4-slot device table** `hid_slots[4]` (1=keyboard, 2=mouse, 3=gamepad,
+  4=touch) allocated by MMBasic's `FindFreeSlot` (touch prefers slot 4).
+- **Request-based polling, NOT re-arm.** Each slot's `report_timer` counts up in
+  the 1 ms `usbh_wake_cb`; `hid_poll()` (called from `mp_usbh_task`, = MMBasic
+  `hid_app_task`) issues **one** `tuh_hid_receive_report` per slot when its timer
+  reaches `report_rate` (keyboard 20 ms, touch 5 ms), guarded by
+  `report_requested`. `tuh_hid_report_received_cb` only stores + dispatches, then
+  clears `report_requested` and zeroes `report_timer` — **it never re-arms.**
+- **Staggered startup** `report_timer = -(10 + (slot+2)*500)`: the touch panel
+  (slot 4) begins reporting ~2.5 s after it's plugged in (gives its bring-up
+  handshake time). This is MMBasic's exact value — expected, not a bug.
+- **The keyboard mount MUST NOT call `tuh_hid_set_protocol(BOOT)`.** TinyUSB
+  already activates boot protocol on boot-capable interfaces during enumeration.
+  Issuing that EP0 control transfer from the mount callback wedges enumeration of
+  any device *behind* the keyboard — this was the "keyboard first → nothing else
+  enumerates" bug. (Touch *does* set REPORT protocol via `probe_mount`, matching
+  MMBasic, and that's fine.)
+- `mp_usbh_task` has a **reentrancy guard**: an enumeration `mp_printf` → dupterm
+  → Python console → VM → `MICROPY_VM_HOOK_LOOP` → `mp_usbh_task` could otherwise
+  re-enter `tuh_task()` mid-enumeration and corrupt it.
+- Touch reports route to `usb_touch_on_report`; `mp_usbh_task` also pumps
+  `usb_touch_task` (handshake + watchdog); GET/SET_FEATURE completions sequence
+  the handshake.
+
+**Keyboard LEDs (Caps/Num/Scroll)** — ported from MMBasic. Each keyboard slot
+carries a `sendlights` bitmap (**0x01 num, 0x02 caps, 0x04 scroll**). It's pushed
+to the physical LEDs via `tuh_hid_set_report(..., HID_REPORT_TYPE_OUTPUT,
+&sendlights, 1)` (`kbd_set_leds()`): once on the slot's **first poll**
+(`notfirsttime`), and again whenever Caps (0x39) / Num (0x53) / Scroll (0x47) is
+pressed — `kbd_key()` toggles the matching global lock state, updates the bit,
+and re-sends. Lock keys are excluded from auto-repeat. Lock states default off
+(MMBasic seeds from `Option.capslock/numlock`, which we don't have yet — could be
+persisted via `pcconfig` later). NOTE: num-lock currently drives the LED only; it
+does not yet remap the numeric keypad (digits vs navigation) — a separate MMBasic
+behaviour to add if wanted.
+
+`touch()` diagnostics used during bring-up were removed; only the real API
+remains, including `touch("PRESENT")` and `touch("SLOT")`.
+
+---
+
+### 26. USB mouse — `mouse()`
+
+USB mice work on slot 2, exposed like MMBasic's `DEVICE(MOUSE n, "...")` reader.
+Ported from MMBasic: `analyze_mouse_descriptor`/`process_mouse_report`
+(USBKeyboard.c) + `process_mouse_input` (KeyboardMap.c).
+
+| `mouse(code)` | Returns |
+|---|---|
+| `"X"` / `"Y"` | virtual cursor position — deltas accumulated and clamped to the screen (starts centred) |
+| `"L"` / `"R"` / `"M"` | left / right / middle button (1 = pressed) |
+| `"W"` | scroll-wheel accumulator |
+| `"B"` | raw button bitmap (1 L, 2 R, 4 M) |
+| `"D"` | left-button double-click within 500 ms (clears on read) |
+| `"T"` | 3 if the mouse has a wheel, else 0 |
+| `"PRESENT"` / `"SLOT"` | mouse connected? / its HID slot (2) |
+
+`mouse(code, slot)` pins an explicit slot. `mouse_speed()` gets / `mouse_speed(v)`
+sets sensitivity (raw delta ÷ v, then MMBasic's fixed ÷2), = MMBasic
+`Option.mousespeed`.
+
+**Architecture** mirrors touch: **`usb_mouse.c`** (tusb.h; not QSTR-scanned) holds
+the descriptor parser (detects 8/12/16-bit X/Y mice), the per-type report decoder,
+delta accumulation into a screen-clamped cursor, buttons + wheel + double-click,
+and `usb_mouse_query()`. **`usb_mouse_mod.c`** is the QSTR-scanned `mouse` module.
+`mp_usbh.c` calls `usb_mouse_mount` on a protocol-MOUSE device, routes reports to
+`usb_mouse_on_report` via the slot table, and coordinates scale to the framebuffer
+(`hdmi_get_width/height()`). Uses the same MMBasic polling model as the keyboard.
+
+**Tight-loop pumping:** `mp_usbh_task()` normally runs from
+`MICROPY_INTERNAL_EVENT_HOOK`, which only fires when the runtime *waits* (REPL,
+`sleep`, I/O). A `while True:` polling loop never yields to it, so USB reports
+(touch **and** keyboard) would freeze mid-program. Fixed with a divided
+`MICROPY_VM_HOOK_LOOP` (in `mpconfigboard.h`) that calls `mp_usbh_task()` every
+512 VM branch back-edges — negligible cost, keeps input live in tight loops. The
+VM checks pending exceptions right after the hook, so Ctrl-C still works.
+
+**REPL helpers in `run()`:** `run()` seeds a program's namespace with a *copy* of
+`__main__.__dict__` (non-dunder names), so injected helpers — `touch`, `ls`,
+`play`, `hdmi`, the colour palette — are available in a program exactly as at the
+prompt, without letting it clobber the real REPL globals. (`vars()` isn't a
+MicroPython builtin; use `__dict__`.)
+
+**Limitations (v1):** one active touch panel at a time (the touch slot);
+single-finger absolute-pointer "touch monitors" that enumerate as a Mouse
+interface (MMBasic's TOUCHMOUSE) aren't yet routed in — only true multi-touch
+digitizers (protocol NONE with Finger collections). Mouse/gamepad get slots and
+are polled but not yet decoded. **Confirmed working on hardware alongside a USB
+keyboard, order-independent, once the MMBasic HID model was replicated exactly.**
+
+---
+
+## Files touched
+
+| File | Purpose |
+| --- | --- |
+| `ports/rp2/main.c` | board-overridable startup clock (`MICROPY_HW_CLK_SYS_KHZ`); safe flash-timing ordering |
+| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/…` |
+| `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
+| `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard |
+| `ports/rp2/usb_keyboard.c` + `keyboard_maps.h` | **new** `keyboard` module (`keymap()`, `on_usb_event()`) + vendored MMBasic layouts; rooted USB-event callback |
+| `ports/rp2/usb_touch.c` + `usb_touch.h` | **new** USB multi-touch: HID descriptor parser + report decode/reassembly + digitizer-init handshake + gesture machine (vendored MMBasic) |
+| `ports/rp2/usb_touch_mod.c` | **new** `touch` module (`touch()` query: X/Y, contacts, swipes, tap/hold, pinch/rotate) |
+| `ports/rp2/usb_mouse.c` + `usb_mouse.h` | **new** USB mouse: descriptor type-detect (8/12/16-bit) + report decode + cursor accumulation/buttons/wheel/double-click (vendored MMBasic) |
+| `ports/rp2/usb_mouse_mod.c` | **new** `mouse` module (`mouse()` query: X/Y/L/R/M/W/B/D/T; `mouse_speed()`) |
+| `shared/tinyusb/tusb_config.h` | `#if MICROPY_HW_USB_HOST` block (host mode, hub, enum buf 1024, HID) |
+| `ports/rp2/uart.c` | translate serial-terminal Del (`0x7f`) → `\x1b[3~` under `MICROPY_HW_UART_REPL_DEL_FORWARD` |
+| `ports/rp2/audio.c` | **new** `audio` module: `scale()` volume + `{wav,mp3,flac}_{open,read,close}` via dr_* + GC/rooted allocator; `usb_sound()` decodes the plug-in/unplug WAVs |
+| `ports/rp2/usb_connect_sound.h` / `usb_remove_sound.h` | **new** vendored MMBasic 8-bit 8 kHz USB plug-in / unplug WAVs |
+| `ports/rp2/dr_wav.c` / `dr_mp3.c` / `dr_flac.c` (+ `.h`) | **new** decoder impl TUs; dr_wav from MMBasic, dr_mp3/dr_flac stock from dr_libs |
+| `ports/rp2/rp2_psram.c` | (pending) add `psram_set_timing_for_freq` for the live clk_sys switch |
+| `ports/rp2/main.c` (3) | cyw43 gSPI PIO divider from clk_sys before `cyw43_init` (needs dynamic divider) |
+| `boards/PICO_COMPUTER_3/pcaudio.py` | **new** background WAV/MP3/FLAC player (`play`/`stop`/`volume`/`beep`); `system_sound()` for USB plug-in/unplug |
+| `boards/PICO_COMPUTER_3/ds3231.py` | **new** DS3231 RTC (`settime`/`gettime`/`synctime`), boot-synced |
+| `ports/rp2/jpeg.c` + `picojpeg.c`/`.h` | **new** `jpeg` module (`render`) + vendored picojpeg (JPEG decode + binning downscale) |
+| `ports/rp2/bmp.c` | **new** `bmp` module: `save` (24-bit BMP of the framebuffer) + `load` (framebuffer blit callback) |
+| `ports/rp2/bmp_decoder.c` | **new** vendored MMBasic BmpDecoder engine (all BMP variants), adapted to mp_stream + PSRAM |
+| `ports/rp2/png.c` + `upng.c`/`.h` | **new** `png` module (`render`) + vendored upng (PNG decode, RGBA alpha) |
+| `ports/rp2/hdmi.c` (image) | `hdmi.framebuffer()`/`width()`/`height()`/`rgb565()` expose the framebuffer to the decoders; `hdmi_get_width/height()` C accessors for touch scaling |
+| `boards/PICO_COMPUTER_3/pcimage.py` | **new** `draw_jpg`/`draw_bmp`/`draw_png`/`save_image` wrappers (injected into the REPL) |
+| `boards/PICO_COMPUTER_3/pcconfig.py` | **new** persistent settings in `/settings.json`; `keymap()`/`screen()` apply + persist |
+| `boards/PICO_COMPUTER_3/pcgfx.py` | **new** `Display` (framebuf subclass, RGB888→format `colour()`) + MMBasic palette |
+| `boards/PICO_COMPUTER_3/pcconsole.py` | **new** on-screen console (`io.IOBase`/dupterm, ANSI, blink cursor, terminal-sync) |
+| `ports/rp2/mpconfigport.h` | `#ifndef`-guard float impl + MCU name; default `MICROPY_PY_MACHINE_SDCARD 0`; 12 MB flash FS |
+| `ports/rp2/machine_pin.c` | enforce pin reservation in the `Pin` constructor |
+| `ports/rp2/machine_sdcard.c` | **new** native `machine.SDCard` block device; `check()`/`reinit()` + activity-deferred liveness probe for hot-swap |
+| `boards/PICO_COMPUTER_3/pcsd.py` | **new** `/sd` mount + hot-swap removal/insertion poll (soft Timer; replicates MMBasic `CheckSDCard`) |
+| `ports/rp2/modmachine.c` | register `machine.SDCard` |
+| `ports/rp2/CMakeLists.txt` | `machine_sdcard.c`/`hdmi.c` sources; link `tinyusb_host` vs `_device`; add `mp_usbh.c` |
+| `ports/rp2/main.c` (2) | `mp_usbh_init()` at startup when `MICROPY_HW_USB_HOST` |
+| `ports/rp2/modules/_boot.py` | SD auto-mount (skipped on PC3 → `pcsd.start()`); REPL/shell/graphics injection; boot `hdmi.init(RGB332)` + `console()` |
+| `py/mpconfig.h` | `MICROPY_BANNER_MACHINE_SEP` default (`"; "`) |
+| `shared/runtime/pyexec.c` | banner uses `MICROPY_BANNER_MACHINE_SEP` |
+| `boards/PICO_COMPUTER_3/mpconfigboard.h` | double floats, UART console, USB off, threads off, SD + HDMI pins, reserved pins, 252 MHz clock + flash cap, MCU name + banner; `PICO_COMPUTER_3_VERSION` folded into board name (shows in banner + `os.uname().machine`) |
+| `boards/PICO_COMPUTER_3/USER_MANUAL.md` | **new** end-user manual (pins, all commands/modules, standard-module list, MicroPython doc reference) — ships with the release |
+| `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1` |
+| `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |
+| `boards/PICO_COMPUTER_3/pcshell.py` | **new** shell commands (`ls`/`run`/`edit`/file ops) + `COMMANDS` |
+| `boards/PICO_COMPUTER_3/pye.py` | **new** vendored pye editor (MIT, V2.79) with one local Backspace patch |
+
+## Quick REPL smoke test (over UART, 115200 8N1)
+
+```python
+2**63                     # 64-bit+ ints
+0.1 + 0.2                 # 0.30000000000000004 (double precision)
+machine.freq()            # 252000000
+Pin(15, Pin.OUT)          # a free pin
+Pin(8, Pin.OUT)           # ValueError: Pin(8) is reserved
+cd("/sd"); ls()           # SD auto-mounted; shell commands need no import
+edit("/sd/hello.py")      # pye editor  (Ctrl-S save, Ctrl-Q quit)
+run("/sd/hello.py")       # launch it in a fresh namespace
+
+# HDMI: boots into 640x480 RGB332; hdmi/framebuf/Display/palette pre-injected
+fb = hdmi.fb()            # pcgfx.Display at the current mode
+fb.text("PICO COMPUTER 3", 8, 8, fb.colour(RED))
+hdmi.deinit(); hdmi.init(hdmi.RGB565); fb = hdmi.fb()   # swap to 320x240
+```
+
+## Next
+
+- **USB-host keyboard** — input from the board itself so it's a true standalone
+  computer (no serial terminal). Uses the RP2350's USB controller freed by
+  disabling USB-device. Feed keystrokes into the console's input path (dupterm
+  `readinto`, or the stdin ring buffer) — the big MMBasic bring-up. Approach TBD.
+- Possible follow-ups: colour SGR (`\x1b[…m`) in the console; stdio-over-VFS shims
+  for MMBasic-derived C file code; airtight pin reservation via
+  `machine_pin_find()`; `tree()`/`df()`; a linker-reserved SRAM framebuffer region
+  so the 307 KB can be reclaimed when HDMI is unused (only if SRAM gets tight).
+```

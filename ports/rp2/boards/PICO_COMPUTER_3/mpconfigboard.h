@@ -1,0 +1,131 @@
+// Board and hardware specific configuration. The firmware version is folded
+// into the board name so it appears in the REPL banner and os.uname().machine;
+// "PICO COMPUTER 3" remains a substring so the _boot.py board check still matches.
+#define PICO_COMPUTER_3_VERSION                 "0.1"
+#define MICROPY_HW_BOARD_NAME                   "PICO COMPUTER 3 v" PICO_COMPUTER_3_VERSION
+#define MICROPY_HW_MCU_NAME                     "RP2350B"
+
+// Tidy REPL banner: "MicroPython v1.29.0 on PICO COMPUTER 3 v0.1 with RP2350B"
+// (clean version, no build date; " on " separator instead of "; ").
+#define MICROPY_BANNER_NAME_AND_VERSION         "MicroPython v" MICROPY_VERSION_STRING_BASE
+#define MICROPY_BANNER_MACHINE_SEP              " on "
+
+// Use double-precision (64-bit) floating point for Python floats.
+// (64-bit+ integers are already provided by MICROPY_LONGINT_IMPL_MPZ.)
+#define MICROPY_FLOAT_IMPL                      (MICROPY_FLOAT_IMPL_DOUBLE)
+
+// Console is on the hardware UART only (UART1, GP8=TX/GP9=RX; pins and
+// instance selected via PICO_DEFAULT_UART* in mpconfigboard.cmake).
+#define MICROPY_HW_ENABLE_UART_REPL             (1)
+
+// Serial terminals (TeraTerm etc., with Backspace = 0x08) send a lone 0x7F for
+// their Delete key; translate it to VT100 forward-delete so Delete works.
+#define MICROPY_HW_UART_REPL_DEL_FORWARD        (1)
+
+// Disable the USB device stack entirely (no USB-CDC console, no MSC, no
+// machine.USBDevice). This frees the single USB controller for future
+// USB-host use. Cascades to MICROPY_HW_USB_CDC/MSC/RUNTIME_DEVICE.
+#define MICROPY_HW_ENABLE_USBDEV                (0)
+
+// Disable _thread so nothing can launch core1: the HDMI HSTX scanout owns core1
+// exclusively (RAM-resident ISR, SRAM framebuffer). Also removes the GC
+// stop-the-other-core path. See DEVELOPMENT_NOTES.md (core1 / HDMI).
+#define MICROPY_PY_THREAD                       (0)
+
+// USB host (TinyUSB) on the freed USB controller. tuh_task() is pumped from the
+// MicroPython event hook whenever the runtime waits (e.g. at the REPL).
+#define MICROPY_HW_USB_HOST                     (1)
+void mp_usbh_init(void);
+void mp_usbh_task(void);
+#define MICROPY_INTERNAL_EVENT_HOOK             mp_usbh_task()
+
+// The event hook above only fires when the runtime WAITS (REPL, sleep, I/O). A
+// tight `while True:` polling loop (e.g. reading touch()) never yields to it, so
+// USB reports would stop being processed and touch/keyboard state would freeze.
+// Also pump USB from the VM loop hook, which runs on branch back-edges (~every
+// few bytecodes). A divisor keeps the cost negligible on compute-heavy loops
+// while keeping USB input responsive. The VM checks pending exceptions right
+// after this hook, so we only pump USB here (no mp_handle_pending needed).
+#define MICROPY_VM_HOOK_COUNT                   (512)
+#define MICROPY_VM_HOOK_INIT static uint32_t vm_hook_div = MICROPY_VM_HOOK_COUNT;
+#define MICROPY_VM_HOOK_LOOP \
+    do { \
+        if (--vm_hook_div == 0) { \
+            vm_hook_div = MICROPY_VM_HOOK_COUNT; \
+            mp_usbh_task(); \
+        } \
+    } while (0);
+#define MICROPY_VM_HOOK_RETURN MICROPY_VM_HOOK_LOOP
+
+// Enable networking
+#define MICROPY_PY_NETWORK                      (1)
+#define MICROPY_PY_NETWORK_HOSTNAME_DEFAULT     "PicoComputer3"
+
+// CYW43 driver configuration (same as Pico2-W)
+#define CYW43_USE_SPI                           (1)
+#define CYW43_LWIP                              (1)
+#define CYW43_GPIO                              (1)
+#define CYW43_SPI_PIO                           (1)
+
+// Heartbeat LED on CYW43 GPIO0
+#define MICROPY_HW_LED_PIN                      (CYW43_GPIO0)
+
+// Run the core at 252 MHz from startup (headroom for HDMI, which uses HSTX
+// clocked from clk_sys; 378 MHz is the other planned option). DVDD is supplied
+// by an external 1.3 V regulator on this board, so no internal vreg change is
+// needed. Flash (QMI) and PSRAM timings track clk_sys automatically.
+#define MICROPY_HW_CLK_SYS_KHZ                  (252000)
+
+// clk_sys is coupled to the HDMI pixel clock (core1 derives clk_hstx per display
+// mode), so the CPU speed must be changed together with the display mode via
+// screen(mode, clock). Lock the raw machine.freq() setter to prevent a bare CPU
+// clock change from desyncing the display; machine.freq() (getter) still works.
+#define MICROPY_HW_MACHINE_FREQ_LOCKED          (1)
+
+// Cap the XIP flash clock so the QMI divisor (and its equal RXDELAY, a 3-bit
+// field, max 7) stays valid at both 252 and 378 MHz: 252/63->div4, 378/63->div6.
+#define MICROPY_HW_FLASH_MAX_FREQ               (63 * 1000 * 1000)
+
+// External Flash (16 MB)
+#define MICROPY_HW_FLASH_SIZE_BYTES             (16 * 1024 * 1024)
+
+// External PSRAM (8 Mb = 1 MB)
+#define MICROPY_HW_PSRAM_CS_PIN                 (47)
+#define MICROPY_HW_PSRAM_SIZE_BYTES             (8 * 1024 * 1024)
+#define MICROPY_HW_ENABLE_PSRAM                 (1)
+
+// HDMI support enabled
+#define MICROPY_HW_ENABLE_HDMI                  (1)
+// HDMI (HSTX) lane -> HSTX bit mapping for the Pico Computer 3 (bit N -> GP12+N;
+// positive on the given odd bit, negative on bit-1). GP12..19 are HSTX.
+#define MICROPY_HW_HDMI_CLK                     (1)  // HSTX1 GP13 (-ve GP12)
+#define MICROPY_HW_HDMI_D0                      (3)  // HSTX3 GP15 (-ve GP14)
+#define MICROPY_HW_HDMI_D1                      (5)  // HSTX5 GP17 (-ve GP16)
+#define MICROPY_HW_HDMI_D2                      (7)  // HSTX7 GP19 (-ve GP18)
+
+// LVGL support enabled
+#define MICROPY_HW_ENABLE_LVGL                  (1)
+// SD card on SPI1 (driven directly by the C machine.SDCard driver).
+#define MICROPY_PY_MACHINE_SDCARD               (1)
+#define MICROPY_HW_SD_SPI_ID                    (1)
+#define MICROPY_HW_SD_SCK                       (30)
+#define MICROPY_HW_SD_MOSI                      (31)
+#define MICROPY_HW_SD_MISO                      (28)
+#define MICROPY_HW_SD_CS                        (33)
+// Also expose the same bus as machine.SPI(1) for general use.
+#define MICROPY_HW_SPI1_SCK                     (30)
+#define MICROPY_HW_SPI1_MOSI                    (31)
+#define MICROPY_HW_SPI1_MISO                    (28)
+
+// Pin reservation logic (same as Pico2-W)
+#define MICROPY_HW_PIN_EXT_COUNT                CYW43_WL_GPIO_COUNT
+int mp_hal_is_pin_reserved(int n);
+// GPIOs protected from machine.Pin() use because they serve system functions:
+//   8, 9        = console UART1 TX/RX
+//   12..19      = HDMI HSTX (D0/D1/D2/CK differential pairs)
+//   28,30,31,33 = SD card on SPI1 (MISO/SCK/MOSI/CS)
+#define MICROPY_HW_PIN_RESERVED(i) \
+    (mp_hal_is_pin_reserved(i) || (i) == 8 || (i) == 9 \
+     || ((i) >= 12 && (i) <= 19) \
+     || (i) == 28 || (i) == 30 || (i) == 31 || (i) == 33)
+

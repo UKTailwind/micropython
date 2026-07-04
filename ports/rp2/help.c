@@ -26,6 +26,13 @@
 
 #include "py/builtin.h"
 
+// GPIO/ADC range line in the help text. The default suits RP2040 / RP2350A
+// (30 GPIOs, ADC on 26-29); boards with a different pin count (e.g. the RP2350B,
+// 48 GPIOs) can override this in mpconfigboard.h.
+#ifndef MICROPY_HW_HELP_PIN_TEXT
+#define MICROPY_HW_HELP_PIN_TEXT "Pins are numbered 0-29, and 26-29 have ADC capabilities\n"
+#endif
+
 const char rp2_help_text[] =
     "Welcome to MicroPython!\n"
     "\n"
@@ -50,7 +57,7 @@ const char rp2_help_text[] =
     "  machine.Timer(freq, callback) -- create a software timer object\n"
     "    eg: machine.Timer(freq=1, callback=lambda t:print(t))\n"
     "\n"
-    "Pins are numbered 0-47, and 40 - 47 have ADC capabilities\n"
+    MICROPY_HW_HELP_PIN_TEXT
     "Pin IO modes are: Pin.IN, Pin.OUT, Pin.ALT\n"
     "Pin pull modes are: Pin.PULL_UP, Pin.PULL_DOWN\n"
     "\n"

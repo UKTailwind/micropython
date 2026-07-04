@@ -13,7 +13,7 @@ USB-host support across from the existing MMBasic (PicoMite) firmware.
 - SD card on **SPI1**: SCK=GP30, MOSI=GP31, MISO=GP28, CS=GP33.
 - Console UART on **UART1**: TX=GP8, RX=GP9.
 - Flash filesystem (LittleFS2) sized to **12 MB** (`MICROPY_HW_FLASH_STORAGE_BYTES`
-  in `mpconfigport.h`).
+  set in `mpconfigboard.cmake` so the linker partition and the C value agree).
 
 ## Build & flash
 
@@ -784,6 +784,61 @@ keyboard, order-independent, once the MMBasic HID model was replicated exactly.*
 
 ---
 
+### 27. Board-scope refactor — keep the shared rp2 files clean
+
+A review of everything this port changed in **shared** MicroPython files (as opposed
+to new files) found several PC3-only changes sitting in port-wide files, where they
+would affect (or in one case silently break) every other rp2 board. All were moved
+into board scope. Verified afterwards with a clean `RPI_PICO` build (680 KB, **zero**
+PC3 objects, generic help text) and a clean `PICO_COMPUTER_3` build (firmware
+byte-identical to v0.1).
+
+- **Flash filesystem size — was a real bug.** `mpconfigport.h` did
+  `#undef MICROPY_HW_FLASH_STORAGE_BYTES` / `#define … (12*1024*1024)`, which
+  changed only the **C** value. The linker still reserved **2.5 MB** (the stale
+  value in `mpconfigboard.cmake`), so LittleFS believed it owned ~9.5 MB of flash
+  it did not — a filesystem grown past 2.5 MB would overrun its partition. Fix: the
+  shared header is back to its `#ifndef` 1408 KB default, and the real **12 MB** is
+  set once in `mpconfigboard.cmake`. The rp2 build passes that CMake var to **both**
+  the linker (`__micropy_flash_storage_bytes__` defsym) **and** C (a `-D` compile
+  def), so setting it in one place keeps them in agreement. **Rule: never override
+  `MICROPY_HW_FLASH_STORAGE_BYTES` in a C header — set it in the board cmake.**
+- **ulab wiring.** ulab is now pulled in with
+  `list(APPEND USER_C_MODULES …/lib/ulab/code/micropython.cmake)` in
+  `mpconfigboard.cmake`. ulab enables itself via `MODULE_ULAB_ENABLED` from its own
+  cmake; the C `MICROPY_PY_ULAB` define was never used by it, and the
+  `if(MICROPY_PY_ULAB)` block in the port CMakeLists was **dead** (never set as a
+  CMake variable — ulab only built before because a `USER_C_MODULES=…` from an old
+  command line was cached in the build dir). A fresh `make BOARD=PICO_COMPUTER_3`
+  now includes ulab reproducibly.
+- **Redundant feature block removed.** The `MICROPY_PY_JSON/RE/COLLECTIONS/MATH/
+  CMATH/TIME/STRUCT/ERRNO/GC/…` block in `mpconfigport.h` was deleted — all of those
+  are already enabled by the port's default `EXTRA_FEATURES` ROM level, so forcing
+  them port-wide changed nothing except removing other boards' ability to opt out.
+- **Board-specific C sources gated.** The port CMakeLists no longer adds the PC3
+  media/USB/SD sources to every rp2 build. They are gated (in both the source list
+  and the QSTR list) on `MICROPY_HW_ENABLE_HDMI` (HSTX DVI + `audio.c`/`dr_*` +
+  image loaders), `MICROPY_PY_MACHINE_SDCARD` (`machine_sdcard.c`), and
+  `MICROPY_HW_USB_HOST` (`mp_usbh.c` + `usb_*`), each set in `mpconfigboard.cmake`.
+- **help() pin text.** The shared `help.c` line is back to the generic
+  `Pins are numbered 0-29 …` and is now an overridable `MICROPY_HW_HELP_PIN_TEXT`
+  macro; PC3 defines the `0-47` version in `mpconfigboard.h`. (This also fixed a
+  `"47volumeADC"` corruption that had crept into the hardcoded line.)
+- **`_boot.py` de-PC3'd.** The shared `ports/rp2/modules/_boot.py` no longer holds
+  any PC3 logic. It ends with a generic hook — `try: import _boot_board except
+  ImportError: pass` — so any board may freeze a `_boot_board` module to run its own
+  start-up. All PC3 boot code (REPL injection, SD mount, RTC sync, HDMI + console
+  bring-up) moved verbatim into the new frozen `_boot_board.py`, freezing it in the
+  board manifest.
+
+Net effect: the shared-file diff shrank from ~180 changed lines to ~90, and what
+remains in shared files is either board-agnostic (an overridable default or a
+generic hook) or fully `if()`-gated. The other shared edits kept as-is are the
+deliberately generic, opt-in ones (banner separator, pin reservation in the `Pin`
+constructor, the cyw43 PIO-divider fix, the USB-host `tusb_config.h` block).
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -815,20 +870,22 @@ keyboard, order-independent, once the MMBasic HID model was replicated exactly.*
 | `boards/PICO_COMPUTER_3/pcconfig.py` | **new** persistent settings in `/settings.json`; `keymap()`/`screen()` apply + persist |
 | `boards/PICO_COMPUTER_3/pcgfx.py` | **new** `Display` (framebuf subclass, RGB888→format `colour()`) + MMBasic palette |
 | `boards/PICO_COMPUTER_3/pcconsole.py` | **new** on-screen console (`io.IOBase`/dupterm, ANSI, blink cursor, terminal-sync) |
-| `ports/rp2/mpconfigport.h` | `#ifndef`-guard float impl + MCU name; default `MICROPY_PY_MACHINE_SDCARD 0`; 12 MB flash FS |
+| `ports/rp2/mpconfigport.h` | `#ifndef`-guard float impl + MCU name; default `MICROPY_PY_MACHINE_SDCARD 0` (flash FS size + feature enables moved to board scope — §27) |
+| `ports/rp2/help.c` | overridable `MICROPY_HW_HELP_PIN_TEXT` (generic `0-29` default; PC3 sets `0-47`) |
+| `ports/rp2/modules/_boot.py` | generic `import _boot_board` hook only — all PC3 boot logic moved to the board's frozen `_boot_board.py` (§27) |
+| `boards/PICO_COMPUTER_3/_boot_board.py` | **new** frozen board boot hook: REPL/shell/graphics injection, `pcsd.start()`, RTC sync, `hdmi.init` + `console()` |
 | `ports/rp2/machine_pin.c` | enforce pin reservation in the `Pin` constructor |
 | `ports/rp2/machine_sdcard.c` | **new** native `machine.SDCard` block device; `check()`/`reinit()` + activity-deferred liveness probe for hot-swap |
 | `boards/PICO_COMPUTER_3/pcsd.py` | **new** `/sd` mount + hot-swap removal/insertion poll (soft Timer; replicates MMBasic `CheckSDCard`) |
 | `ports/rp2/modmachine.c` | register `machine.SDCard` |
-| `ports/rp2/CMakeLists.txt` | `machine_sdcard.c`/`hdmi.c` sources; link `tinyusb_host` vs `_device`; add `mp_usbh.c` |
+| `ports/rp2/CMakeLists.txt` | board-specific sources gated on `MICROPY_HW_ENABLE_HDMI` / `MICROPY_PY_MACHINE_SDCARD` / `MICROPY_HW_USB_HOST`; link `tinyusb_host` vs `_device` (§27) |
 | `ports/rp2/main.c` (2) | `mp_usbh_init()` at startup when `MICROPY_HW_USB_HOST` |
-| `ports/rp2/modules/_boot.py` | SD auto-mount (skipped on PC3 → `pcsd.start()`); REPL/shell/graphics injection; boot `hdmi.init(RGB332)` + `console()` |
 | `py/mpconfig.h` | `MICROPY_BANNER_MACHINE_SEP` default (`"; "`) |
 | `shared/runtime/pyexec.c` | banner uses `MICROPY_BANNER_MACHINE_SEP` |
 | `boards/PICO_COMPUTER_3/mpconfigboard.h` | double floats, UART console, USB off, threads off, SD + HDMI pins, reserved pins, 252 MHz clock + flash cap, MCU name + banner; `PICO_COMPUTER_3_VERSION` folded into board name (shows in banner + `os.uname().machine`) |
 | `boards/PICO_COMPUTER_3/USER_MANUAL.md` | **new** end-user manual (pins, all commands/modules, standard-module list, MicroPython doc reference) — ships with the release |
-| `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1` |
-| `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |
+| `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1`; 12 MB flash FS; ulab via `USER_C_MODULES`; feature-gate vars `MICROPY_HW_ENABLE_HDMI`/`MICROPY_PY_MACHINE_SDCARD`/`MICROPY_HW_USB_HOST` (§27) |
+| `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `_boot_board`/`pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |
 | `boards/PICO_COMPUTER_3/pcshell.py` | **new** shell commands (`ls`/`run`/`edit`/file ops) + `COMMANDS` |
 | `boards/PICO_COMPUTER_3/pye.py` | **new** vendored pye editor (MIT, V2.79) with one local Backspace patch |
 

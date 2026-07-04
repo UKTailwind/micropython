@@ -21,6 +21,9 @@ add_compile_definitions(
 # / ioctl timeouts.
 add_compile_definitions(CYW43_PIO_CLOCK_DIV_DYNAMIC=1)
 set(MICROPY_PY_MACHINE_SDCARD 1)
+# Build the on-board multimedia C sources (HSTX DVI, PCM5102 audio, image
+# loaders); the port CMakeLists gates these files on this flag.
+set(MICROPY_HW_ENABLE_HDMI 1)
 # USB host: link the TinyUSB host stack instead of the device stack (see CMakeLists).
 set(MICROPY_HW_USB_HOST ON)
 set(MICROPY_PY_LWIP ON)
@@ -31,9 +34,20 @@ set(MICROPY_PY_BLUETOOTH ON)
 set(MICROPY_BLUETOOTH_BTSTACK ON)
 set(MICROPY_PY_BLUETOOTH_CYW43 ON)
 
+# Pull in ulab (numpy-like ndarray/linalg) as a user C module for this board.
+# ulab's own micropython.cmake defines MODULE_ULAB_ENABLED and links itself into
+# the `usermod` target, so no MICROPY_PY_ULAB switch is needed. Appended (and
+# de-duplicated) so a USER_C_MODULES passed on the command line is preserved.
+list(APPEND USER_C_MODULES ${MICROPY_DIR}/lib/ulab/code/micropython.cmake)
+list(REMOVE_DUPLICATES USER_C_MODULES)
+
 # Board specific version of the frozen manifest
 set(MICROPY_FROZEN_MANIFEST ${MICROPY_BOARD_DIR}/manifest.py)
 
+# 12 MB read/write filesystem on the 16 MB flash (firmware ~2.4 MB sits below it).
+# Set here as a CMake var so the linker reserves the partition (via the
+# __micropy_flash_storage_bytes__ defsym) AND the same value is passed to C as a
+# compile definition -- the two must agree or the filesystem overruns its region.
 if(NOT DEFINED MICROPY_HW_FLASH_STORAGE_BYTES)
-    set(MICROPY_HW_FLASH_STORAGE_BYTES 2621440)  # PICO_FLASH_SIZE_BYTES - 1536 * 1024 = 4MB - 1.5MB
+    set(MICROPY_HW_FLASH_STORAGE_BYTES 12582912)  # 12 * 1024 * 1024
 endif()

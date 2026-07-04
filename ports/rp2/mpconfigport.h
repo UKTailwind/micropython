@@ -75,9 +75,9 @@
 #endif
 
 // Number of bytes of flash to allocate to read/write filesystem storage.
-#undef  MICROPY_HW_FLASH_STORAGE_BYTES
-#define MICROPY_HW_FLASH_STORAGE_BYTES (12 * 1024 * 1024)
-
+#ifndef MICROPY_HW_FLASH_STORAGE_BYTES
+#define MICROPY_HW_FLASH_STORAGE_BYTES (1408 * 1024)
+#endif
 
 #ifndef MICROPY_CONFIG_ROM_LEVEL
 #define MICROPY_CONFIG_ROM_LEVEL                (MICROPY_CONFIG_ROM_LEVEL_EXTRA_FEATURES)
@@ -205,21 +205,7 @@
 #define MICROPY_VFS_FAT                         (1)
 #define MICROPY_VFS_ROM                         (MICROPY_HW_ROMFS_BYTES > 0)
 #define MICROPY_SSL_MBEDTLS                     (1)
-#define MICROPY_PY_ULAB                         (1)
-#define MICROPY_PY_JSON                         (1)
-#define MICROPY_PY_RE                           (1)
-#define MICROPY_PY_COLLECTIONS                  (1)
-#define MICROPY_PY_BUILTINS_SET                 (1)
-#define MICROPY_PY_BUILTINS_FROZENSET           (1)
-#define MICROPY_PY_BUILTINS_SLICE               (1)
-#define MICROPY_PY_MATH                         (1)
-#define MICROPY_PY_CMATH                        (1)
-#define MICROPY_PY_TIME                         (1)
-#define MICROPY_PY_STRUCT                       (1)
-#define MICROPY_PY_ERRNO                        (1)
-#define MICROPY_PY_GC                           (1)
-#define MICROPY_PY_RE_MATCH_GROUPS              (1)
-#define MICROPY_PY_RE_SUB                       (1)
+
 // Hardware timer alarm index. Available range 0-3.
 // Number 3 is currently used by pico-sdk alarm pool (PICO_TIME_DEFAULT_ALARM_POOL_HARDWARE_ALARM_NUM)
 #define MICROPY_HW_SOFT_TIMER_ALARM_NUM         (2)

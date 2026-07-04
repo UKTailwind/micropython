@@ -1,5 +1,9 @@
 include("$(PORT_DIR)/boards/manifest.py")
 
+# Board boot hook: run at start-up by the shared rp2 _boot.py via its generic
+# `import _boot_board` mechanism (pre-imports REPL names, mounts SD, HDMI, ...).
+freeze("$(BOARD_DIR)", "_boot_board.py")
+
 require("bundle-networking")
 
 # MQTT client (publish/subscribe over TCP or TLS). "simple" is the minimal

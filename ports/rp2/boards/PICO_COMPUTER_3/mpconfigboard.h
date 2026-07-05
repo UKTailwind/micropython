@@ -1,14 +1,14 @@
 // Board and hardware specific configuration. The firmware version is folded
 // into the board name so it appears in the REPL banner and os.uname().machine;
 // "PICO COMPUTER 3" remains a substring so the _boot.py board check still matches.
-#define PICO_COMPUTER_3_VERSION                 "0.1"
+#define PICO_COMPUTER_3_VERSION                 "0.2"
 #define MICROPY_HW_BOARD_NAME                   "PICO COMPUTER 3 v" PICO_COMPUTER_3_VERSION
 #define MICROPY_HW_MCU_NAME                     "RP2350B"
 
 // RP2350B has 48 GPIOs with ADC on GP40-47 (help() text).
 #define MICROPY_HW_HELP_PIN_TEXT                "Pins are numbered 0-47, and 40-47 have ADC capabilities\n"
 
-// Tidy REPL banner: "MicroPython v1.29.0 on PICO COMPUTER 3 v0.1 with RP2350B"
+// Tidy REPL banner: "MicroPython v1.29.0 on PICO COMPUTER 3 v0.2 with RP2350B"
 // (clean version, no build date; " on " separator instead of "; ").
 #define MICROPY_BANNER_NAME_AND_VERSION         "MicroPython v" MICROPY_VERSION_STRING_BASE
 #define MICROPY_BANNER_MACHINE_SEP              " on "

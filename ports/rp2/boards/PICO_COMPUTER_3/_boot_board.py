@@ -77,6 +77,13 @@ import mouse as _mouse
 __main__.mouse = _mouse.query
 __main__.mouse_speed = _mouse.speed
 
+# XMODEM file transfer over the serial console: xrecv("/sd/prog.py") then start
+# an XMODEM *send* in the terminal; xsend("/sd/prog.py") then an XMODEM *receive*.
+import xmodem
+
+__main__.xrecv = xmodem.recv
+__main__.xsend = xmodem.send
+
 # DS3231 hardware RTC: set the system clock from it so the time is right at boot.
 # settime()/gettime()/synctime() are exposed for the user.
 import ds3231

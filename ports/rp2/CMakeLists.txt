@@ -218,6 +218,11 @@ if(MICROPY_HW_USB_HOST)
     )
 endif()
 
+# XMODEM file transfer over the console UART (the `xmodem` module).
+if(MICROPY_HW_ENABLE_XMODEM)
+    list(APPEND MICROPY_SOURCE_PORT xmodem.c)
+endif()
+
 set(MICROPY_SOURCE_QSTR
     ${MICROPY_SOURCE_PY}
     ${MICROPY_DIR}/shared/readline/readline.c
@@ -258,6 +263,9 @@ if(MICROPY_HW_USB_HOST)
         ${MICROPY_PORT_DIR}/usb_touch_mod.c
         ${MICROPY_PORT_DIR}/usb_mouse_mod.c
     )
+endif()
+if(MICROPY_HW_ENABLE_XMODEM)
+    list(APPEND MICROPY_SOURCE_QSTR ${MICROPY_PORT_DIR}/xmodem.c)
 endif()
 
 set(PICO_SDK_COMPONENTS

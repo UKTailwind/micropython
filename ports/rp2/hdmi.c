@@ -720,6 +720,69 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_putc_obj, 5, 5, hdmi_putc);
 
+// Blit one 8x12 glyph at pixel (px,py) scaled by `scale` (each font pixel -> a
+// scale x scale block). fg/bg are native-format colours; a negative `bg` means
+// a transparent background (only the set pixels are drawn). Format-aware, writes
+// hdmi_fb directly, clipped to the framebuffer.
+static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, int scale) {
+    if (ch < FONT_FIRST || ch > 0xFF) {
+        ch = FONT_FIRST;
+    }
+    const uint8_t *glyph = &font1[4 + (ch - FONT_FIRST) * FONT_H];
+    bool transparent = (bg < 0);
+    for (int row = 0; row < FONT_H; row++) {
+        uint8_t bits = glyph[row];
+        for (int sy = 0; sy < scale; sy++) {
+            int y = py + row * scale + sy;
+            if (y < 0 || y >= hdmi_h) {
+                continue;
+            }
+            for (int col = 0; col < FONT_W; col++) {
+                bool on = bits & (0x80 >> col);
+                if (!on && transparent) {
+                    continue;
+                }
+                mp_int_t c = on ? fg : bg;
+                int x0 = px + col * scale;
+                for (int sx = 0; sx < scale; sx++) {
+                    int x = x0 + sx;
+                    if (x < 0 || x >= hdmi_w) {
+                        continue;
+                    }
+                    if (hdmi_native) {
+                        hdmi_fb[(size_t)y * hdmi_w + x] = (uint8_t)c;
+                    } else {
+                        ((uint16_t *)hdmi_fb)[(size_t)y * hdmi_w + x] = (uint16_t)c;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// hdmi.text(s, x, y, fg[, bg=-1[, scale=1]]) -- draw a string in the 8x12 console
+// font at pixel (x,y). bg<0 (default) is transparent; scale enlarges the glyphs.
+// Returns the x pixel just past the string (so calls can be chained).
+static mp_obj_t hdmi_text(size_t n_args, const mp_obj_t *args) {
+    size_t len;
+    const char *s = mp_obj_str_get_data(args[0], &len);
+    int x = mp_obj_get_int(args[1]);
+    int y = mp_obj_get_int(args[2]);
+    mp_int_t fg = mp_obj_get_int(args[3]);
+    mp_int_t bg = (n_args > 4) ? mp_obj_get_int(args[4]) : -1;
+    int scale = (n_args > 5) ? mp_obj_get_int(args[5]) : 1;
+    if (scale < 1) {
+        scale = 1;
+    }
+    int adv = FONT_W * scale;
+    for (size_t i = 0; i < len; i++) {
+        hdmi_blit_glyph(x, y, (uint8_t)s[i], fg, bg, scale);
+        x += adv;
+    }
+    return mp_obj_new_int(x);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_text_obj, 4, 6, hdmi_text);
+
 // Monotonic init counter — the console watches this to detect a mode/clock
 // switch (which clears the screen) and resync/home itself.
 static mp_obj_t hdmi_gen_fn(void) {
@@ -768,6 +831,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_fill), MP_ROM_PTR(&hdmi_fill_obj) },
     { MP_ROM_QSTR(MP_QSTR_scroll), MP_ROM_PTR(&hdmi_scroll_obj) },
     { MP_ROM_QSTR(MP_QSTR_putc), MP_ROM_PTR(&hdmi_putc_obj) },
+    { MP_ROM_QSTR(MP_QSTR_text), MP_ROM_PTR(&hdmi_text_obj) },
     { MP_ROM_QSTR(MP_QSTR_stack_ok), MP_ROM_PTR(&hdmi_stack_ok_obj) },
     { MP_ROM_QSTR(MP_QSTR_width), MP_ROM_PTR(&hdmi_width_obj) },
     { MP_ROM_QSTR(MP_QSTR_height), MP_ROM_PTR(&hdmi_height_obj) },

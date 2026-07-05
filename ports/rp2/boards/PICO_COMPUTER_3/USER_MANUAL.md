@@ -113,6 +113,8 @@ inherits the same names. The most useful are:
 
 **Input devices:** `touch`, `mouse`, `mouse_speed`.
 
+**File transfer:** `xrecv`, `xsend` (XMODEM over the serial console).
+
 Each is described in the sections below.
 
 ---
@@ -214,8 +216,18 @@ in the framebuffer's *native* pixel format, so always wrap a colour in
 `d.colour(...)`: `d.colour(0xRRGGBB)` or `d.colour(r, g, b)` converts a 24-bit
 RGB value (including the named palette constants `RED`, `WHITE`, …) to the current
 format. Passing a raw 24-bit value straight to `rect`/`text`/etc. gives the wrong
-colour. (`d.color(...)` is an accepted US-spelling alias.) `d.text()` uses
-framebuf's built-in 8×8 font; the console uses a larger 8×12 font.
+colour. (`d.color(...)` is an accepted US-spelling alias.)
+
+`d.text()` uses framebuf's built-in **8×8** font at a fixed size. For larger or
+crisper text, use **`hdmi.text(s, x, y, fg, bg=-1, scale=1)`**, which draws the
+**8×12** console font and can scale it up (`scale=2` doubles it, etc.). Its
+`fg`/`bg` are already-converted native-format colours, and `bg=-1` draws with a
+transparent background:
+
+```python
+d = hdmi.fb()
+hdmi.text("BIG", 20, 20, d.colour(YELLOW), -1, 4)   # 4x-scaled 8x12 text
+```
 
 ### `hdmi` module reference
 
@@ -231,6 +243,7 @@ framebuf's built-in 8×8 font; the console uses a larger 8×12 font.
 | `hdmi.fill(colour)` | fast fill of the whole framebuffer with a **native-format** colour (e.g. `hdmi.fill(hdmi.fb().colour(BLUE))`) |
 | `hdmi.scroll(rows, colour=0)` | fast vertical scroll up by `rows` pixels, filling the exposed bottom with `colour` (native format) |
 | `hdmi.putc(x, y, ch, fg, bg)` | blit one 8×12 console glyph at pixel `x,y` (native-format `fg`/`bg`) |
+| `hdmi.text(s, x, y, fg, bg=-1, scale=1)` | draw a string in the 8×12 console font at pixel `x,y`; `bg=-1` is transparent, `scale` enlarges each glyph pixel into a `scale`×`scale` block. Returns the x just past the string |
 | `hdmi.test()` | draw an 8-bar colour test pattern |
 | `hdmi.gen()` | mode-change counter (used internally by the console) |
 
@@ -409,7 +422,37 @@ f = open("/sd/data.txt", "w"); f.write("hello"); f.close()
 
 ---
 
-## 13. Persistent settings
+## 13. File transfer (XMODEM)
+
+Transfer files to and from the board over the **serial console** using the XMODEM
+protocol, so you can move programs on and off without an SD card reader. Any
+terminal with XMODEM support works (e.g. TeraTerm: **File → Transfer → XMODEM**).
+
+```python
+xrecv("/sd/prog.py")     # receive a file INTO the board, then start an XMODEM *Send* in the terminal
+xsend("/sd/prog.py")     # send a file FROM the board, then start an XMODEM *Receive* in the terminal
+```
+
+- `xrecv(path)` opens `path` for writing, sends `NAK`, and waits (up to ~60 s) for
+  the terminal to start sending. Start the XMODEM **Send** in your terminal.
+- `xsend(path)` waits for the terminal to start receiving, then transmits the
+  file. Start the XMODEM **Receive** in your terminal.
+- Works to both `/sd` and the internal flash filesystem (any path).
+- While a transfer runs, the serial console is dedicated to the protocol (the
+  REPL is paused and nothing is echoed to the HDMI screen); it returns to normal
+  when the transfer finishes.
+- 128-byte packets; the receiver uses the additive checksum, the sender accepts
+  either checksum (`NAK`) or CRC-16 (`C`). Trailing packet padding is trimmed from
+  received files, so a transferred `.py` runs as-is.
+- On failure it raises `OSError` with a message (`Remote did not respond`,
+  `Too many errors`, `Cancelled by remote`, …).
+
+The full names are `xmodem.recv(path)` / `xmodem.send(path)` (`xrecv`/`xsend` are
+just convenience aliases injected into the REPL).
+
+---
+
+## 14. Persistent settings
 
 The keyboard layout and the HDMI mode/clock are saved in `/settings.json` on the
 flash filesystem and restored at boot. `keymap("UK")` and `screen(...)` update
@@ -418,7 +461,7 @@ return to the defaults (US keyboard, 640×480 @ 252 MHz).
 
 ---
 
-## 14. Networking (Wi-Fi / Bluetooth)
+## 15. Networking (Wi-Fi / Bluetooth)
 
 Wi-Fi and Bluetooth use the on-board CYW43 chip and the standard MicroPython
 APIs — see the MicroPython docs for full details.
@@ -477,7 +520,7 @@ while True:
 
 ---
 
-## 15. Standard MicroPython modules in this build
+## 16. Standard MicroPython modules in this build
 
 All the usual MicroPython modules are present. The definitive list on your board
 is `help('modules')`. Notable ones:
@@ -498,7 +541,8 @@ For the API of every standard module, refer to the MicroPython documentation:
 ### Board-specific extension modules
 
 These low-level C modules back the friendly commands above and can also be used
-directly: `hdmi`, `keyboard`, `mouse`, `touch`, `audio`, `jpeg`, `bmp`, `png`.
+directly: `hdmi`, `keyboard`, `mouse`, `touch`, `audio`, `jpeg`, `bmp`, `png`,
+`xmodem`.
 Most users will prefer the auto-imported helpers (`play`, `draw_jpg`, `touch`,
 `mouse`, `screen`, …) rather than these directly.
 
@@ -510,6 +554,7 @@ Most users will prefer the auto-imported helpers (`play`, `draw_jpg`, `touch`,
 # Display
 screen(hdmi.RGB320)             # change mode (persisted)
 d = hdmi.fb(); d.text("hi", 0, 0, d.colour(WHITE))
+hdmi.text("BIG", 0, 20, d.colour(RED), -1, 4)   # scaled 8x12 text
 
 # Input
 touch("DOWN"); touch("X"); touch("SWIPE")
@@ -521,6 +566,7 @@ volume(70); play("/sd/song.mp3"); stop()
 
 # Files
 ls("/sd/*.jpg"); run("/sd/app.py"); edit("/sd/app.py")
+xrecv("/sd/app.py"); xsend("/sd/app.py")   # XMODEM over the serial console
 
 # Images / clock
 draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")

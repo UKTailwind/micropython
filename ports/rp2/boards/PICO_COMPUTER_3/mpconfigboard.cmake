@@ -26,6 +26,8 @@ set(MICROPY_PY_MACHINE_SDCARD 1)
 set(MICROPY_HW_ENABLE_HDMI 1)
 # USB host: link the TinyUSB host stack instead of the device stack (see CMakeLists).
 set(MICROPY_HW_USB_HOST ON)
+# XMODEM file transfer over the console UART (xmodem module).
+set(MICROPY_HW_ENABLE_XMODEM 1)
 set(MICROPY_PY_LWIP ON)
 set(MICROPY_PY_NETWORK_CYW43 ON)
 

@@ -839,12 +839,44 @@ constructor, the cyw43 PIO-divider fix, the USB-host `tusb_config.h` block).
 
 ---
 
+### 28. `hdmi.text()` scaled font + XMODEM file transfer
+
+Two additions, both driven by making the standalone machine easier to use.
+
+- **`hdmi.text(s, x, y, fg, bg=-1, scale=1)`** (in `hdmi.c`): draws a string in the
+  MMBasic **8×12** console font (`font1`) at an arbitrary pixel position, scaled by
+  `scale` (each font pixel → a `scale`×`scale` block), format-aware (RGB332/RGB565)
+  like `hdmi.putc`. `bg=-1` draws with a transparent background. Returns the x past
+  the string. `framebuf.text()` is only the fixed 8×8 font, and the 8×12 console
+  font lives in C (not reachable from `framebuf`), so this exposes it for big/legible
+  on-screen text (used by the graphical Sudoku demo).
+
+- **XMODEM file transfer** — new `xmodem` module (`xmodem.c`), a faithful port of
+  MMBasic's `misc/XModem.c` (see [[replicate-mmbasic-exactly]]): 128-byte XMODEM,
+  additive checksum on receive, checksum-or-CRC on transmit, same retry/timeout
+  constants and `crc16_ccitt` table, and the same 1 KB software FIFO in `_inbyte`.
+  `xmodem.recv(path)` / `xmodem.send(path)` (aliased to `xrecv`/`xsend` in the REPL
+  by `_boot_board`) transfer files to/from `/sd` or flash over the **console UART**.
+  During a transfer the console RX **IRQ is disabled** so raw bytes reach the
+  protocol instead of the REPL, and output goes straight to the UART (not through
+  the dupterm/HDMI console). The transfer workers return an error *string* rather
+  than raising, so the wrapper always re-enables the IRQ before raising — a dead
+  console on error was the trap. **Deviation from MMBasic (deliberate):** the file
+  receive path trims the sender's trailing padding (`0x1A`/`0x00`) from the *last*
+  block only (by holding one block back and trimming at EOT), so transferred `.py`
+  files aren't corrupted by pad bytes and run as-is; MMBasic writes raw blocks and
+  relies on its own tokeniser to tolerate the padding. Gated on
+  `MICROPY_HW_ENABLE_XMODEM` (board cmake) + `#if MICROPY_HW_ENABLE_UART_REPL`.
+
+---
+
 ## Files touched
 
 | File | Purpose |
 | --- | --- |
 | `ports/rp2/main.c` | board-overridable startup clock (`MICROPY_HW_CLK_SYS_KHZ`); safe flash-timing ordering |
-| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/…` |
+| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`) |
+| `ports/rp2/xmodem.c` | **new** `xmodem` module: XMODEM send/recv over the console UART, faithful port of MMBasic `misc/XModem.c` + trailing-pad trim on receive (§28) |
 | `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
 | `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard |
 | `ports/rp2/usb_keyboard.c` + `keyboard_maps.h` | **new** `keyboard` module (`keymap()`, `on_usb_event()`) + vendored MMBasic layouts; rooted USB-event callback |

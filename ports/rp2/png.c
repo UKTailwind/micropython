@@ -12,7 +12,11 @@
 #include "py/runtime.h"
 #include "upng.h"
 
-// png.render(fbuf, fb_w, fb_h, is565, data, x, y[, cutoff]) -> (img_w, img_h)
+// Nearest RGB121 palette index for a 4bpp (RGB121) framebuffer (defined in hdmi.c).
+extern int hdmi_nearest_index(int r, int g, int b);
+
+// png.render(fbuf, fb_w, fb_h, bpp, data, x, y[, cutoff]) -> (img_w, img_h)
+//   bpp = 16 (RGB565), 8 (RGB332) or 4 (RGB121, packed 2 px/byte)
 // `data` = the whole PNG file (bytes). Pixels with alpha <= cutoff are skipped
 // (leaving the framebuffer contents), giving simple transparency.
 static mp_obj_t png_render(size_t n_args, const mp_obj_t *args) {
@@ -20,7 +24,7 @@ static mp_obj_t png_render(size_t n_args, const mp_obj_t *args) {
     mp_get_buffer_raise(args[0], &fbi, MP_BUFFER_WRITE);
     int fb_w = mp_obj_get_int(args[1]);
     int fb_h = mp_obj_get_int(args[2]);
-    bool is565 = mp_obj_is_true(args[3]);
+    int bpp = mp_obj_get_int(args[3]);
     mp_get_buffer_raise(args[4], &di, MP_BUFFER_READ);
     int x0 = mp_obj_get_int(args[5]);
     int y0 = mp_obj_get_int(args[6]);
@@ -60,8 +64,12 @@ static mp_obj_t png_render(size_t n_args, const mp_obj_t *args) {
             if (sx < 0 || sx >= fb_w || a <= cutoff) {
                 continue;
             }
-            if (is565) {
+            if (bpp == 16) {
                 fb16[sy * fb_w + sx] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            } else if (bpp == 4) {
+                uint8_t *pb = &fb8[(sy * fb_w + sx) >> 1];
+                uint8_t v = (uint8_t)hdmi_nearest_index(r, g, b);
+                *pb = (sx & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
             } else {
                 fb8[sy * fb_w + sx] = (r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6);
             }

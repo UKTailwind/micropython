@@ -198,6 +198,7 @@ if(MICROPY_HW_ENABLE_HDMI)
         bmp_decoder.c
         png.c
         upng.c
+        dither.c
     )
 endif()
 

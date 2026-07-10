@@ -14,6 +14,11 @@
 #include <string.h>
 #include "py/runtime.h"
 #include "py/stream.h"
+#include "dither.h"
+
+// RGB121 palette helpers (defined in hdmi.c) for 4bpp framebuffers.
+extern int hdmi_nearest_index(int r, int g, int b);
+extern uint32_t hdmi_index_rgb888(int i);
 
 static void bmp_write_all(mp_obj_t f, const void *buf, size_t len) {
     const mp_stream_p_t *sp = mp_get_stream(f);
@@ -42,7 +47,7 @@ static mp_obj_t bmp_save(size_t n_args, const mp_obj_t *args) {
     mp_get_buffer_raise(args[0], &fbi, MP_BUFFER_READ);
     int w = mp_obj_get_int(args[1]);
     int h = mp_obj_get_int(args[2]);
-    bool is565 = mp_obj_is_true(args[3]);
+    int bpp = mp_obj_get_int(args[3]);
     mp_obj_t f = args[4];
 
     int row_size = (w * 3 + 3) & ~3;         // rows padded to 4 bytes
@@ -77,12 +82,19 @@ static mp_obj_t bmp_save(size_t n_args, const mp_obj_t *args) {
         uint8_t *o = rowbuf;
         for (int x = 0; x < w; x++) {
             uint8_t r, g, b;
-            if (is565) {
+            if (bpp == 16) {
                 uint16_t p = fb16[y * w + x];
                 uint8_t r5 = (p >> 11) & 0x1F, g6 = (p >> 5) & 0x3F, b5 = p & 0x1F;
                 r = (r5 << 3) | (r5 >> 2);
                 g = (g6 << 2) | (g6 >> 4);
                 b = (b5 << 3) | (b5 >> 2);
+            } else if (bpp == 4) { // RGB121: unpack the nibble, look up the palette
+                uint8_t byte = fb8[(y * w + x) >> 1];
+                uint8_t idx = (x & 1) ? (byte >> 4) : (byte & 0x0f);
+                uint32_t c = hdmi_index_rgb888(idx);
+                r = (c >> 16) & 0xFF;
+                g = (c >> 8) & 0xFF;
+                b = c & 0xFF;
             } else { // RGB332
                 uint8_t p = fb8[y * w + x];
                 uint8_t r3 = (p >> 5) & 7, g3 = (p >> 2) & 7, b2 = p & 3;
@@ -115,18 +127,74 @@ extern BMP_Result decodeBMP(bool topdown);
 // Target for the decode line callback (one active load at a time).
 static void *g_fb;
 static int g_fbw, g_fbh, g_x0, g_y0;
-static bool g_is565;
+static int g_bpp;
+
+// Optional RGB121 dithering state. Lives in a bmp_load() stack local (so its
+// m_malloc'd buffers are reachable from the GC-scanned stack during the decode)
+// and is reached from the callback through g_bd. Lazily initialised on the first
+// line, when the image width is known.
+typedef struct {
+    int method;         // requested dither mode (DITHER_*)
+    bool tried;         // lazy-init attempted?
+    bool on;            // dithering active (init + scratch succeeded)?
+    dither_t dith;
+    uint8_t *rgbrow;    // width*3
+    uint8_t *idxrow;    // width
+} bmp_dither_ctx;
+static bmp_dither_ctx *g_bd;
 
 // Called by decodeBMP for each decoded line: RGB888-per-pixel -> framebuffer.
 static bool bmp_fb_line(int *pw, int *ph, uint32_t *linedata, int *prow) {
     (void)ph;
     int w = *pw;
+    if (g_bd != NULL && !g_bd->tried) {
+        g_bd->tried = true;
+        int dfmt = (g_bpp == 4) ? DITHER_FMT_RGB121 : DITHER_FMT_RGB332;
+        if (g_bd->method != DITHER_NONE && (g_bpp == 4 || g_bpp == 8) &&
+            dither_init(&g_bd->dith, g_bd->method, dfmt, w)) {
+            g_bd->rgbrow = m_malloc_maybe((size_t)w * 3);
+            g_bd->idxrow = m_malloc_maybe((size_t)w);
+            g_bd->on = (g_bd->rgbrow != NULL && g_bd->idxrow != NULL);
+            if (!g_bd->on) {
+                dither_free(&g_bd->dith);
+            }
+        }
+    }
     int sy = g_y0 + *prow;
+    uint16_t *fb16 = (uint16_t *)g_fb;
+    uint8_t *fb8 = (uint8_t *)g_fb;
+
+    if (g_bd != NULL && g_bd->on) {
+        // Dither the whole row (even off-screen, to keep the error state
+        // continuous), then write only the in-bounds pixels.
+        for (int col = 0; col < w; col++) {
+            uint32_t rgb = linedata[col];
+            g_bd->rgbrow[col * 3 + 0] = (rgb >> 16) & 0xFF;
+            g_bd->rgbrow[col * 3 + 1] = (rgb >> 8) & 0xFF;
+            g_bd->rgbrow[col * 3 + 2] = rgb & 0xFF;
+        }
+        dither_row(&g_bd->dith, g_bd->rgbrow, g_bd->idxrow);
+        if (sy >= 0 && sy < g_fbh) {
+            for (int col = 0; col < w; col++) {
+                int sx = g_x0 + col;
+                if (sx < 0 || sx >= g_fbw) {
+                    continue;
+                }
+                uint8_t v = g_bd->idxrow[col];
+                if (g_bpp == 4) {
+                    uint8_t *pb = &fb8[(sy * g_fbw + sx) >> 1];
+                    *pb = (sx & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                } else { // g_bpp == 8, v is an RGB332 byte
+                    fb8[sy * g_fbw + sx] = v;
+                }
+            }
+        }
+        return true;
+    }
+
     if (sy < 0 || sy >= g_fbh) {
         return true; // off-screen row; keep going
     }
-    uint16_t *fb16 = (uint16_t *)g_fb;
-    uint8_t *fb8 = (uint8_t *)g_fb;
     for (int col = 0; col < w; col++) {
         int sx = g_x0 + col;
         if (sx < 0 || sx >= g_fbw) {
@@ -134,8 +202,12 @@ static bool bmp_fb_line(int *pw, int *ph, uint32_t *linedata, int *prow) {
         }
         uint32_t rgb = linedata[col];
         uint8_t r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
-        if (g_is565) {
+        if (g_bpp == 16) {
             fb16[sy * g_fbw + sx] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+        } else if (g_bpp == 4) {
+            uint8_t *pb = &fb8[(sy * g_fbw + sx) >> 1];
+            uint8_t v = (uint8_t)hdmi_nearest_index(r, g, b);
+            *pb = (sx & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
         } else {
             fb8[sy * g_fbw + sx] = (r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6);
         }
@@ -143,25 +215,38 @@ static bool bmp_fb_line(int *pw, int *ph, uint32_t *linedata, int *prow) {
     return true;
 }
 
-// bmp.load(fbuf, fb_w, fb_h, is565, fileobj, x, y) -> (img_w, img_h)
+// bmp.load(fbuf, fb_w, fb_h, bpp, fileobj, x, y[, dither]) -> (img_w, img_h)
+//   dither = 0 none / 1 Floyd-Steinberg / 2 Atkinson (only used when bpp == 4)
 static mp_obj_t bmp_load(size_t n_args, const mp_obj_t *args) {
     mp_buffer_info_t fbi;
     mp_get_buffer_raise(args[0], &fbi, MP_BUFFER_WRITE);
     g_fb = fbi.buf;
     g_fbw = mp_obj_get_int(args[1]);
     g_fbh = mp_obj_get_int(args[2]);
-    g_is565 = mp_obj_is_true(args[3]);
+    g_bpp = mp_obj_get_int(args[3]);
     g_bmp_file = args[4];
     g_x0 = mp_obj_get_int(args[5]);
     g_y0 = mp_obj_get_int(args[6]);
+
+    bmp_dither_ctx bd;
+    memset(&bd, 0, sizeof(bd));
+    bd.method = (n_args > 7) ? mp_obj_get_int(args[7]) : DITHER_NONE;
+    g_bd = &bd;
+
     linecallback = bmp_fb_line;
     BMP_Result r = decodeBMP(false); // sequential read; screenRow is the display row
     linecallback = NULL;
     g_bmp_file = MP_OBJ_NULL;
+    g_bd = NULL;
+    if (bd.on) {
+        dither_free(&bd.dith);
+        m_free(bd.rgbrow);
+        m_free(bd.idxrow);
+    }
     mp_obj_t items[2] = { mp_obj_new_int(r.width), mp_obj_new_int(r.height) };
     return mp_obj_new_tuple(2, items);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(bmp_load_obj, 7, 7, bmp_load);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(bmp_load_obj, 7, 8, bmp_load);
 
 static const mp_rom_map_elem_t bmp_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_bmp) },

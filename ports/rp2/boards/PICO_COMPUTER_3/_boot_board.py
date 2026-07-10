@@ -49,6 +49,7 @@ import pcconfig
 __main__.keymap = pcconfig.keymap
 __main__.keymaps = keyboard.keymaps
 __main__.screen = pcconfig.screen
+__main__.palette = pcconfig.palette
 try:
     keyboard.keymap(pcconfig.get("keymap", "US"))  # apply saved layout
 except Exception:
@@ -111,6 +112,10 @@ try:
     hdmi.init(pcconfig.get("hdmi_mode", hdmi.RGB640), pcconfig.get("hdmi_clock", 252))
 except Exception:
     hdmi.init(hdmi.RGB640)
+try:
+    pcconfig.apply_palette()  # restore a saved RGB1024 palette (no-op if none)
+except Exception:
+    pass
 pcconsole.console()
 
 del _name

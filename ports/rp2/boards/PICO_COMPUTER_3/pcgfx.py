@@ -43,14 +43,22 @@ class Display(framebuf.FrameBuffer):
     def __init__(self, buffer, width, height, fmt):
         super().__init__(buffer, width, height, fmt)
         self._is332 = fmt == framebuf.GS8
+        self._is121 = fmt == framebuf.GS4_HMSB
 
     def colour(self, r, g=None, b=None):
         """Return an RGB888 colour packed for this display's format.
-        colour(0xRRGGBB) or colour(r, g, b)."""
+        colour(0xRRGGBB) or colour(r, g, b). In RGB1024 mode (GS4_HMSB / RGB121
+        4-bit) this returns the nearest palette index (bit3=R, bits2:1=G, bit0=B)."""
         if g is None:  # r is a 24-bit RGB888 value
             b = r & 0xFF
             g = (r >> 8) & 0xFF
             r = (r >> 16) & 0xFF
+        if self._is121:  # 4-bit: nearest of the 16 palette entries
+            return (
+                (0x08 if r >= 0x80 else 0)
+                | (((g + 42) // 85) << 1)  # G to 0..3 (nearest of 0/85/170/255)
+                | (1 if b >= 0x80 else 0)
+            )
         if self._is332:  # RGB332
             return (r & 0xE0) | ((g >> 3) & 0x1C) | (b >> 6)
         # RGB565

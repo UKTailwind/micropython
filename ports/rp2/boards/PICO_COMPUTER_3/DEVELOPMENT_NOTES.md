@@ -222,11 +222,12 @@ re-injects them.
 
 Banner changed from
 `MicroPython v1.29.0-preview.450.g562d6be365.dirty on 2026-07-02; PICO COMPUTER 3 with RP2350`
-to `MicroPython v1.29.0 on PICO COMPUTER 3 with RP2350B`.
+to `MicroPython v1.29.0-preview on PICO COMPUTER 3 with RP2350B`.
 
 - `mpconfigboard.h`: `MICROPY_HW_MCU_NAME "RP2350B"`;
-  `MICROPY_BANNER_NAME_AND_VERSION "MicroPython v" MICROPY_VERSION_STRING_BASE`
-  (clean version, no git hash / date); `MICROPY_BANNER_MACHINE_SEP " on "`.
+  `MICROPY_BANNER_NAME_AND_VERSION "MicroPython v" MICROPY_VERSION_STRING`
+  (drops the git hash / date but keeps the `-preview` marker so the build does
+  not masquerade as an unreleased 1.29.0); `MICROPY_BANNER_MACHINE_SEP " on "`.
 - `mpconfigport.h`: `#ifndef`-guard the MCU name so the board can override it.
 - `py/mpconfig.h`: added a `MICROPY_BANNER_MACHINE_SEP` default (`"; "`); used in
   `shared/runtime/pyexec.c`. So only this board opts into `" on "`; every other
@@ -536,7 +537,8 @@ Modes renamed by resolution: **`hdmi.RGB640`** (640×480×8, native, was RGB332)
 ### 21. Images — JPEG / BMP / PNG load + BMP save
 
 All decode straight into the HDMI framebuffer (RGB565 for RGB320/RGB512, RGB332
-for RGB640; `hdmi.rgb565()` reports which). Vendored decoders, MMBasic-derived:
+for RGB640, packed 4bpp nearest-palette for RGB1024; the loaders switch on
+`hdmi.bpp()` — see §29). Vendored decoders, MMBasic-derived:
 
 - **`draw_jpg(path, x, y, scale)`** — vendored **picojpeg** (unmodified) + `jpeg.c`
   adapting MMBasic's `cmd_LoadJPGImage`: MCU-row decode, **binning downscale**
@@ -870,6 +872,92 @@ Two additions, both driven by making the standalone machine easier to use.
 
 ---
 
+### 29. RGB1024 — native 1024×600×4 (16 colours) — Phase 1 (scanout)
+
+**Naming:** the mode is **`hdmi.RGB1024`** (named for its framebuffer width, like
+RGB640/RGB320/RGB512); its pixel format is **RGB121** (1-bit R, 2-bit G, 1-bit B =
+4bpp), the name kept for the format/palette/dither identifiers below (as RGB332 /
+RGB565 are for the other modes).
+
+New **`hdmi.RGB1024`** mode: a **true native 1024×600** at 16 colours, alongside the
+existing `RGB512` (512×300×16 pixel-doubled to 1024×600). Both share the 1024×600
+timing and the 307,200-byte framebuffer; RGB1024 packs **4bpp** (2 px/byte), which
+is an *exact fit* (1024·600/2 = 307,200) — no RAM increase, and full native
+sharpness that the doubled RGB512 can't give. See [[replicate-mmbasic-exactly]].
+
+**Key insight (from MMBasic):** RGB121 is **not** a new HSTX pixel format. HSTX
+only ever runs the RGB332 or RGB565 expander. RGB121 reuses the **RGB332** native
+expander; core1 expands each packed 4bpp source line, one nibble at a time,
+through a **16-colour palette** into an RGB332 line buffer that HSTX scans. It is
+the same "core1 fill-loop into `HDMIlines`" path as RGB320/RGB512 — only the inner
+loop differs (a `map16[nibble]` lookup instead of a 16-bit copy).
+
+- **Packing = `framebuf.GS4_HMSB`.** MMBasic's RGB121 (low nibble = even/left px)
+  and MicroPython `GS4_HMSB` (even x → low nibble) agree exactly, so `hdmi.fb()`
+  returns a `pcgfx.Display` in `GS4_HMSB` and all framebuf primitives draw straight
+  into the packed buffer. `Display.colour()` now returns the nearest **4-bit
+  palette index** (bit3=R, bits2:1=G, bit0=B) in GS4 mode.
+- **Palette** — default is MMBasic's MAP16DEF (pure RGB121 bit-expansion, stored
+  as RGB888 in `hdmi_pal_default`). **Settable** at runtime via `hdmi.palette(i,
+  0xRRGGBB)` (get: `hdmi.palette()` / `hdmi.palette(i)`); a set rebuilds the SRAM
+  expansion table so it shows immediately, even mid-scan. `pcconfig.palette()`
+  wraps it to persist across reboots (applied at boot by `apply_palette()`); the
+  live palette survives a mode switch (lazy-init flag, not re-defaulted per init).
+- **Palette MUST be in SRAM, not flash** — the core1 hot loop can't touch flash.
+  A first cut kept the 16-entry palette `const` (flash) and read it per pixel; the
+  picture came up then died the instant `screen()` saved `settings.json`, because
+  this board disables the multicore flash lockout (§9), so a core0 flash write
+  drops XIP out from under core1's palette reads. Fix: at init build an SRAM
+  **256-entry `uint16` table `hdmi_map256`** (source byte → two RGB332 pixels,
+  low byte = even/left) from the flash palette; the hot loop is then one SRAM
+  lookup + one 16-bit store per byte-pair — no flash reads, and lighter than the
+  RGB512 loop, so line-time is comfortable. (General rule for this port: anything
+  core1 reads during scanout — code, framebuffer, line buffers, and now the
+  palette — must be SRAM-resident.)
+- **Scanout hot path:** a third per-resolution DMA IRQ **`hdmi_dma_irq_1024`** (like
+  `hdmi_dma_irq_x` but 256 words/line = 1024 RGB332 px at 4 px/word, not 512).
+  core1 fill-loop gets an RGB121 branch (512 packed bytes → 1024 RGB332 px, no
+  vertical doubling). `clk_hstx = clk_sys = 252 MHz` → 50.4 MHz pixel (fixed 252,
+  like RGB512).
+- **Format-aware drawing:** `hdmi.fill/scroll/putc/text/blit_glyph` gained a 4bpp
+  branch (read-modify-write the correct nibble; scroll/fill are byte ops), so the
+  on-screen console works in RGB1024 without corrupting the packed buffer.
+- **New queries:** `hdmi.bpp()` → 4/8/16; `hdmi.rgb565()` now means *16-bit
+  RGB565* only (False for RGB1024). `screen(hdmi.RGB1024)` persists it (fixed 252).
+- **Images in RGB1024 (phase 3):** `draw_jpg/bmp/png` and `save_image` work in
+  RGB1024. The loaders take `hdmi.bpp()` (4/8/16) instead of the old `hdmi.rgb565()`
+  bool and gained a 4bpp path: each RGB888 pixel maps to the **nearest** of the 16
+  live palette entries (`hdmi_nearest_index`, squared-distance search) packed into
+  the correct nibble; `save_image` reverses it (`hdmi_index_rgb888`) to a 24-bit BMP.
+- **Dithering (phase 3b) — `draw_jpg`/`draw_bmp` `dither=` arg:** `True` = Atkinson
+  (the recommended default; `_dither_mode()` in pcimage maps `True`->2, `False`/
+  `None`->0, ints pass through), `1` Floyd-Steinberg, `2` Atkinson, `0` none. Works
+  for **RGB1024** (4bpp, quantise to the palette grid) and **RGB640** (8bpp, quantise
+  to RGB332); ignored for RGB565 and PNG. New shared TU `dither.c`/`.h` ports
+  MMBasic's exact quantisers (`rgb888_to_rgb121/rgb332_dither`) + FS/Atkinson error
+  distribution (`FileIO.c`) as a stateful per-row API; `dither_t.format` selects the
+  grid and `dither_row` emits either a 4-bit index or an 8-bit RGB332 byte. Applied at
+  **output** resolution (after JPEG binning), one row at a time top-to-bottom with
+  two `int16` error rows swapped per row; off-screen rows are still dithered to keep
+  the error state continuous, only in-bounds pixels are written. Error buffers are
+  transient `m_malloc` (freed after the load) held on the decode's C stack (JPEG) or
+  a `bmp_load` stack struct reached via `g_bd` (BMP) so the **GC can't reclaim them
+  mid-decode** (cf. §16/§21). Quantises to the fixed RGB121 grid = the default
+  palette, so a heavily customised palette + dithering can mismatch. PNG is left
+  nearest-colour only (transparency complicates row diffusion; MMBasic dithers only
+  BMP/JPG too). See [[replicate-mmbasic-exactly]].
+- **Atkinson (2) beats Floyd-Steinberg (1) on RGB121 — expected, not a bug.** Both
+  kernels are verbatim MMBasic. RGB121 has only 2 red / 2 blue / 4 green levels and
+  channels dither independently, so a grey pixel resolves to magenta/green speckle.
+  FS propagates 100% of the (±127) error, maximising that speckle in flat regions —
+  often looking worse than no dithering; Atkinson propagates 6/8, staying calmer
+  (it was designed for 1-bit displays). Docs steer RGB1024 users to `dither=2`.
+
+Verify: `screen(hdmi.RGB1024)` → crisp native 1024×600; `hdmi.test()` shows 16
+vertical colour bars; the REPL console renders on-screen.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -897,7 +985,8 @@ Two additions, both driven by making the standalone machine easier to use.
 | `ports/rp2/bmp.c` | **new** `bmp` module: `save` (24-bit BMP of the framebuffer) + `load` (framebuffer blit callback) |
 | `ports/rp2/bmp_decoder.c` | **new** vendored MMBasic BmpDecoder engine (all BMP variants), adapted to mp_stream + PSRAM |
 | `ports/rp2/png.c` + `upng.c`/`.h` | **new** `png` module (`render`) + vendored upng (PNG decode, RGBA alpha) |
-| `ports/rp2/hdmi.c` (image) | `hdmi.framebuffer()`/`width()`/`height()`/`rgb565()` expose the framebuffer to the decoders; `hdmi_get_width/height()` C accessors for touch scaling |
+| `ports/rp2/dither.c`/`.h` | **new** RGB121/RGB332 error-diffusion (Floyd-Steinberg / Atkinson), ported from MMBasic `FileIO.c`; used by `jpeg`/`bmp` load in RGB1024/RGB640 (§29) |
+| `ports/rp2/hdmi.c` (image) | `hdmi.framebuffer()`/`width()`/`height()`/`bpp()` expose the framebuffer to the decoders (+ `hdmi_nearest_index`/`hdmi_index_rgb888` for RGB121 4bpp packing, §29); `hdmi_get_width/height()` C accessors for touch scaling |
 | `boards/PICO_COMPUTER_3/pcimage.py` | **new** `draw_jpg`/`draw_bmp`/`draw_png`/`save_image` wrappers (injected into the REPL) |
 | `boards/PICO_COMPUTER_3/pcconfig.py` | **new** persistent settings in `/settings.json`; `keymap()`/`screen()` apply + persist |
 | `boards/PICO_COMPUTER_3/pcgfx.py` | **new** `Display` (framebuf subclass, RGB888→format `colour()`) + MMBasic palette |

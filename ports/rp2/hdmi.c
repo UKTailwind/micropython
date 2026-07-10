@@ -107,12 +107,18 @@ typedef struct {
 
 #define HDMI_MAX_H (1024) // widest active line (RGB512); sizes HDMIlines
 
-// Modes (Python: hdmi.RGB640 / hdmi.RGB320 / hdmi.RGB512).
+// Modes (Python: hdmi.RGB640 / hdmi.RGB320 / hdmi.RGB512 / hdmi.RGB1024). Each is
+// named for its framebuffer width; the pixel format is separate (RGB332 / RGB565 /
+// RGB121).
 #define HDMI_MODE_RGB640 (0) // 640x480 RGB332 (8bpp), native scan
 #define HDMI_MODE_RGB320 (1) // 320x240 RGB565, pixel+line doubled -> 640x480
 #define HDMI_MODE_RGB512 (2) // 512x300 RGB565, pixel+line doubled -> 1024x600
+#define HDMI_MODE_RGB1024 (3) // 1024x600, RGB121 4bpp packed format, native res;
+                              // core1 expands each line through a 16-colour palette
+                              // into an RGB332 line buffer that HSTX scans natively.
 
-// Largest framebuffer: 640x480x8 = 512x300x2 = 1024*600/2 = 307200 bytes.
+// Largest framebuffer: 640x480x8 = 512x300x2 = 1024*600/2 = 307200 bytes. The
+// RGB121 1024x600x4 framebuffer is an exact fit in this same array.
 #define HDMI_FB_BYTES (640 * 480)
 
 // --- HDMI lane -> HSTX bit mapping (bit N appears on GP12+N) ---------------
@@ -163,6 +169,76 @@ static int hdmi_mode = HDMI_MODE_RGB640;
 static int hdmi_w = 640, hdmi_h = 480;    // logical framebuffer dimensions
 static int hdmi_transfer_count = 160;     // active pixel words per line
 static int hdmi_native = 1;               // 1 = native 8bpp scan (RGB640); 0 = doubled RGB565
+static int hdmi_rgb121 = 0;               // 1 = 4bpp packed framebuffer, core1 expands to an RGB332 line buffer
+
+// RGB121 16-colour palette (RGB888, 0xRRGGBB). Default = MMBasic's MAP16DEF: a
+// pure RGB121 bit-expansion, so an index's bit3=R, bits2:1=G, bit0=B map straight
+// to the colour. User-settable at runtime via hdmi.palette().
+static const uint32_t hdmi_pal_default[16] = {
+    0x000000, 0x0000FF, 0x005500, 0x0055FF, 0x00AA00, 0x00AAFF, 0x00FF00, 0x00FFFF,
+    0xFF0000, 0xFF00FF, 0xFF5500, 0xFF55FF, 0xFFAA00, 0xFFAAFF, 0xFFFF00, 0xFFFFFF,
+};
+static uint32_t hdmi_pal888[16];    // live palette (SRAM); lazily loaded from default
+static bool hdmi_pal_ready = false;
+// SRAM expansion table for RGB121 scanout: source byte (two 4-bit pixels) -> the
+// two RGB332 pixels packed little-endian (low byte = even/left pixel). Rebuilt
+// from hdmi_pal888 at init and on any palette change. MUST be SRAM (not flash):
+// core1's fill loop reads it per pixel, and this board disables the multicore
+// flash lockout, so a core0 flash write (e.g. saving settings) would otherwise
+// starve or fault the scanout while XIP is down.
+static uint16_t hdmi_map256[256];
+
+// Load the default palette the first time it's needed (so a palette set before
+// any RGB121 init still starts from the defaults, not zeroed RAM).
+static void hdmi_pal_ensure(void) {
+    if (!hdmi_pal_ready) {
+        memcpy(hdmi_pal888, hdmi_pal_default, sizeof(hdmi_pal888));
+        hdmi_pal_ready = true;
+    }
+}
+
+// Rebuild the byte->2px RGB332 expansion table from the live RGB888 palette. Safe
+// to call while core1 is scanning: every entry is always a valid RGB332 pair, so
+// a concurrent read sees at worst a one-frame mix of old/new colours.
+static void hdmi_pal_rebuild(void) {
+    uint8_t p332[16];
+    for (int i = 0; i < 16; i++) {
+        uint32_t c = hdmi_pal888[i];
+        p332[i] = (uint8_t)(((c >> 16) & 0xE0) | (((c >> 8) & 0xE0) >> 3) | ((c & 0xC0) >> 6));
+    }
+    for (int b = 0; b < 256; b++) {
+        hdmi_map256[b] = (uint16_t)(p332[b & 0x0f] | (p332[b >> 4] << 8));
+    }
+}
+
+// Nearest RGB121 palette index (0..15) for an RGB888 colour, by squared distance
+// over the live palette. For the image loaders writing 4bpp packed framebuffers.
+int hdmi_nearest_index(int r, int g, int b) {
+    hdmi_pal_ensure();
+    int best = 0;
+    long best_d = 0x7fffffffL;
+    for (int i = 0; i < 16; i++) {
+        uint32_t c = hdmi_pal888[i];
+        int dr = r - (int)((c >> 16) & 0xFF);
+        int dg = g - (int)((c >> 8) & 0xFF);
+        int db = b - (int)(c & 0xFF);
+        long d = (long)dr * dr + (long)dg * dg + (long)db * db;
+        if (d < best_d) {
+            best_d = d;
+            best = i;
+            if (d == 0) {
+                break;
+            }
+        }
+    }
+    return best;
+}
+
+// RGB888 for a palette index (for reading a 4bpp framebuffer back, e.g. BMP save).
+uint32_t hdmi_index_rgb888(int i) {
+    hdmi_pal_ensure();
+    return hdmi_pal888[i & 0x0f];
+}
 static uint32_t hdmi_clock_khz = 252000;  // clk_sys for this init (252/315/378)
 static uint32_t hdmi_gen = 0;             // bumped each init() so the console resyncs
 
@@ -234,12 +310,63 @@ static void __not_in_flash_func(hdmi_dma_irq_x)(void) {
     }
 }
 
+// --- Separate DMA IRQ for RGB1024 (1024x600 native). Same 1024x600 timing as
+// hdmi_dma_irq_x, but the active line is a core1-filled *RGB332* buffer scanned
+// as 4 pixels/word (256 words), not RGB565 (512 words).
+static void __not_in_flash_func(hdmi_dma_irq_1024)(void) {
+    uint ch_num = dma_pong ? dmach_pong : dmach_ping;
+    dma_channel_hw_t *ch = &dma_hw->ch[ch_num];
+    dma_hw->ints1 = 1u << ch_num;
+    dma_pong = !dma_pong;
+
+    if (v_scanline >= X_V_FRONT_PORCH && v_scanline < (X_V_FRONT_PORCH + X_V_SYNC_WIDTH)) {
+        ch->read_addr = (uintptr_t)vblank_line_vsync_on;
+        ch->transfer_count = count_of(vblank_line_vsync_on);
+    } else if (v_scanline < X_BLANKING_COUNT) {
+        ch->read_addr = (uintptr_t)vblank_line_vsync_off;
+        ch->transfer_count = count_of(vblank_line_vsync_off);
+    } else if (!vactive_cmdlist_posted) {
+        ch->read_addr = (uintptr_t)vactive_line;
+        ch->transfer_count = count_of(vactive_line);
+        vactive_cmdlist_posted = true;
+    } else {
+        ch->read_addr = (uintptr_t)HDMIlines[v_scanline & 1];
+        ch->transfer_count = X_H_ACTIVE_PIXELS / 4; // 256 words (4 RGB332 px/word)
+        vactive_cmdlist_posted = false;
+    }
+
+    if (!vactive_cmdlist_posted) {
+        v_scanline = (v_scanline + 1) % X_V_TOTAL_LINES;
+    }
+}
+
 // --- core1 fill loop: RGB565 horizontal doubling into the next line buffer -
 // (RGB332 is native, so this returns immediately and core1 idles.)
 static void __not_in_flash_func(hdmi_fill_loop)(void) {
     if (hdmi_native) {
         while (hdmi_running) { // RGB640 scans the framebuffer directly; core1 idles
             __wfe();
+        }
+        return;
+    }
+    if (hdmi_rgb121) {
+        // 1024x600 native: expand 512 packed bytes per source row into 1024 RGB332
+        // pixels. One SRAM lookup + one 16-bit store per source byte (two pixels),
+        // no doubling. hdmi_map256/hdmi_fb/HDMIlines are all SRAM (no flash reads).
+        const uint16_t *m = hdmi_map256;
+        int last_line = 2;
+        while (hdmi_running) {
+            if (v_scanline != last_line) {
+                last_line = v_scanline;
+                int active = v_scanline - (X_V_TOTAL_LINES - X_V_ACTIVE_LINES);
+                uint16_t *p = (uint16_t *)HDMIlines[last_line & 1];
+                if (active >= 0 && active < X_V_ACTIVE_LINES) {
+                    const uint8_t *s = &hdmi_fb[active * (X_H_ACTIVE_PIXELS / 2)];
+                    for (int i = 0; i < X_H_ACTIVE_PIXELS / 2; i++) {
+                        p[i] = m[s[i]];
+                    }
+                }
+            }
         }
         return;
     }
@@ -290,9 +417,11 @@ static void __not_in_flash_func(hdmi_core1_entry)(void) {
     //   378 MHz -> clk_hstx = clk_sys*332/1000 = 125.5 MHz -> 25.1 MHz pixel (60 Hz)
     // (ratios match MMBasic's HDMI.c; the 378 case needs the fractional divider
     // because clk_sys/2 = 189 MHz would be far too fast.)
+    // RGB512 (doubled) and RGB1024 (native) both drive the 1024x600 timing.
+    const bool use_x_timing = (hdmi_mode == HDMI_MODE_RGB512 || hdmi_mode == HDMI_MODE_RGB1024);
     uint32_t hstx_in = clock_get_hz(clk_sys);
     uint32_t hstx_target;
-    if (hdmi_mode == HDMI_MODE_RGB512) {
+    if (use_x_timing) {
         hstx_target = hstx_in; // clk_hstx = clk_sys -> pixel = clk_sys/5 = 50.4 MHz (1024x600)
     } else if (hdmi_clock_khz == 378000) {
         hstx_target = (uint32_t)(((uint64_t)hstx_in * 332) / 1000);
@@ -305,10 +434,10 @@ static void __not_in_flash_func(hdmi_core1_entry)(void) {
 
     // Per-scanline H timing for the command lists (one-time; the hot-path DMA
     // IRQ uses hardcoded constants via its own handler).
-    const int h_front = (hdmi_mode == HDMI_MODE_RGB512) ? X_H_FRONT_PORCH : MODE_H_FRONT_PORCH;
-    const int h_sync = (hdmi_mode == HDMI_MODE_RGB512) ? X_H_SYNC_WIDTH : MODE_H_SYNC_WIDTH;
-    const int h_back = (hdmi_mode == HDMI_MODE_RGB512) ? X_H_BACK_PORCH : MODE_H_BACK_PORCH;
-    const int h_active = (hdmi_mode == HDMI_MODE_RGB512) ? X_H_ACTIVE_PIXELS : MODE_H_ACTIVE_PIXELS;
+    const int h_front = use_x_timing ? X_H_FRONT_PORCH : MODE_H_FRONT_PORCH;
+    const int h_sync = use_x_timing ? X_H_SYNC_WIDTH : MODE_H_SYNC_WIDTH;
+    const int h_back = use_x_timing ? X_H_BACK_PORCH : MODE_H_BACK_PORCH;
+    const int h_active = use_x_timing ? X_H_ACTIVE_PIXELS : MODE_H_ACTIVE_PIXELS;
 
     // Per-scanline command lists.
     vblank_line_vsync_off[0] = HSTX_CMD_RAW_REPEAT | h_front;
@@ -337,8 +466,9 @@ static void __not_in_flash_func(hdmi_core1_entry)(void) {
     vactive_line[7] = SYNC_V1_H1;
     vactive_line[8] = HSTX_CMD_TMDS | h_active;
 
-    if (hdmi_native) {
-        // RGB332 (8bpp) byte = RRRGGGBB. NBITS field is (bits - 1).
+    if (hdmi_native || hdmi_rgb121) {
+        // RGB332 (8bpp) byte = RRRGGGBB. NBITS field is (bits - 1). RGB1024 scans a
+        // core1-filled RGB332 line buffer, so it uses this same expander config.
         hstx_ctrl_hw->expand_tmds =
             0u << HSTX_CTRL_EXPAND_TMDS_L2_ROT_LSB | 2u << HSTX_CTRL_EXPAND_TMDS_L2_NBITS_LSB |  // red   [7:5]
             29u << HSTX_CTRL_EXPAND_TMDS_L1_ROT_LSB | 2u << HSTX_CTRL_EXPAND_TMDS_L1_NBITS_LSB | // green [4:2]
@@ -413,7 +543,9 @@ static void __not_in_flash_func(hdmi_core1_entry)(void) {
     // handler (rp2_dma_init), so an exclusive handler there would hard-assert.
     dma_hw->ints1 = (1u << dmach_ping) | (1u << dmach_pong);
     dma_hw->inte1 = (1u << dmach_ping) | (1u << dmach_pong);
-    hdmi_installed_irq = (hdmi_mode == HDMI_MODE_RGB512) ? hdmi_dma_irq_x : hdmi_dma_irq;
+    hdmi_installed_irq = (hdmi_mode == HDMI_MODE_RGB1024) ? hdmi_dma_irq_1024
+        : (hdmi_mode == HDMI_MODE_RGB512) ? hdmi_dma_irq_x
+        : hdmi_dma_irq;
     irq_set_exclusive_handler(DMA_IRQ_1, hdmi_installed_irq);
     irq_set_enabled(DMA_IRQ_1, true); // enabled on core1 -> ISR runs on core1
 
@@ -430,7 +562,18 @@ static void hdmi_fill_test_pattern(void) {
     static const uint8_t bars332[8] = {
         0xFF, 0xFC, 0x1F, 0x1C, 0xE3, 0xE0, 0x03, 0x00,
     };
-    if (hdmi_native) {
+    if (hdmi_rgb121) {
+        // 16 vertical bars, one per palette index (packed 2 px/byte).
+        for (int y = 0; y < hdmi_h; y++) {
+            uint8_t *row = &hdmi_fb[y * (hdmi_w / 2)];
+            for (int i = 0; i < hdmi_w / 2; i++) {
+                int x = i * 2;
+                uint8_t lo = (uint8_t)((x * 16) / hdmi_w);
+                uint8_t hi = (uint8_t)(((x + 1) * 16) / hdmi_w);
+                row[i] = (uint8_t)((hi << 4) | (lo & 0x0f));
+            }
+        }
+    } else if (hdmi_native) {
         for (int y = 0; y < hdmi_h; y++) {
             for (int x = 0; x < hdmi_w; x++) {
                 hdmi_fb[y * hdmi_w + x] = bars332[(x * 8) / hdmi_w];
@@ -508,7 +651,8 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
         return mp_const_none;
     }
     int mode = (n_args > 0) ? mp_obj_get_int(args[0]) : HDMI_MODE_RGB640;
-    if (mode != HDMI_MODE_RGB640 && mode != HDMI_MODE_RGB320 && mode != HDMI_MODE_RGB512) {
+    if (mode != HDMI_MODE_RGB640 && mode != HDMI_MODE_RGB320 &&
+        mode != HDMI_MODE_RGB512 && mode != HDMI_MODE_RGB1024) {
         mp_raise_ValueError(MP_ERROR_TEXT("bad mode"));
     }
     // Only 640x480 (RGB640) and 320x240 (RGB320) may vary the clock, and only to
@@ -519,8 +663,8 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
     if (clock != 252 && clock != 315 && clock != 378) {
         mp_raise_ValueError(MP_ERROR_TEXT("clock must be 252, 315 or 378"));
     }
-    if (mode == HDMI_MODE_RGB512 && clock != 252) {
-        mp_raise_ValueError(MP_ERROR_TEXT("RGB512 only supports 252 MHz"));
+    if ((mode == HDMI_MODE_RGB512 || mode == HDMI_MODE_RGB1024) && clock != 252) {
+        mp_raise_ValueError(MP_ERROR_TEXT("RGB512/RGB1024 only support 252 MHz"));
     }
     hdmi_clock_khz = clock * 1000;
     hdmi_set_clock(hdmi_clock_khz); // before core1 launches (reads the new clk_sys)
@@ -529,17 +673,28 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
         hdmi_w = 640;
         hdmi_h = 480;
         hdmi_native = 1;
+        hdmi_rgb121 = 0;
         hdmi_transfer_count = MODE_H_ACTIVE_PIXELS / 4; // 4 px/word (8bpp native)
     } else if (mode == HDMI_MODE_RGB320) {
         hdmi_w = 320;
         hdmi_h = 240;
         hdmi_native = 0;
+        hdmi_rgb121 = 0;
         hdmi_transfer_count = MODE_H_ACTIVE_PIXELS / 2; // 2 px/word (doubled 640-wide line)
-    } else { // RGB512
+    } else if (mode == HDMI_MODE_RGB512) {
         hdmi_w = 512;
         hdmi_h = 300;
         hdmi_native = 0;
+        hdmi_rgb121 = 0;
         hdmi_transfer_count = X_H_ACTIVE_PIXELS / 2;   // 512 words (doubled 1024-wide line)
+    } else { // RGB1024
+        hdmi_w = 1024;
+        hdmi_h = 600;
+        hdmi_native = 0;
+        hdmi_rgb121 = 1;
+        hdmi_transfer_count = X_H_ACTIVE_PIXELS / 4;   // 256 words (native 1024-wide RGB332 line)
+        hdmi_pal_ensure();    // load the default palette on first use
+        hdmi_pal_rebuild();   // (re)build the SRAM expansion table from the live palette
     }
     if (dmach_ping < 0) {
         dmach_ping = dma_claim_unused_channel(true);
@@ -562,7 +717,14 @@ static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_init_obj, 0, 2, hdmi_init);
 // Framebuffer as a writable bytearray alias, sized for the active mode. Use with
 // framebuf.FrameBuffer(buf, hdmi.WIDTH, hdmi.HEIGHT, framebuf.RGB565 or GS8).
 static mp_obj_t hdmi_framebuffer(void) {
-    int bytes = (hdmi_native) ? (hdmi_w * hdmi_h) : (hdmi_w * hdmi_h * 2);
+    int bytes;
+    if (hdmi_rgb121) {
+        bytes = hdmi_w * hdmi_h / 2;       // 4bpp packed
+    } else if (hdmi_native) {
+        bytes = hdmi_w * hdmi_h;           // 8bpp RGB332
+    } else {
+        bytes = hdmi_w * hdmi_h * 2;       // 16bpp RGB565
+    }
     return mp_obj_new_bytearray_by_ref(bytes, hdmi_fb);
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_framebuffer_obj, hdmi_framebuffer);
@@ -573,7 +735,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_framebuffer_obj, hdmi_framebuffer);
 static mp_obj_t hdmi_make_fb(void) {
     mp_obj_t framebuf_mod = mp_import_name(MP_QSTR_framebuf, mp_const_none, MP_OBJ_NEW_SMALL_INT(0));
     mp_obj_t pcgfx_mod = mp_import_name(MP_QSTR_pcgfx, mp_const_none, MP_OBJ_NEW_SMALL_INT(0));
-    qstr fmt_q = (hdmi_native) ? MP_QSTR_GS8 : MP_QSTR_RGB565;
+    qstr fmt_q = hdmi_rgb121 ? MP_QSTR_GS4_HMSB : (hdmi_native ? MP_QSTR_GS8 : MP_QSTR_RGB565);
     mp_obj_t args[4] = {
         hdmi_framebuffer(),
         MP_OBJ_NEW_SMALL_INT(hdmi_w),
@@ -637,7 +799,10 @@ static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_deinit_obj, hdmi_deinit);
 
 static mp_obj_t hdmi_fill(mp_obj_t colour_in) {
     mp_int_t col = mp_obj_get_int(colour_in);
-    if (hdmi_native) {
+    if (hdmi_rgb121) {
+        uint8_t c = (uint8_t)(col & 0x0f);
+        memset(hdmi_fb, (uint8_t)((c << 4) | c), (size_t)hdmi_w * hdmi_h / 2);
+    } else if (hdmi_native) {
         uint8_t c = (uint8_t)col;
         for (int i = 0; i < hdmi_w * hdmi_h; i++) {
             hdmi_fb[i] = c;
@@ -662,11 +827,14 @@ static mp_obj_t hdmi_scroll(size_t n_args, const mp_obj_t *args) {
     if (rows <= 0 || rows >= hdmi_h) {
         return mp_const_none;
     }
-    int stride = hdmi_w * ((hdmi_native) ? 1 : 2);
+    int stride = hdmi_rgb121 ? (hdmi_w / 2) : (hdmi_w * ((hdmi_native) ? 1 : 2));
     int keep = hdmi_h - rows;
     memmove(hdmi_fb, hdmi_fb + (size_t)rows * stride, (size_t)keep * stride);
     uint8_t *bottom = hdmi_fb + (size_t)keep * stride;
-    if (hdmi_native) {
+    if (hdmi_rgb121) {
+        uint8_t c = (uint8_t)(colour & 0x0f);
+        memset(bottom, (uint8_t)((c << 4) | c), (size_t)rows * stride);
+    } else if (hdmi_native) {
         memset(bottom, (int)(colour & 0xFF), (size_t)rows * stride);
     } else {
         uint16_t *p = (uint16_t *)bottom;
@@ -698,7 +866,17 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
             continue;
         }
         uint8_t bits = glyph[row];
-        if (hdmi_native) {
+        if (hdmi_rgb121) {
+            uint8_t *line = hdmi_fb + (size_t)y * (hdmi_w / 2);
+            for (int col = 0; col < FONT_W; col++) {
+                int x = px + col;
+                if (x >= 0 && x < hdmi_w) {
+                    uint8_t v = (bits & (0x80 >> col)) ? (uint8_t)(fg & 0x0f) : (uint8_t)(bg & 0x0f);
+                    uint8_t *pb = &line[x >> 1];
+                    *pb = (x & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                }
+            }
+        } else if (hdmi_native) {
             uint8_t *line = hdmi_fb + (size_t)y * hdmi_w;
             for (int col = 0; col < FONT_W; col++) {
                 int x = px + col;
@@ -749,7 +927,11 @@ static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, in
                     if (x < 0 || x >= hdmi_w) {
                         continue;
                     }
-                    if (hdmi_native) {
+                    if (hdmi_rgb121) {
+                        uint8_t *pb = &hdmi_fb[(size_t)y * (hdmi_w / 2) + (x >> 1)];
+                        uint8_t v = (uint8_t)(c & 0x0f);
+                        *pb = (x & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                    } else if (hdmi_native) {
                         hdmi_fb[(size_t)y * hdmi_w + x] = (uint8_t)c;
                     } else {
                         ((uint16_t *)hdmi_fb)[(size_t)y * hdmi_w + x] = (uint16_t)c;
@@ -790,11 +972,45 @@ static mp_obj_t hdmi_gen_fn(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_gen_obj, hdmi_gen_fn);
 
-// True if the framebuffer is RGB565 (RGB320/RGB512), False if RGB332 (RGB640).
+// True if the framebuffer is 16-bit RGB565 (RGB320/RGB512); False for the RGB332
+// (RGB640) or 4bpp RGB121 (RGB1024) formats. Prefer hdmi.bpp() for a 3-way test.
 static mp_obj_t hdmi_rgb565(void) {
-    return mp_obj_new_bool(!hdmi_native);
+    return mp_obj_new_bool(!hdmi_native && !hdmi_rgb121);
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_rgb565_obj, hdmi_rgb565);
+
+// Bits per framebuffer pixel: 4 (RGB1024), 8 (RGB640), or 16 (RGB320/RGB512).
+static mp_obj_t hdmi_bpp(void) {
+    return MP_OBJ_NEW_SMALL_INT(hdmi_rgb121 ? 4 : (hdmi_native ? 8 : 16));
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_bpp_obj, hdmi_bpp);
+
+// The RGB1024 mode's 16-colour RGB121 palette (only affects RGB1024 output):
+//   hdmi.palette()          -> a 16-tuple of the current RGB888 entries
+//   hdmi.palette(i)         -> entry i (0..15) as a 24-bit RGB888 int
+//   hdmi.palette(i, 0xRRGGBB) -> set entry i; rebuilds the expansion table so the
+//                               change shows immediately, even while scanning.
+static mp_obj_t hdmi_palette(size_t n_args, const mp_obj_t *args) {
+    hdmi_pal_ensure();
+    if (n_args == 0) {
+        mp_obj_t items[16];
+        for (int i = 0; i < 16; i++) {
+            items[i] = mp_obj_new_int_from_uint(hdmi_pal888[i]);
+        }
+        return mp_obj_new_tuple(16, items);
+    }
+    int i = mp_obj_get_int(args[0]);
+    if (i < 0 || i > 15) {
+        mp_raise_ValueError(MP_ERROR_TEXT("index must be 0..15"));
+    }
+    if (n_args == 1) {
+        return mp_obj_new_int_from_uint(hdmi_pal888[i]);
+    }
+    hdmi_pal888[i] = (uint32_t)mp_obj_get_int(args[1]) & 0xFFFFFFu;
+    hdmi_pal_rebuild();
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_palette_obj, 0, 2, hdmi_palette);
 
 // Draw the 8-bar colour test pattern (bring-up aid; init() now clears to black).
 static mp_obj_t hdmi_test(void) {
@@ -838,9 +1054,12 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_gen), MP_ROM_PTR(&hdmi_gen_obj) },
     { MP_ROM_QSTR(MP_QSTR_test), MP_ROM_PTR(&hdmi_test_obj) },
     { MP_ROM_QSTR(MP_QSTR_rgb565), MP_ROM_PTR(&hdmi_rgb565_obj) },
+    { MP_ROM_QSTR(MP_QSTR_bpp), MP_ROM_PTR(&hdmi_bpp_obj) },
+    { MP_ROM_QSTR(MP_QSTR_palette), MP_ROM_PTR(&hdmi_palette_obj) },
     { MP_ROM_QSTR(MP_QSTR_RGB640), MP_ROM_INT(HDMI_MODE_RGB640) },
     { MP_ROM_QSTR(MP_QSTR_RGB320), MP_ROM_INT(HDMI_MODE_RGB320) },
     { MP_ROM_QSTR(MP_QSTR_RGB512), MP_ROM_INT(HDMI_MODE_RGB512) },
+    { MP_ROM_QSTR(MP_QSTR_RGB1024), MP_ROM_INT(HDMI_MODE_RGB1024) },
 };
 static MP_DEFINE_CONST_DICT(hdmi_module_globals, hdmi_module_globals_table);
 

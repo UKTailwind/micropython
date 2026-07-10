@@ -8,9 +8,12 @@
 // RP2350B has 48 GPIOs with ADC on GP40-47 (help() text).
 #define MICROPY_HW_HELP_PIN_TEXT                "Pins are numbered 0-47, and 40-47 have ADC capabilities\n"
 
-// Tidy REPL banner: "MicroPython v1.29.0 on PICO COMPUTER 3 v0.2 with RP2350B"
-// (clean version, no build date; " on " separator instead of "; ").
-#define MICROPY_BANNER_NAME_AND_VERSION         "MicroPython v" MICROPY_VERSION_STRING_BASE
+// Tidy REPL banner: "MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.2 with
+// RP2350B" (drops the git hash / build date, but keeps the "-preview" marker so
+// the build doesn't masquerade as an unreleased 1.29.0; " on " separator
+// instead of "; "). MICROPY_VERSION_STRING appends "-preview" while upstream's
+// MICROPY_VERSION_PRERELEASE is set.
+#define MICROPY_BANNER_NAME_AND_VERSION         "MicroPython v" MICROPY_VERSION_STRING
 #define MICROPY_BANNER_MACHINE_SEP              " on "
 
 // Use double-precision (64-bit) floating point for Python floats.

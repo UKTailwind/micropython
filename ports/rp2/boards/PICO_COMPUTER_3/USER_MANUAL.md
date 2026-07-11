@@ -133,7 +133,67 @@ on the flash (`/…`) or the SD card (`/sd/…`).
 | `rm(path)` | Delete a file. Accepts a wildcard: `rm("*.tmp")` |
 | `mkdir(path)` / `rmdir(path)` | Create / remove a directory |
 | `run(path)` | Run a `.py` program (fresh namespace, inherits the REPL helpers) |
-| `edit(path)` | Open the full-screen **pye** editor (Ctrl-S save, Ctrl-Q quit) |
+| `edit(path)` | Open the full-screen **pye** editor (see below) |
+
+### Editing files with `pye`
+
+`edit("/sd/prog.py")` opens the built-in full-screen editor **pye** (robert-hh's
+MicroPython-Editor). If the file does not exist it starts an empty buffer and
+creates the file on the first save; `edit()` with no argument opens a blank
+buffer you can save to a name of your choice.
+
+It works both on the HDMI screen with a USB keyboard and over a serial terminal.
+Use the arrow / `Home` / `End` / `PgUp` / `PgDn` keys where you have them; the
+`Ctrl-` shortcuts below do the same job on a plain terminal.
+
+**Files**
+
+| Key | Action |
+|---|---|
+| `Ctrl-S` | Save |
+| `Ctrl-Q` (or `Esc`) | Quit — prompts `y/N/f` if there are unsaved changes (`f` = quit without saving) |
+| `Ctrl-O` | Insert another file at the cursor |
+
+**Moving around**
+
+| Key | Action |
+|---|---|
+| Arrow keys | Move the cursor |
+| `Home` / `End` | Start / end of line |
+| `PgUp` / `PgDn` | Up / down one screen |
+| `Ctrl-←` / `Ctrl-→` | Word left / right |
+| `Ctrl-G` | Go to a line number |
+| `Ctrl-T` / `Ctrl-B` | Top / bottom of the file |
+| `Ctrl-K` | Jump to the matching bracket |
+
+**Editing**
+
+| Key | Action |
+|---|---|
+| `Backspace` / `Delete` | Delete the character left / right |
+| `Tab` / `Shift-Tab` | Indent / unindent the line (or selection) |
+| `Ctrl-P` | Toggle Python comment on the line (or selection) |
+| `Ctrl-Z` / `Ctrl-Y` | Undo / redo |
+| `Ctrl-A` | Toggle editor options (auto-indent, tabs) |
+
+**Select & clipboard**
+
+| Key | Action |
+|---|---|
+| `Ctrl-L` | Set the selection mark, then move the cursor to extend it |
+| `Ctrl-C` | Copy the line (or selection) |
+| `Ctrl-X` | Cut the line (or selection) |
+| `Ctrl-V` | Paste |
+
+**Search**
+
+| Key | Action |
+|---|---|
+| `Ctrl-F` | Find (type a pattern) |
+| `Ctrl-N` | Find next |
+| `Ctrl-R` | Replace |
+
+After saving a `.py` file, run it with `run("/sd/prog.py")` or import it.
 
 ---
 

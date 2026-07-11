@@ -2,6 +2,7 @@
 # by _boot.py so they can be used without an explicit import.
 
 import os
+import sys
 import time
 
 
@@ -130,35 +131,133 @@ def rmdir(path):
 
 
 def rm(path):
-    """Remove a file."""
-    os.remove(path)
+    """Remove a file. A wildcard in the last path component removes every
+    matching file, e.g. rm("*.tmp") or rm("/sd/log/*.log")."""
+    for p in _expand(path):
+        os.remove(p)
 
 
-def cat(path):
-    """Print a text file's contents to the console."""
-    with open(path) as f:
+def _console_size():
+    # (cols, rows) of the on-screen console. Prefer the live console geometry;
+    # fall back to the 640x480 8x12 default grid if it isn't running.
+    try:
+        import pcconsole
+
+        con = pcconsole._con
+        if con is not None:
+            return con.cols, con.rows
+    except Exception:
+        pass
+    try:
+        import hdmi
+
+        return hdmi.width() // 8, hdmi.height() // 12
+    except Exception:
+        return 80, 40
+
+
+def _getkey():
+    # Blocking single-key read, mirroring pye's IO_DEVICE. Disable the Ctrl-C
+    # interrupt char so it arrives as a normal byte, read raw, then restore.
+    # The loop past empty reads means a non-blocking stdin still waits for a
+    # key instead of returning "" (which would let cat run straight through).
+    try:
+        from micropython import kbd_intr
+    except ImportError:
+        kbd_intr = None
+    if kbd_intr:
+        kbd_intr(-1)
+    try:
+        rd = sys.stdin.buffer.read if hasattr(sys.stdin, "buffer") else sys.stdin.read
         while True:
-            chunk = f.read(256)
-            if not chunk:
-                break
-            print(chunk, end="")
-    print()
+            c = rd(1)
+            if c:
+                return c if isinstance(c, str) else chr(c[0])
+    finally:
+        if kbd_intr:
+            kbd_intr(3)
+
+
+def _pause_more():
+    # MMBasic's ListNewLine pause: prompt, wait for a key, wipe the prompt and
+    # clear the screen so the next page starts clean. Returns False to stop
+    # (q or Ctrl-C), True to carry on.
+    sys.stdout.write("PRESS ANY KEY ...")
+    c = _getkey()
+    sys.stdout.write("\r                 \r")  # erase the 17-char prompt
+    if c in ("q", "Q", "\x03"):
+        sys.stdout.write("\n")
+        return False
+    sys.stdout.write("\x1b[H\x1b[2J")  # home cursor + clear for the next page
+    return True
+
+
+def cat(path, page=True):
+    """Print a text file's contents to the console. Pages a screenful at a time
+    (press any key to continue, q or Ctrl-C to stop) so long files don't scroll
+    off the HDMI display; pass page=False to dump the whole file continuously."""
+    with open(path) as f:
+        if not page:
+            while True:
+                chunk = f.read(256)
+                if not chunk:
+                    break
+                print(chunk, end="")
+            print()
+            return
+        cols, rows = _console_size()
+        limit = rows - 1  # MMBasic keeps one line of overlap between pages
+        count = 1         # the command line already sits at the top of page one
+        for line in f:
+            line = line.rstrip("\n")
+            print(line)
+            # A line wider than the screen wraps onto extra rows; count them so
+            # the page break lands where the text actually fills the screen.
+            count += len(line) // cols + 1
+            if count >= limit:
+                if not _pause_more():
+                    return
+                count = 0
+
+
+def _isdir(path):
+    try:
+        return bool(os.stat(path)[0] & 0x4000)
+    except OSError:
+        return False
+
+
+def _expand(path):
+    # Shell-style glob expansion for the file commands: a wildcard in the last
+    # path component expands to the sorted list of matching files (sub-dirs are
+    # skipped, as cp/mv/rm act on files). No wildcard -> [path] unchanged, so a
+    # missing plain path still surfaces as the operation's own OSError. A
+    # wildcard that matches nothing raises, like a shell with a bad glob.
+    directory, pattern = _split_pattern(path)
+    if pattern is None:
+        return [path]
+    sep = "" if directory.endswith("/") else "/"
+    matches = []
+    for entry in os.ilistdir(directory):
+        if entry[1] & 0x4000:  # directory
+            continue
+        if _glob_match(entry[0], pattern):
+            matches.append(directory + sep + entry[0])
+    if not matches:
+        raise OSError("no matches: " + path)
+    matches.sort()
+    return matches
 
 
 def _resolve_dest(src, dst):
     # If dst is an existing directory, target <dst>/<basename of src>.
-    try:
-        if os.stat(dst)[0] & 0x4000:
-            base = src.rsplit("/", 1)[-1]
-            dst = dst + ("" if dst.endswith("/") else "/") + base
-    except OSError:
-        pass
+    if _isdir(dst):
+        base = src.rsplit("/", 1)[-1]
+        return dst + ("" if dst.endswith("/") else "/") + base
     return dst
 
 
-def cp(src, dst):
-    """Copy a file. If dst is a directory, copy into it."""
-    dst = _resolve_dest(src, dst)
+def _copy_file(src, dst):
     with open(src, "rb") as fi, open(dst, "wb") as fo:
         while True:
             block = fi.read(1024)
@@ -167,15 +266,31 @@ def cp(src, dst):
             fo.write(block)
 
 
+def cp(src, dst):
+    """Copy a file. If dst is a directory, copy into it. A wildcard in src
+    copies every matching file, e.g. cp("*.py", "/sd"); dst must then be a
+    directory."""
+    sources = _expand(src)
+    if len(sources) > 1 and not _isdir(dst):
+        raise OSError("target is not a directory: " + dst)
+    for s in sources:
+        _copy_file(s, _resolve_dest(s, dst))
+
+
 def mv(src, dst):
-    """Move/rename a file. If dst is a directory, move into it. Falls back to
+    """Move/rename a file. If dst is a directory, move into it. A wildcard in
+    src moves every matching file (dst must then be a directory). Falls back to
     copy+remove when src and dst are on different filesystems."""
-    dst = _resolve_dest(src, dst)
-    try:
-        os.rename(src, dst)
-    except OSError:
-        cp(src, dst)
-        os.remove(src)
+    sources = _expand(src)
+    if len(sources) > 1 and not _isdir(dst):
+        raise OSError("target is not a directory: " + dst)
+    for s in sources:
+        d = _resolve_dest(s, dst)
+        try:
+            os.rename(s, d)
+        except OSError:
+            _copy_file(s, d)
+            os.remove(s)
 
 
 # Commands injected into the REPL (__main__) namespace by _boot.py.

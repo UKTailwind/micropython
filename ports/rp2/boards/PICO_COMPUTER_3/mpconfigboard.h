@@ -1,7 +1,7 @@
 // Board and hardware specific configuration. The firmware version is folded
 // into the board name so it appears in the REPL banner and os.uname().machine;
 // "PICO COMPUTER 3" remains a substring so the _boot.py board check still matches.
-#define PICO_COMPUTER_3_VERSION                 "0.2"
+#define PICO_COMPUTER_3_VERSION                 "0.3"
 #define MICROPY_HW_BOARD_NAME                   "PICO COMPUTER 3 v" PICO_COMPUTER_3_VERSION
 #define MICROPY_HW_MCU_NAME                     "RP2350B"
 

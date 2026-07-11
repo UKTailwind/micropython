@@ -1,10 +1,10 @@
 # Pico Computer 3 — MicroPython User Manual
 
-**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.2** (test release).
+**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.3** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.2 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.3 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -128,9 +128,9 @@ on the flash (`/…`) or the SD card (`/sd/…`).
 |---|---|
 | `ls([path])` | List a directory. Accepts glob patterns: `ls("/sd/*.mp3")` |
 | `cd(path)` / `pwd()` | Change / show the working directory |
-| `cat(path)` | Print a text file |
-| `cp(src, dst)` / `mv(src, dst)` | Copy / move (rename) a file |
-| `rm(path)` | Delete a file |
+| `cat(path)` | Print a text file, a page at a time (any key = next page, `q` = stop; `cat(path, False)` dumps it all) |
+| `cp(src, dst)` / `mv(src, dst)` | Copy / move (rename) a file. A wildcard in `src` acts on every match, e.g. `cp("*.py", "/sd")` (`dst` must be a directory) |
+| `rm(path)` | Delete a file. Accepts a wildcard: `rm("*.tmp")` |
 | `mkdir(path)` / `rmdir(path)` | Create / remove a directory |
 | `run(path)` | Run a `.py` program (fresh namespace, inherits the REPL helpers) |
 | `edit(path)` | Open the full-screen **pye** editor (Ctrl-S save, Ctrl-Q quit) |
@@ -602,5 +602,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.2 — based on MicroPython. See
+*Pico Computer 3 firmware v0.3 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

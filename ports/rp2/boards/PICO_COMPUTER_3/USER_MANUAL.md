@@ -111,7 +111,7 @@ inherits the same names. The most useful are:
 
 **Images:** `draw_jpg`, `draw_bmp`, `draw_png`, `save_image`.
 
-**Input devices:** `touch`, `mouse`, `mouse_speed`.
+**Input devices:** `touch`, `mouse`, `mouse_speed`, `keydown`.
 
 **File transfer:** `xrecv`, `xsend` (XMODEM over the serial console).
 
@@ -338,10 +338,49 @@ keymaps()         # list available layouts
 
 Layouts: **US, UK, DE, FR, ES, BE**. The choice is saved and restored at boot.
 
-### Lock LEDs
+### Lock LEDs and Num Lock
 
 Caps Lock, Num Lock and Scroll Lock toggle the keyboard's physical LEDs, and the
-correct LED state is set when a keyboard is plugged in.
+correct LED state is set when a keyboard is plugged in. Num Lock starts **on**;
+turning it off makes the numeric keypad act as a navigation cluster
+(arrows/Home/End/PgUp/PgDn/Ins/Del), like a PC.
+
+### Reading keys directly — `keydown()`
+
+Programs (games especially) often need to know which keys are held *right now*
+rather than reading typed characters. **`keydown(n)`** reports the live key
+state (MMBasic's `KEYDOWN()` function):
+
+| Call | Returns |
+|---|---|
+| `keydown()` or `keydown(0)` | how many keys are currently held (0–6) |
+| `keydown(1)` … `keydown(6)` | code of the nth held key (1 = most recent; 0 = none) |
+| `keydown(7)` | modifier bitmap: 1 L-Alt, 2 L-Ctrl, 4 L-GUI, 8 L-Shift, 16 R-Alt, 32 R-Ctrl, 64 R-GUI, 128 R-Shift |
+| `keydown(8)` | lock bitmap: 1 Caps, 2 Num, 4 Scroll |
+
+Printing keys report their character code (layout-, Shift- and Caps-aware), so
+`keydown(1) == ord("a")` tests the A key. Non-printing keys report the codes in
+the `keyboard` module: `keyboard.UP`, `DOWN`, `LEFT`, `RIGHT`, `HOME`, `END`,
+`PGUP`, `PGDN`, `INS`, `DEL`, `ENTER`, `ESC`, `TAB`, `BKSP`, `F1`…`F12`.
+
+Note: each `keydown()` call also empties pending console input (as in MMBasic),
+so polled keys don't pile up as typed-ahead input at the REPL prompt.
+
+```python
+import keyboard, time
+while keydown(1) != keyboard.ESC:        # run until Esc is held
+    if keydown(1) == ord("a"):           # 'a' key held?
+        print("left!")
+    time.sleep_ms(20)
+```
+
+### Key event callback — `keyboard.on_key()`
+
+`keyboard.on_key(cb)` registers a handler called as `cb(code)` for every
+keypress (and auto-repeat) with the same codes `keydown()` reports;
+`keyboard.on_key()` (or passing `None`) removes it. The handler runs via the
+scheduler (between bytecodes), so it may allocate and print but should return
+quickly. The key still goes to the console/REPL input as normal.
 
 ---
 
@@ -538,7 +577,150 @@ just convenience aliases injected into the REPL).
 
 ---
 
-## 14. Persistent settings
+## 14. Timers, pin interrupts and background events
+
+MicroPython has the same "software interrupt" model as MMBasic: a peripheral or
+timer flags an event, and your Python handler runs **between statements** of
+whatever the main program is doing (including during `time.sleep()`). Handlers
+are ordinary Python functions — no special return statement is needed. If you
+are coming from MMBasic, this table is the translation:
+
+| MMBasic | MicroPython equivalent |
+|---|---|
+| `SETTICK period, sub` | `machine.Timer(period=..., callback=f)` |
+| `SETTICK 0` (cancel) | `timer.deinit()` |
+| `SETPIN n, INTH/INTL/INTB, sub` | `Pin(n).irq(f, Pin.IRQ_RISING / IRQ_FALLING)` |
+| `ON KEY sub` | `keyboard.on_key(f)` (see section 6) |
+| `WATCHDOG timeout` | `machine.WDT(timeout=ms)` + `wdt.feed()` |
+| COM-port RX interrupt | `machine.UART.irq(f, UART.IRQ_RXIDLE)` |
+| `PAUSE` (interrupts still fire) | `time.sleep()` (callbacks still fire) |
+
+### Periodic ticks — `machine.Timer` (SETTICK)
+
+```python
+from machine import Timer
+
+def tick(t):                 # the timer object is passed to the callback
+    print("tick")
+
+t1 = Timer(period=500, callback=tick)                 # every 500 ms
+t2 = Timer(period=2000, mode=Timer.ONE_SHOT,
+           callback=lambda t: print("once, 2 s later"))
+t1.deinit()                  # cancel (= SETTICK 0)
+```
+
+You can run many timers at once (MMBasic allows 4; here ~16). `freq=10` may be
+used instead of `period=100`. Callbacks keep firing while the main program
+computes, sleeps, or sits at the REPL.
+
+### Pin-change interrupts — `Pin.irq` (SETPIN INTH/INTL/INTB)
+
+```python
+from machine import Pin
+
+def button(p):               # the Pin object is passed to the handler
+    print("pressed", p)
+
+sw = Pin(2, Pin.IN, Pin.PULL_UP)
+sw.irq(button, Pin.IRQ_FALLING)                  # INTL: high -> low
+sw.irq(button, Pin.IRQ_RISING)                   # INTH: low -> high
+sw.irq(button, Pin.IRQ_RISING | Pin.IRQ_FALLING) # INTB: both edges
+sw.irq(None)                                     # remove (= SETPIN n, OFF)
+```
+
+By default the handler is *scheduled* like everything else on this page. For
+microsecond-latency work add `hard=True` — the handler then runs in the real
+hardware interrupt and must not allocate memory (see the MicroPython docs on
+ISR rules).
+
+### Serial-port receive — `UART.irq`
+
+```python
+from machine import UART
+u = UART(0, 115200, tx=machine.Pin(0), rx=machine.Pin(1))
+u.irq(lambda uart: print("rx:", uart.read()), UART.IRQ_RXIDLE)
+```
+
+`IRQ_RXIDLE` fires shortly after a burst of incoming data stops arriving.
+
+### Watchdog — `machine.WDT`
+
+```python
+wdt = machine.WDT(timeout=5000)   # reboot if not fed for 5 s
+wdt.feed()                        # call regularly from the main loop
+```
+
+Note: once started, a watchdog cannot be stopped — a Ctrl-C back to the REPL
+will reboot the board 5 s later unless you keep feeding it.
+
+### Other event callbacks on this board
+
+- `keyboard.on_key(f)` — every keypress/auto-repeat, `f(code)` (section 6).
+- `keyboard.on_usb_event(f)` — USB device plugged/unplugged, `f(True/False)`
+  (this drives the plug-in sound; replacing it replaces the sound).
+- `machine.RTC` has no alarm on this chip — use a `Timer` for scheduled work.
+
+### Rules of thumb for handlers
+
+- Keep them short; they run to completion and delay each other (and the REPL)
+  while running. Set a flag or store a value, act on it in the main loop.
+- Scheduled events queue up to 8 deep; a burst beyond that is dropped. For
+  high-rate sources poll the live state instead — `keydown()`, `touch("X")`,
+  `mouse("X")` are the lossless pattern for games.
+- An uncaught exception inside a handler is printed and that callback may stop
+  firing — wrap risky code in `try/except`.
+- For bigger programs, `asyncio` (next subsection) is often a cleaner way to
+  structure many concurrent activities than nested callbacks.
+
+### Concurrency — `asyncio` (and a note on threads)
+
+The **`_thread` module is not available on this board**. On the rp2 port a
+thread always runs on the second CPU core, and core 1 here is dedicated to
+generating the HDMI picture — the two cannot coexist. The supported way to run
+several activities "at the same time" is **`asyncio`** (frozen into this
+firmware): cooperative tasks that all run on core 0, switching wherever a task
+`await`s.
+
+```python
+import asyncio, keyboard
+
+async def ticker():                    # background task: once a second
+    n = 0
+    while True:
+        print("tick", n)
+        n += 1
+        await asyncio.sleep(1)
+
+async def watch_keys():                # foreground task: poll the keyboard
+    while keydown(1) != keyboard.ESC:
+        await asyncio.sleep_ms(20)
+
+async def main():
+    t = asyncio.create_task(ticker())  # start the background task
+    await watch_keys()                 # run until Esc is held
+    t.cancel()
+
+asyncio.run(main())
+```
+
+Things to know:
+
+- Scheduling is **cooperative**: a task runs until it `await`s. A blocking call
+  (`time.sleep()`, a long computation, a blocking `read()`) stalls *every*
+  task — use `await asyncio.sleep_ms(...)` and the asyncio stream APIs instead.
+- Because only one task runs at a time there are no data races — tasks can
+  share variables freely, no locks needed.
+- The timers, pin interrupts and callbacks from earlier in this section keep
+  firing while asyncio runs; they are independent mechanisms and combine well
+  (e.g. a `Pin.irq` handler sets an `asyncio.ThreadSafeFlag` a task waits on).
+- There is no way to run CPU-heavy Python "in the background" — all Python
+  shares core 0, so a long computation pauses everything else regardless of
+  how it is structured.
+- Full API: https://docs.micropython.org/en/latest/library/asyncio.html
+
+---
+
+## 15. Persistent settings
 
 The keyboard layout, the HDMI mode/clock, and the RGB1024 palette are saved in
 `/settings.json` on the flash filesystem and restored at boot. `keymap("UK")`,
@@ -548,7 +730,7 @@ The keyboard layout, the HDMI mode/clock, and the RGB1024 palette are saved in
 
 ---
 
-## 15. Networking (Wi-Fi / Bluetooth)
+## 16. Networking (Wi-Fi / Bluetooth)
 
 Wi-Fi and Bluetooth use the on-board CYW43 chip and the standard MicroPython
 APIs — see the MicroPython docs for full details.
@@ -607,7 +789,7 @@ while True:
 
 ---
 
-## 16. Standard MicroPython modules in this build
+## 17. Standard MicroPython modules in this build
 
 All the usual MicroPython modules are present. The definitive list on your board
 is `help('modules')`. Notable ones:
@@ -648,7 +830,13 @@ hdmi.text("BIG", 0, 20, d.colour(RED), -1, 4)   # scaled 8x12 text
 # Input
 touch("DOWN"); touch("X"); touch("SWIPE")
 mouse("X"); mouse("L")
+keydown(1)                      # code of the key held right now (0 = none)
 keymap("UK")
+
+# Timers / interrupts
+t = machine.Timer(period=500, callback=lambda t: print("tick"))  # SETTICK
+t.deinit()                      # cancel
+Pin(2, Pin.IN, Pin.PULL_UP).irq(lambda p: print("edge"), Pin.IRQ_FALLING)
 
 # Audio
 volume(70); play("/sd/song.mp3"); stop()

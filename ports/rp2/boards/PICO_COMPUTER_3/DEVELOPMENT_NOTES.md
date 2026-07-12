@@ -958,6 +958,56 @@ vertical colour bars; the REPL console renders on-screen.
 
 ---
 
+### 30. Key-state input — `keydown()` + `keyboard.on_key()` (+ num-lock keypad)
+
+Games can't read held keys from a stdin stream, so this ports MMBasic's
+`KEYDOWN()` (`fun_keydown`, MM_Misc.c + the `KeyDown[]` state filled in
+KeyboardMap.c `process_kbd_report`). See [[replicate-mmbasic-exactly]].
+
+- **State (`mp_usbh.c`):** `kbd_keydown[7]` — [0..5] mapped codes of the held
+  keys in *reverse report order* (so `keydown(1)` = most recent), [6] = the
+  modifier bitmap in MMBasic's bit order (1 L-Alt, 2 L-Ctrl, 4 L-GUI, 8 L-Shift,
+  16/32/64/128 the right-hand versions — NOT the raw HID order). Filled at the
+  end of `kbd_process_report`; a report containing HID error codes 1–3
+  (roll-over) leaves the previous state untouched, exactly as MMBasic. Cleared
+  on keyboard unmount (with `kbd_prev`, so a re-plug starts clean).
+- **Mapping — `kbd_map_code()`,** a faithful port of `APP_MapKeyToUsage`:
+  lock keys → 0; **AltGr specials** for the DE/FR/ES/BE layouts (verbatim
+  tables, keyed off `kbd_layout_name` — these do *not* yet apply to the stdin
+  typing path, which is untouched); Ctrl+letter → 1..26 (from the unshifted
+  column, so layout-aware); keypad → column by **num-lock**; letters → column by
+  caps XOR shift; rest → column by shift. Non-printing keys therefore report
+  MMBasic's codes straight from the vendored tables (UP 0x80 … F1 0x91 …,
+  with shift variants like Shift-Down 0xA1).
+- **`keyboard.keydown(n=0)`** (usb_keyboard.c → `usb_kbd_keydown()`): n=0 count
+  of held keys, 1..6 nth key code, 7 modifier bitmap, 8 lock bitmap (1 caps,
+  2 num, 4 scroll). **Drains `stdin_ringbuf` on every call** — MMBasic's
+  `while(getConsole()!=-1);` — so a polling game doesn't leave WASD spam as
+  typed-ahead REPL input. Injected into the REPL as `keydown` by `_boot_board`.
+  Codes exposed as module constants (`keyboard.UP/DOWN/…/F1..F12`).
+- **`keyboard.on_key(cb)`** — `cb(code)` scheduled (mp_sched_schedule, thread
+  context) for every new keypress *and* every synthesised auto-repeat (matching
+  what a console reader would see). Same rooted-pointer pattern as
+  `on_usb_event` (`MP_REGISTER_ROOT_POINTER(usbh_key_cb)` in usb_keyboard.c,
+  read from mp_usbh.c). Unmapped keys (code 0) are not reported; the key still
+  goes to stdin as normal. A full scheduler queue silently drops (acceptable —
+  state polling via keydown() is the lossless path).
+- **Num-lock keypad remap (stdin path)** — the deferred §25 item: `kbd_num` now
+  defaults **true** (MMBasic `Option.numlock` default), and with num-lock *off*
+  `kbd_key()` redirects keypad digit/period usages (0x59–0x63) to the equivalent
+  nav-cluster usages so the existing VT100 switch emits the right sequences
+  (kp4 → Left `\x1b[D`, kp0 → Ins, kp. → Del, …). Keypad-5 keeps typing '5'
+  (MMBasic's table has no shifted meaning for it). With num-lock on (default)
+  behaviour is unchanged, so the proven typing path is untouched.
+
+Verify: hold A → `keydown()`=1, `keydown(1)`=97; Shift-A → 65; two keys →
+`keydown(0)`=2 with `keydown(1)` the newer; arrows → 0x80..0x83; `keydown(7)`
+tracks Shift/Ctrl/Alt; `keydown(8)` bit 2 set at boot (num-lock on);
+`keyboard.on_key(print)` echoes codes incl. auto-repeat; num-lock off → keypad
+arrows move the cursor at the REPL.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -966,8 +1016,8 @@ vertical colour bars; the REPL console renders on-screen.
 | `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`) |
 | `ports/rp2/xmodem.c` | **new** `xmodem` module: XMODEM send/recv over the console UART, faithful port of MMBasic `misc/XModem.c` + trailing-pad trim on receive (§28) |
 | `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
-| `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard |
-| `ports/rp2/usb_keyboard.c` + `keyboard_maps.h` | **new** `keyboard` module (`keymap()`, `on_usb_event()`) + vendored MMBasic layouts; rooted USB-event callback |
+| `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard; `KeyDown[]` held-key state + `kbd_map_code` (§30); num-lock keypad remap |
+| `ports/rp2/usb_keyboard.c` + `keyboard_maps.h` | **new** `keyboard` module (`keymap()`, `keydown()`, `on_key()`, `on_usb_event()`) + vendored MMBasic layouts; rooted USB-event/key callbacks; key-code constants (§30) |
 | `ports/rp2/usb_touch.c` + `usb_touch.h` | **new** USB multi-touch: HID descriptor parser + report decode/reassembly + digitizer-init handshake + gesture machine (vendored MMBasic) |
 | `ports/rp2/usb_touch_mod.c` | **new** `touch` module (`touch()` query: X/Y, contacts, swipes, tap/hold, pinch/rotate) |
 | `ports/rp2/usb_mouse.c` + `usb_mouse.h` | **new** USB mouse: descriptor type-detect (8/12/16-bit) + report decode + cursor accumulation/buttons/wheel/double-click (vendored MMBasic) |

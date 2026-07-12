@@ -48,6 +48,8 @@ import pcconfig
 # keymap("UK")/screen(...) apply AND persist; keymaps() just lists.
 __main__.keymap = pcconfig.keymap
 __main__.keymaps = keyboard.keymaps
+# keydown(n): which keys are held right now (MMBasic KEYDOWN) — for games etc.
+__main__.keydown = keyboard.keydown
 __main__.screen = pcconfig.screen
 __main__.palette = pcconfig.palette
 try:

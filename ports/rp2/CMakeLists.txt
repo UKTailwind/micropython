@@ -184,7 +184,8 @@ set(MICROPY_SOURCE_PORT
 # so other rp2 boards are unaffected. ---
 
 # On-board multimedia stack: HSTX DVI output (hdmi.c), PCM5102 I2S audio player
-# (audio.c + the dr_* decoders), and JPEG/BMP/PNG image loaders.
+# (audio.c + the dr_* decoders + the hxcmod MOD tracker), and JPEG/BMP/PNG
+# image loaders.
 if(MICROPY_HW_ENABLE_HDMI)
     list(APPEND MICROPY_SOURCE_PORT
         hdmi.c
@@ -192,6 +193,7 @@ if(MICROPY_HW_ENABLE_HDMI)
         dr_wav.c
         dr_mp3.c
         dr_flac.c
+        hxcmod.c
         jpeg.c
         picojpeg.c
         bmp.c

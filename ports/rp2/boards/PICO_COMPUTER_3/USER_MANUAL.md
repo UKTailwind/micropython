@@ -105,7 +105,8 @@ inherits the same names. The most useful are:
 
 **Display / settings:** `screen`, `keymap`, `keymaps`.
 
-**Audio:** `play`, `volume`, `beep`, `stop`, `is_playing`.
+**Audio:** `play`, `volume`, `beep`, `stop`, `is_playing`, `pause`, `resume`,
+`tone`, `sound`, `mod_sample`.
 
 **Clock:** `settime`, `gettime`, `synctime`.
 
@@ -462,10 +463,11 @@ prompt stays live while a track plays).
 
 | Command | Description |
 |---|---|
-| `play(path)` | Play a `.wav`, `.mp3` or `.flac` file (dispatched by extension) |
+| `play(path)` | Play a `.wav`, `.mp3`, `.flac` or `.mod` file (dispatched by extension) |
 | `play(path, wait=True)` | Play and block until finished |
+| `pause()` / `resume()` | Suspend and continue the current playback |
 | `stop()` | Stop playback immediately |
-| `is_playing()` | True while a track is playing |
+| `is_playing()` | True while something is playing |
 | `volume(v)` | Set volume 0–100 (perceptual/log taper); `volume()` returns it |
 | `beep(freq=880, ms=150)` | Play a short tone |
 
@@ -476,6 +478,58 @@ play("/sd/music/song.flac")
 
 WAV, MP3 and FLAC are decoded on the fly. A short sound also plays when a USB
 device is plugged in or removed (set `pcaudio.usb_sounds = False` to disable).
+
+### Tracker music + game sound effects — `.mod` files
+
+Amiga **MOD tracker modules** play with the hxcmod engine (as MMBasic's
+`PLAY MODFILE`). `play()` returns the song title. `loop=True` repeats the song
+forever — ideal for game background music:
+
+```python
+play("/sd/game.mod", loop=True)
+mod_sample(3)                 # fire one of the song's instrument samples as a
+mod_sample(7, effect=2)       # sound effect MIXED OVER the music
+```
+
+`mod_sample(sample, effect=1, vol=64, rate=16000)` plays instrument `sample`
+(1–32) of the **currently playing** MOD on effect channel 1–4 — so a game can
+keep its music running and trigger shots/jumps/pickups from the same file
+(MMBasic `PLAY MODSAMPLE`). Raising `rate` pitches the sample up.
+
+### Tones — `tone()`
+
+Two sine-wave channels (left/right), like MMBasic `PLAY TONE`:
+
+```python
+tone(440)                     # 440 Hz both channels, until stop()
+tone(440, 880)                # different left/right frequencies
+tone(262, 262, 500)           # middle C for 500 ms (rounded to whole cycles)
+tone(330)                     # retunes LIVE — no click, so melodies work
+stop()
+```
+
+A timed tone ends at a zero crossing (no click). Calling `tone()` while a tone
+is playing retunes it seamlessly; `tone(freq, freq, ms, wait=True)` blocks.
+
+### 4-voice synthesiser — `sound()`
+
+Four independent voices, each with its own waveform per side (MMBasic
+`PLAY SOUND`): **S**ine, **Q** (square), **T**riangle, **W** (sawtooth),
+**P** (periodic noise), **N** (white noise), **O**ff.
+
+```python
+sound(1, "B", "S", 440)        # voice 1: sine 440 Hz on both sides
+sound(2, "L", "Q", 110, 15)    # voice 2: square 110 Hz, left only, volume 15
+sound(3, "R", "N", 1000)       # voice 3: white noise on the right
+sound(2, "L", "O", 1)          # switch one voice off
+stop()                         # silence (stops the whole synth)
+```
+
+`sound(voice, side, wave, freq=10, vol=25)`: voice 1–4; side `"L"`, `"R"` or
+`"B"`; freq 1 Hz–20 kHz; vol 0–25 per voice (25 = max — four voices at full
+volume fill the output range). Volume changes ramp over a few ms to avoid
+clicks. Voices can be changed live while the synth runs — arpeggios, sirens
+and game effects are all a loop of `sound()` calls.
 
 ---
 
@@ -839,7 +893,10 @@ t.deinit()                      # cancel
 Pin(2, Pin.IN, Pin.PULL_UP).irq(lambda p: print("edge"), Pin.IRQ_FALLING)
 
 # Audio
-volume(70); play("/sd/song.mp3"); stop()
+volume(70); play("/sd/song.mp3"); pause(); resume(); stop()
+play("/sd/game.mod", loop=True); mod_sample(3)   # tracker music + effects
+tone(440, 880, 500)                              # sine tones (L, R, ms)
+sound(1, "B", "Q", 110)                          # 4-voice synth (see section 9)
 
 # Files
 ls("/sd/*.jpg"); run("/sd/app.py"); edit("/sd/app.py")

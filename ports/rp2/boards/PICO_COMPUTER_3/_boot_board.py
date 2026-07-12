@@ -57,7 +57,8 @@ try:
 except Exception:
     pass
 
-# Audio: WAV playback + volume over the PCM5102 I2S DAC.
+# Audio: WAV/MP3/FLAC/MOD playback, tone generator and 4-voice synth over the
+# PCM5102 I2S DAC.
 import pcaudio
 
 __main__.play = pcaudio.play
@@ -65,6 +66,11 @@ __main__.volume = pcaudio.volume
 __main__.beep = pcaudio.beep
 __main__.stop = pcaudio.stop
 __main__.is_playing = pcaudio.is_playing
+__main__.tone = pcaudio.tone
+__main__.sound = pcaudio.sound
+__main__.mod_sample = pcaudio.mod_sample
+__main__.pause = pcaudio.pause
+__main__.resume = pcaudio.resume
 # Play a short sound when a USB device is plugged in / removed.
 keyboard.on_usb_event(pcaudio.system_sound)
 

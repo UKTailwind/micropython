@@ -1008,6 +1008,76 @@ arrows move the cursor at the REPL.
 
 ---
 
+### 31. MOD tracker, tones and 4-voice synth — audio parity with MMBasic
+
+Ports MMBasic's `PLAY MODFILE`/`MODSAMPLE`, `PLAY TONE`, `PLAY SOUND` and
+`PLAY PAUSE`/`RESUME` (io/Audio.c) onto the existing background pump: each new
+source is a C "produce a chunk" function that pcaudio's scheduled I2S callback
+pulls, with the master volume applied per chunk by `audio.scale` (playing the
+role of MMBasic's `i2sconvert`). See [[replicate-mmbasic-exactly]].
+
+- **MOD (`play("x.mod", loop=)` + `mod_sample()`):** vendored **hxcmod.c/h from
+  MMBasic third_party_mod** (upstream is Jean-François Del Nero's HxCMOD,
+  license "do what you want"; MMBasic's copy adds the `seffect` sound-effect
+  engine that `hxcmod_playsoundeffect` = `PLAY MODSAMPLE` needs, so theirs is
+  vendored, not upstream's). The whole .mod loads into a Python `bytes` (PSRAM
+  heap) — hxcmod plays pattern/sample data **in place** (verified: only the
+  1084-byte header is copied into `modcontext`; the load never writes to the
+  file buffer, so an immutable `bytes` is safe). pcaudio keeps the bytes
+  referenced in `_pb`; the `modcontext` (~tens of KB) comes from the **rooted
+  audio allocator** (`audio_allocs`, §16), so the GC can't reclaim either
+  mid-song. Output is 16-bit stereo at **22050 Hz** (MMBasic's
+  `modfilesamplerate`) — MMBasic doubles each sample to a 44100 output; we just
+  run I2S at 22050. End-of-song (noloop): `hxcmod_fillbuffer` returns 1
+  mid-buffer; the buffer is memset-0 before each fill so the tail is silence
+  (MMBasic replays stale samples there). `mod_sample(1..32, effect 1..4,
+  vol 1..64, rate)` → Amiga period `3579545/rate` (MMBasic hardcodes 16000; we
+  expose it). Effect-trigger latency ≈ chunk (46 ms) + I2S queue (93 ms @
+  ibuf 8192) — the same ballpark as MMBasic's two 8 KB swing buffers.
+- **Tone (`tone(fl, fr, ms)`):** faithful `fillToneBuffer` — 4096-entry
+  `SineTable` (vendored, `sound_tables.h`), float phase accumulators,
+  `(table-2000)*16` full-scale, `mono` fast path when fl==fr, duration rounded
+  to **whole left-channel cycles** (f ≥ 10 Hz) so it ends at a zero crossing
+  (the rounding multiplies the integer cycle count by the *float* period,
+  exactly as MMBasic — integer-truncating the period ends mid-cycle = click).
+  Re-calling `tone()` while playing **retunes without restarting** (MMBasic's
+  repeat-call path: new PhaseM/SoundPlay, phases kept) — melodies don't click.
+- **Synth (`sound(voice, side, wave, freq, vol)`):** faithful
+  `fillSoundBuffer`/`getsound` (I2S branch): 4 voices × independent L/R; sine +
+  triangle from vendored tables, square/saw computed (MMBasic's 99/98 marker
+  values become a clean enum — same waveform math), **P**eriodic noise = 4096
+  random 100..3900 table scanned by phase (MMBasic `setnoise`, lazily built in
+  rooted PSRAM), **N** white noise = random level held for a freq-length dwell.
+  Per-voice volume 0..25 → `mapping[vol*41/25]` (vendored `mapping[101]`) —
+  the limit that lets 4 full voices just fill int16 (`sum*16`). Volume changes
+  **ramp 1 step/ms** (`SOUND_RAMP_INTERVAL` 44) = MMBasic's click-free ramp.
+  Deviations (deliberate): fresh playback zeroes voice volumes (MMBasic
+  inherits a boot default of 25); white-noise dwell uses the *new* waveform's
+  interpretation on the first call (MMBasic checks the old mode — artifact).
+- **Pause/resume (`pause()`/`resume()`):** the pump stops feeding
+  (`_paused`); the I2S queue drains (≤ ~93 ms tail) and the callback chain
+  ends. `resume()` re-primes with `_feed()`. A `_pending` flag (set on write,
+  cleared on callback entry) prevents a pause→resume race from issuing a
+  second non-blocking write while one is in flight (the I2S driver doesn't
+  allow overlapping writes).
+- **Chunk/queue sizing:** files keep 4096-byte chunks + 16 KB ibuf; tone/synth
+  use 2048 + 4 KB (live changes audible in ~35 ms, MMBasic's 704-byte swing
+  buffers are snappier but our scheduler-driven pump needs more margin); MOD
+  4096 + 8 KB. All synth fills are cheap C, so underrun margin stays large.
+- **New C surface (`audio` module):** `tone_start/tone_read`,
+  `sound_reset/sound_set/sound_read` + waveform-id constants,
+  `mod_open/mod_read/mod_close/mod_sample`. pcaudio maps MMBasic's letters
+  (S/Q/T/W/P/N/O, sides L/R/B) and injects `tone`, `sound`, `mod_sample`,
+  `pause`, `resume` into the REPL.
+
+Verify: `play("/sd/x.mod", loop=True)` prints the title and plays;
+`mod_sample(n)` fires an effect over the music; `tone(440,880,1000)` clean
+start/end; a `tone()` loop plays a melody without clicks; `sound()` all seven
+waveforms; four voices at vol 25 don't clip; `pause()`/`resume()` on every
+source; MP3 + HDMI 1024×600 still coexist.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -1024,7 +1094,9 @@ arrows move the cursor at the REPL.
 | `ports/rp2/usb_mouse_mod.c` | **new** `mouse` module (`mouse()` query: X/Y/L/R/M/W/B/D/T; `mouse_speed()`) |
 | `shared/tinyusb/tusb_config.h` | `#if MICROPY_HW_USB_HOST` block (host mode, hub, enum buf 1024, HID) |
 | `ports/rp2/uart.c` | translate serial-terminal Del (`0x7f`) → `\x1b[3~` under `MICROPY_HW_UART_REPL_DEL_FORWARD` |
-| `ports/rp2/audio.c` | **new** `audio` module: `scale()` volume + `{wav,mp3,flac}_{open,read,close}` via dr_* + GC/rooted allocator; `usb_sound()` decodes the plug-in/unplug WAVs |
+| `ports/rp2/audio.c` | **new** `audio` module: `scale()` volume + `{wav,mp3,flac}_{open,read,close}` via dr_* + GC/rooted allocator; `usb_sound()` decodes the plug-in/unplug WAVs; tone generator + 4-voice synth + MOD player backends (§31) |
+| `ports/rp2/hxcmod.c`/`.h` | **new** vendored HxCMOD tracker player (MMBasic's copy, incl. its sound-effect extension for `mod_sample`) (§31) |
+| `ports/rp2/sound_tables.h` | **new** vendored MMBasic SineTable/triangletable (4096) + mapping[101] volume table (§31) |
 | `ports/rp2/usb_connect_sound.h` / `usb_remove_sound.h` | **new** vendored MMBasic 8-bit 8 kHz USB plug-in / unplug WAVs |
 | `ports/rp2/dr_wav.c` / `dr_mp3.c` / `dr_flac.c` (+ `.h`) | **new** decoder impl TUs; dr_wav from MMBasic, dr_mp3/dr_flac stock from dr_libs |
 | `ports/rp2/rp2_psram.c` | (pending) add `psram_set_timing_for_freq` for the live clk_sys switch |

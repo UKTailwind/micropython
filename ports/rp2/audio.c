@@ -43,6 +43,16 @@
 #include "usb_connect_sound.h"
 #include "usb_remove_sound.h"
 
+// MOD tracker player (hxcmod, vendored from MMBasic third_party_mod — includes
+// MMBasic's sound-effect extension used by PLAY MODSAMPLE).
+#include "hxcmod.h"
+
+// SineTable/triangletable (4096-entry, values 100..3900 centred on 2000) and
+// mapping[101] (volume index -> amplitude), vendored verbatim from MMBasic.
+#include "sound_tables.h"
+
+#include <stdlib.h> // rand() for the noise generators (as MMBasic)
+
 // Scale 16-bit little-endian PCM samples in place by an 8.8 fixed-point gain
 // (0..256, where 256 = unity). Applied per audio chunk from Python.
 static mp_obj_t audio_scale(mp_obj_t buf_in, mp_obj_t gain_in) {
@@ -337,6 +347,357 @@ static mp_obj_t audio_flac_close(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(audio_flac_close_obj, audio_flac_close);
 
+// --- Tone generator (MMBasic PLAY TONE / fillToneBuffer) --------------------
+//
+// Dual-channel sine tones from the 4096-entry SineTable via floating-point
+// phase accumulators, at the fixed synth rate (MMBasic PWM_FREQ). Full-scale
+// output: (table - 2000) * 16 = +/-30400; the master volume is applied by the
+// Python pump (audio.scale), which plays the role of MMBasic's i2sconvert.
+
+#define SYNTH_RATE 44100
+#define TONE_FOREVER 0xffffffffffffffffULL
+
+static float tone_phase_l, tone_phase_r; // 0..4096 into SineTable
+static float tone_phinc_l, tone_phinc_r; // phase increment per sample
+static uint64_t tone_remaining;          // stereo frames left (TONE_FOREVER = endless)
+static bool tone_mono;                   // left == right: compute once (MMBasic)
+
+// tone_start(f_left, f_right, ms, fresh). ms None/negative = play forever.
+// fresh=True resets the phase accumulators (new playback); fresh=False updates
+// frequency/duration of an already-running tone without a phase discontinuity
+// (MMBasic's repeat-call path). Duration is rounded to a whole number of
+// left-channel cycles (f >= 10 Hz) so the tone ends at a zero crossing.
+static mp_obj_t audio_tone_start(size_t n_args, const mp_obj_t *args) {
+    (void)n_args;
+    mp_float_t f_left = mp_obj_get_float(args[0]);
+    mp_float_t f_right = mp_obj_get_float(args[1]);
+    if (f_left < 0 || f_left > 22050 || f_right < 0 || f_right > 22050) {
+        mp_raise_ValueError(MP_ERROR_TEXT("valid is 0Hz to 20KHz"));
+    }
+    uint64_t duration = TONE_FOREVER;
+    if (args[2] != mp_const_none) {
+        mp_float_t ms = mp_obj_get_float(args[2]);
+        if (ms >= 0) {
+            mp_float_t d = ms / MICROPY_FLOAT_CONST(1000.0) * SYNTH_RATE;
+            if (f_left >= 10) {
+                // Round to a whole number of left-channel cycles (MMBasic):
+                // whole cycles as an integer, scaled back by the FLOAT period.
+                mp_float_t hw = (mp_float_t)SYNTH_RATE / f_left; // samples per cycle
+                duration = (uint64_t)((mp_float_t)(uint64_t)(d / hw) * hw);
+            } else {
+                duration = (uint64_t)d;
+            }
+        }
+    }
+    tone_mono = (f_left == f_right);
+    tone_phinc_l = f_left / SYNTH_RATE * 4096.0f;
+    tone_phinc_r = f_right / SYNTH_RATE * 4096.0f;
+    if (mp_obj_is_true(args[3])) {
+        tone_phase_l = 0;
+        tone_phase_r = 0;
+    }
+    tone_remaining = duration;
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(audio_tone_start_obj, 4, 4, audio_tone_start);
+
+// tone_read(buf) -> bytes of 16-bit stereo PCM written (0 = tone finished).
+static mp_obj_t audio_tone_read(mp_obj_t buf_in) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(buf_in, &bufinfo, MP_BUFFER_WRITE);
+    int16_t *samples = (int16_t *)bufinfo.buf;
+    int max_samples = bufinfo.len / sizeof(int16_t);
+    int n = 0;
+    while (n + 1 < max_samples && tone_remaining > 0) {
+        if (tone_remaining != TONE_FOREVER) {
+            tone_remaining--;
+        }
+        int16_t l = (int16_t)((SineTable[(int)tone_phase_l] - 2000) * 16);
+        int16_t r;
+        tone_phase_l += tone_phinc_l;
+        if (tone_phase_l >= 4096.0f) {
+            tone_phase_l -= 4096.0f;
+        }
+        if (tone_mono) {
+            r = l;
+        } else {
+            r = (int16_t)((SineTable[(int)tone_phase_r] - 2000) * 16);
+            tone_phase_r += tone_phinc_r;
+            if (tone_phase_r >= 4096.0f) {
+                tone_phase_r -= 4096.0f;
+            }
+        }
+        samples[n++] = l;
+        samples[n++] = r;
+    }
+    return MP_OBJ_NEW_SMALL_INT(n * sizeof(int16_t));
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(audio_tone_read_obj, audio_tone_read);
+
+// --- 4-voice synthesiser (MMBasic PLAY SOUND / fillSoundBuffer) -------------
+//
+// MAXSOUNDS voices, each with an independent left and right side: waveform,
+// frequency and volume (0..25, mapped through MMBasic's mapping[] table via
+// index vol*41/25 so four voices at full volume just fill the 16-bit range).
+// Volume changes RAMP at 1 step per ~1 ms (44 samples) to avoid clicks.
+
+#define MAXSOUNDS 4
+#define SOUND_RAMP_INTERVAL 44 // step volumes once per ~1ms at 44100Hz (MMBasic)
+
+enum {
+    SND_OFF = 0,   // "O"
+    SND_SINE,      // "S"
+    SND_SQUARE,    // "Q"
+    SND_TRI,       // "T"
+    SND_SAW,       // "W"
+    SND_PNOISE,    // "P" periodic noise (random table scanned by phase)
+    SND_WNOISE,    // "N" white noise (random level held for a freq-set dwell)
+};
+
+typedef struct {
+    uint8_t type;
+    float phase;     // 0..4096 (SND_WNOISE: unused)
+    float phinc;     // per-sample phase increment (SND_WNOISE: dwell length)
+    int vol;         // current mapping[] index 0..41 (ramped)
+    int vol_target;  // ramp target
+    int dwell;       // white noise: samples until a new random level
+    int noiseval;    // white noise: current raw level (100..3900)
+} snd_voice_t;
+
+static snd_voice_t snd_voices[MAXSOUNDS][2]; // [voice][0=left 1=right]
+static uint16_t *snd_noisetable;             // 4096 random 100..3900 (lazy, PSRAM)
+
+// sound_reset(): all voices off and volumes zeroed (fresh playback start).
+static mp_obj_t audio_sound_reset(void) {
+    memset(snd_voices, 0, sizeof(snd_voices));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(audio_sound_reset_obj, audio_sound_reset);
+
+// sound_set(voice, left, right, type, freq, vol): configure one voice.
+// voice 0..3; left/right bools select the side(s); type SND_*; freq 1..20000;
+// vol 0..25 (MMBasic's per-voice limit: 100 / MAXSOUNDS).
+static mp_obj_t audio_sound_set(size_t n_args, const mp_obj_t *args) {
+    (void)n_args;
+    mp_int_t voice = mp_obj_get_int(args[0]);
+    bool left = mp_obj_is_true(args[1]);
+    bool right = mp_obj_is_true(args[2]);
+    mp_int_t type = mp_obj_get_int(args[3]);
+    mp_float_t freq = mp_obj_get_float(args[4]);
+    mp_int_t vol = mp_obj_get_int(args[5]);
+    if (voice < 0 || voice >= MAXSOUNDS || type < SND_OFF || type > SND_WNOISE) {
+        mp_raise_ValueError(MP_ERROR_TEXT("invalid voice or type"));
+    }
+    if (freq < 1 || freq > 20000) {
+        mp_raise_ValueError(MP_ERROR_TEXT("valid is 1Hz to 20KHz"));
+    }
+    if (vol < 0 || vol > 25) {
+        mp_raise_ValueError(MP_ERROR_TEXT("volume must be 0..25"));
+    }
+    if (type == SND_PNOISE && snd_noisetable == NULL) { // MMBasic setnoise()
+        snd_noisetable = audio_cb_malloc(4096 * sizeof(uint16_t), NULL);
+        if (snd_noisetable == NULL) {
+            mp_raise_type(&mp_type_MemoryError);
+        }
+        for (int i = 0; i < 4096; i++) {
+            snd_noisetable[i] = rand() % 3800 + 100;
+        }
+    }
+    // White noise interprets the frequency as the dwell length in samples;
+    // everything else as a SineTable phase increment (MMBasic getsound).
+    float phinc = (type == SND_WNOISE) ? (float)freq : (float)(freq / SYNTH_RATE * 4096.0);
+    for (int side = 0; side < 2; side++) {
+        if (!(side == 0 ? left : right)) {
+            continue;
+        }
+        snd_voice_t *v = &snd_voices[voice][side];
+        if (v->type != type) {
+            v->phase = 0; // new waveform starts at zero phase (MMBasic)
+            v->dwell = 0;
+        }
+        v->phinc = phinc;
+        v->type = type;
+        v->vol_target = vol * 41 / 25; // mapping[] index, as MMBasic
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(audio_sound_set_obj, 6, 6, audio_sound_set);
+
+// One side of one voice -> raw table value 100..3900 (MMBasic getsound), then
+// scaled by the ramped volume to roughly +/-480 per voice at full volume.
+static inline int snd_sample(snd_voice_t *v) {
+    int j;
+    switch (v->type) {
+        case SND_SINE:
+            j = SineTable[(int)v->phase];
+            break;
+        case SND_TRI:
+            j = triangletable[(int)v->phase];
+            break;
+        case SND_SQUARE:
+            j = (v->phase > 2047.0f) ? 3900 : 100;
+            break;
+        case SND_SAW:
+            j = (int)v->phase * 3800 / 4096 + 100;
+            break;
+        case SND_PNOISE:
+            j = snd_noisetable[(int)v->phase];
+            break;
+        case SND_WNOISE:
+            if (v->dwell <= 0) {
+                v->dwell = (int)v->phinc;
+                v->noiseval = rand() % 3800 + 100;
+            }
+            if (v->dwell) {
+                v->dwell--;
+            }
+            return (v->noiseval - 2000) * mapping[v->vol] / 2000;
+        default:
+            return 0;
+    }
+    v->phase += v->phinc;
+    if (v->phase >= 4096.0f) {
+        v->phase -= 4096.0f;
+    }
+    return (j - 2000) * mapping[v->vol] / 2000;
+}
+
+// sound_read(buf) -> always fills buf with 16-bit stereo PCM (the synth never
+// ends; stop by stopping the pump). MMBasic fillSoundBuffer, I2S branch.
+static mp_obj_t audio_sound_read(mp_obj_t buf_in) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(buf_in, &bufinfo, MP_BUFFER_WRITE);
+    int16_t *samples = (int16_t *)bufinfo.buf;
+    int max_samples = bufinfo.len / sizeof(int16_t);
+    int n = 0;
+    int ramp_counter = 0;
+    while (n + 1 < max_samples) {
+        if (++ramp_counter >= SOUND_RAMP_INTERVAL) {
+            ramp_counter = 0;
+            for (int i = 0; i < MAXSOUNDS; i++) {
+                for (int side = 0; side < 2; side++) {
+                    snd_voice_t *v = &snd_voices[i][side];
+                    if (v->vol < v->vol_target) {
+                        v->vol++;
+                    } else if (v->vol > v->vol_target) {
+                        v->vol--;
+                    }
+                }
+            }
+        }
+        int leftv = 0, rightv = 0;
+        for (int i = 0; i < MAXSOUNDS; i++) {
+            if (snd_voices[i][0].type != SND_OFF) {
+                leftv += snd_sample(&snd_voices[i][0]);
+            }
+            if (snd_voices[i][1].type != SND_OFF) {
+                rightv += snd_sample(&snd_voices[i][1]);
+            }
+        }
+        samples[n++] = (int16_t)(leftv * 16);
+        samples[n++] = (int16_t)(rightv * 16);
+    }
+    return MP_OBJ_NEW_SMALL_INT(n * sizeof(int16_t));
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(audio_sound_read_obj, audio_sound_read);
+
+// --- MOD tracker playback (MMBasic PLAY MODFILE / MODSAMPLE, via hxcmod) ----
+//
+// The whole .mod file is loaded into a Python bytes object (PSRAM heap); the
+// Python side keeps it referenced for the duration of playback because hxcmod
+// plays the sample data in place. The modcontext is allocated through the
+// rooted audio allocator so the GC can't reclaim it while the pump runs.
+// Output is 16-bit stereo at MOD_RATE (MMBasic's modfilesamplerate; MMBasic
+// outputs each sample twice at 44100 — we simply run I2S at 22050).
+
+#define MOD_RATE 22050
+
+static modcontext *g_mod = NULL;
+static int g_mod_noloop, g_mod_ended;
+
+// mod_open(data, loop) -> song title. data = the entire .mod file contents.
+static mp_obj_t audio_mod_open(mp_obj_t data_in, mp_obj_t loop_in) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(data_in, &bufinfo, MP_BUFFER_READ);
+    if (g_mod != NULL) {
+        audio_cb_free(g_mod, NULL);
+        g_mod = NULL;
+    }
+    modcontext *ctx = audio_cb_malloc(sizeof(modcontext), NULL);
+    if (ctx == NULL) {
+        mp_raise_type(&mp_type_MemoryError);
+    }
+    hxcmod_init(ctx);
+    hxcmod_setcfg(ctx, MOD_RATE, 1, 1); // rate, stereo separation, filter (MMBasic)
+    if (!hxcmod_load(ctx, bufinfo.buf, bufinfo.len) || !ctx->mod_loaded) {
+        audio_cb_free(ctx, NULL);
+        mp_raise_ValueError(MP_ERROR_TEXT("not a valid MOD file"));
+    }
+    g_mod = ctx;
+    g_mod_noloop = !mp_obj_is_true(loop_in);
+    g_mod_ended = 0;
+    // Song title: up to 20 bytes, not guaranteed NUL-terminated.
+    char title[21];
+    memcpy(title, ctx->song.title, 20);
+    title[20] = '\0';
+    return mp_obj_new_str(title, strlen(title));
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(audio_mod_open_obj, audio_mod_open);
+
+// mod_read(buf) -> bytes of 16-bit stereo PCM at MOD_RATE (0 = song finished).
+// The buffer is cleared first: at song end (noloop) hxcmod returns mid-fill,
+// so the tail would otherwise repeat stale samples (MMBasic plays them).
+static mp_obj_t audio_mod_read(mp_obj_t buf_in) {
+    if (g_mod == NULL || g_mod_ended) {
+        return MP_OBJ_NEW_SMALL_INT(0);
+    }
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(buf_in, &bufinfo, MP_BUFFER_WRITE);
+    memset(bufinfo.buf, 0, bufinfo.len);
+    if (hxcmod_fillbuffer(g_mod, (msample *)bufinfo.buf, bufinfo.len / 4, NULL, g_mod_noloop)) {
+        g_mod_ended = 1; // this buffer holds the final samples; next read = 0
+    }
+    return mp_obj_new_int((mp_int_t)bufinfo.len);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(audio_mod_read_obj, audio_mod_read);
+
+static mp_obj_t audio_mod_close(void) {
+    if (g_mod != NULL) {
+        audio_cb_free(g_mod, NULL);
+        g_mod = NULL;
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(audio_mod_close_obj, audio_mod_close);
+
+// mod_sample(sample, effect, vol, rate): play one of the MOD's instrument
+// samples as a sound effect MIXED OVER the running song (MMBasic MODSAMPLE,
+// via MMBasic's hxcmod_playsoundeffect extension). sample 1..32, effect
+// channel 1..4, vol 1..64, rate in Hz (MMBasic uses 16000).
+static mp_obj_t audio_mod_sample(size_t n_args, const mp_obj_t *args) {
+    (void)n_args;
+    if (g_mod == NULL || g_mod_ended) {
+        mp_raise_ValueError(MP_ERROR_TEXT("no MOD file playing"));
+    }
+    mp_int_t sample = mp_obj_get_int(args[0]);
+    mp_int_t effect = mp_obj_get_int(args[1]);
+    mp_int_t vol = mp_obj_get_int(args[2]);
+    mp_int_t rate = mp_obj_get_int(args[3]);
+    if (sample < 1 || sample > 32 || effect < 1 || effect > NUMMAXSEFFECTS) {
+        mp_raise_ValueError(MP_ERROR_TEXT("sample must be 1..32, effect 1..4"));
+    }
+    if (vol < 1 || vol > 64) {
+        mp_raise_ValueError(MP_ERROR_TEXT("volume must be 1..64"));
+    }
+    if (rate < 2000 || rate > 44100) {
+        mp_raise_ValueError(MP_ERROR_TEXT("rate must be 2000..44100"));
+    }
+    unsigned int period = 3579545 / rate; // Amiga period (MMBasic)
+    hxcmod_playsoundeffect(g_mod, sample - 1, effect - 1, vol - 1, period);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(audio_mod_sample_obj, 4, 4, audio_mod_sample);
+
 // usb_sound(connect) -> (samples, rate). Decode one of the vendored USB sounds
 // (connect true = plug-in, false = unplug) from its fixed 8-bit unsigned mono
 // WAV into a fresh 16-bit signed STEREO bytearray (each source sample copied to
@@ -375,6 +736,25 @@ static const mp_rom_map_elem_t audio_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_flac_read), MP_ROM_PTR(&audio_flac_read_obj) },
     { MP_ROM_QSTR(MP_QSTR_flac_close), MP_ROM_PTR(&audio_flac_close_obj) },
     { MP_ROM_QSTR(MP_QSTR_usb_sound), MP_ROM_PTR(&audio_usb_sound_obj) },
+    // Tone generator + 4-voice synth (MMBasic PLAY TONE / PLAY SOUND).
+    { MP_ROM_QSTR(MP_QSTR_tone_start), MP_ROM_PTR(&audio_tone_start_obj) },
+    { MP_ROM_QSTR(MP_QSTR_tone_read), MP_ROM_PTR(&audio_tone_read_obj) },
+    { MP_ROM_QSTR(MP_QSTR_sound_reset), MP_ROM_PTR(&audio_sound_reset_obj) },
+    { MP_ROM_QSTR(MP_QSTR_sound_set), MP_ROM_PTR(&audio_sound_set_obj) },
+    { MP_ROM_QSTR(MP_QSTR_sound_read), MP_ROM_PTR(&audio_sound_read_obj) },
+    // MOD tracker (MMBasic PLAY MODFILE / PLAY MODSAMPLE).
+    { MP_ROM_QSTR(MP_QSTR_mod_open), MP_ROM_PTR(&audio_mod_open_obj) },
+    { MP_ROM_QSTR(MP_QSTR_mod_read), MP_ROM_PTR(&audio_mod_read_obj) },
+    { MP_ROM_QSTR(MP_QSTR_mod_close), MP_ROM_PTR(&audio_mod_close_obj) },
+    { MP_ROM_QSTR(MP_QSTR_mod_sample), MP_ROM_PTR(&audio_mod_sample_obj) },
+    // Waveform ids for sound_set (pcaudio maps MMBasic's letters to these).
+    { MP_ROM_QSTR(MP_QSTR_OFF), MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_SINE), MP_ROM_INT(1) },
+    { MP_ROM_QSTR(MP_QSTR_SQUARE), MP_ROM_INT(2) },
+    { MP_ROM_QSTR(MP_QSTR_TRIANGLE), MP_ROM_INT(3) },
+    { MP_ROM_QSTR(MP_QSTR_SAW), MP_ROM_INT(4) },
+    { MP_ROM_QSTR(MP_QSTR_PNOISE), MP_ROM_INT(5) },
+    { MP_ROM_QSTR(MP_QSTR_WNOISE), MP_ROM_INT(6) },
 };
 static MP_DEFINE_CONST_DICT(audio_module_globals, audio_module_globals_table);
 

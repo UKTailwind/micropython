@@ -1251,6 +1251,32 @@ restores; XMODEM works in all three.
 
 ---
 
+### 36. On-device test suite (`boards/PICO_COMPUTER_3/tests/`)
+
+Regression tests for the custom development, shipped in the repo (not
+frozen); copy `tests/` to the SD card and `run("/sd/tests/test_all.py")`.
+Two tiers:
+
+- **Automatic (self-verifying)**: blit, buffer targets, sprites, images,
+  misc. Graphics tests verify by *reading pixels back* (`fb.pixel()`), run
+  in every video mode where relevant, and route console output to serial
+  (`console("serial")` — §35 built for exactly this) so on-screen prints
+  can't corrupt the pixels under test. Collision tests assert MMBasic's
+  exact conventions (touching counts for sprites, strict overlap for walls,
+  edge-triggered once-per-contact). Image tests use the BMP save→load
+  round-trip, which is exact for top-bit colours in every format (the
+  888↔native conversions mask the same top bits both ways).
+- **Interactive**: keydown/on_key (prompts to hold keys, then asserts the
+  codes), audio (human confirms tone/synth/pause; click-free-retune check),
+  console routing (markers on each output). All prompts print to both
+  consoles.
+
+`testutil.py` is the tiny check/report framework; the runner restores the
+saved screen mode at the end. Optional assets (`test.jpg/png/mod/mp3`) are
+skipped when absent. Every file also runs standalone.
+
+---
+
 ## Files touched
 
 | File | Purpose |

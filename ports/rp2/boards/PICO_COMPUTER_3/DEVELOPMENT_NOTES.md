@@ -1136,12 +1136,45 @@ large bytearray from a REPL-facing function — return a memoryview.**
 
 ---
 
+### 33. Blitter — `hdmi.blit()` (MMBasic BLIT, generalised across targets)
+
+`hdmi.blit(x, y, w, h, x1, y1[, src[, dst[, skip]]])` — rectangle copy within
+one buffer or between any two of N/L/F (src/dst default to the current write
+target, matching MMBasic's plain `BLIT` operating on `WriteBuf`). MMBasic's
+plain BLIT is same-surface and opaque; the cross-buffer form and the `skip`
+colour are our generalisation (MMBasic gets transparency from BLIT MEMORY /
+sprites instead).
+
+- **Clip** is MMBasic `cmd_blit`'s exact shape: a negative source origin
+  shifts the destination and vice versa, then both rects are clamped to the
+  mode geometry, then the combined guard bails if anything is still out of
+  range.
+- **Overlap safety** (same buffer): opaque 8/16bpp blits are one `memmove`
+  per row (horizontal overlap safe), iterated bottom-up when `y1 > y`
+  (vertical overlap safe) — cheaper than MMBasic's column-strip approach,
+  same result. The per-pixel path chooses row order by `y1 > y` and, for
+  same-row copies, column order by `x1 > x`.
+- **`skip`** is a native-format colour compared per source pixel (like
+  `fill`/`putc`/`text` colours; -1 = opaque). 4bpp packed (RGB1024) always
+  uses the per-pixel path (nibble alignment); 8/16bpp only when `skip` is
+  given. Full-screen per-pixel worst case ~10 ms; sprite-sized blits are
+  microseconds.
+- `hdmi_px_get/px_set` helpers added (mode-branched single-pixel access) —
+  also the natural base for a future sprite engine.
+
+Verify: same-buffer shift left/right/up/down over itself (no smearing);
+`blit(..., "F", "N", skip)` sprite stamping with a cut-out colour in RGB320,
+RGB640 and RGB1024; save/restore-under-sprite round-trip via F; clipped blits
+at all four edges.
+
+---
+
 ## Files touched
 
 | File | Purpose |
 | --- | --- |
 | `ports/rp2/main.c` | board-overridable startup clock (`MICROPY_HW_CLK_SYS_KHZ`); safe flash-timing ordering |
-| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`; §32 adds the layer/off-screen targets `layer/create/write/copy/close` + core1 layer merge) |
+| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`; §32 adds the layer/off-screen targets `layer/create/write/copy/close` + core1 layer merge; §33 adds `hdmi.blit` with skip-colour) |
 | `ports/rp2/xmodem.c` | **new** `xmodem` module: XMODEM send/recv over the console UART, faithful port of MMBasic `misc/XModem.c` + trailing-pad trim on receive (§28) |
 | `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
 | `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard; `KeyDown[]` held-key state + `kbd_map_code` (§30); num-lock keypad remap |

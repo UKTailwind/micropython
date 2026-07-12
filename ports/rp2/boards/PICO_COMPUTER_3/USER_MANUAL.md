@@ -338,6 +338,7 @@ Three drawing targets are available (MMBasic's `FRAMEBUFFER` model):
 | `hdmi.create()` | allocate the off-screen F buffer (display-sized, in PSRAM) |
 | `hdmi.write("N"/"L"/"F")` | select where ALL drawing goes — `fb()`, `fill`, `text`, the console and the image loaders. `hdmi.write()` returns the current target |
 | `hdmi.copy(src, dst)` | block-copy one whole buffer to another, e.g. `hdmi.copy("F", "N")` |
+| `hdmi.blit(x, y, w, h, x1, y1, src=None, dst=None, skip=-1)` | copy the `w`×`h` rectangle at `(x,y)` of `src` to `(x1,y1)` of `dst` — see below |
 | `hdmi.close("L"/"F")` | remove the layer / free the F buffer (`hdmi.close()` = both) |
 
 The layer lives in the second half of the video memory (only RGB320 leaves it
@@ -370,6 +371,37 @@ goes to that target** (as in MMBasic) — switch back to `"N"` (or run with the
 console printing little) when overlaying live. Drawing the transparent colour
 itself onto the layer erases to see-through; pick a transparent colour your
 artwork doesn't use.
+
+### Blitting rectangles — `hdmi.blit()`
+
+`hdmi.blit(x, y, w, h, x1, y1, src=None, dst=None, skip=-1)` copies the
+`w`×`h` rectangle at `(x,y)` to `(x1,y1)` — within one buffer or between any
+two (MMBasic `BLIT`):
+
+- `src` / `dst` are target letters `"N"`, `"L"`, `"F"`; leave them out (or
+  `None`) to use the **current write target** for both.
+- `skip` is a **native-format** colour (an `fb.colour(...)` value, like
+  `fill`/`putc`) that is *not* copied: source pixels of that colour leave the
+  destination untouched — cut-out sprites in one call. Default `-1` copies
+  everything.
+- Rectangles partly off-screen are clipped automatically; overlapping copies
+  within one buffer are safe in any direction (so you can shift a region over
+  itself, e.g. for horizontal scrolling).
+
+```python
+# stamp a sprite sheet cell from the off-screen buffer, magenta = cut-out
+hdmi.blit(64, 0, 16, 16, px, py, "F", "N", d.colour(MAGENTA))
+
+# scroll the top half of the screen 4 px left, within the display
+hdmi.blit(4, 0, hdmi.width() - 4, hdmi.height() // 2, 0, 0)
+
+# grab what's under the sprite first, restore it later
+hdmi.blit(px, py, 16, 16, 0, 0, "N", "F")     # save patch into F
+hdmi.blit(0, 0, 16, 16, px, py, "F", "N")     # put it back
+```
+
+Works in every mode (8/16-bit blits use fast row copies; 4-bit RGB1024 and
+all skip-colour blits go pixel-by-pixel, fine at sprite sizes).
 
 ---
 
@@ -931,6 +963,7 @@ d = hdmi.fb(); d.text("hi", 0, 0, d.colour(WHITE))
 hdmi.text("BIG", 0, 20, d.colour(RED), -1, 4)   # scaled 8x12 text
 hdmi.layer(); hdmi.write("L")   # overlay layer (RGB320): sprites over scenery
 hdmi.create(); hdmi.copy("F", "N")   # off-screen buffer -> screen (see section 5)
+hdmi.blit(0, 0, 16, 16, x, y, "F", "N", d.colour(MAGENTA))  # sprite w/ cut-out
 
 # Input
 touch("DOWN"); touch("X"); touch("SWIPE")

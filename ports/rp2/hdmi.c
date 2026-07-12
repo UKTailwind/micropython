@@ -1222,6 +1222,151 @@ static mp_obj_t hdmi_copy(mp_obj_t src_in, mp_obj_t dst_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(hdmi_copy_obj, hdmi_copy);
 
+// --- Blitter (MMBasic BLIT, generalised to any src/dst target) -------------
+
+// Read/write one pixel of a mode-format buffer. Small helpers with a mode
+// branch: the opaque byte-addressable fast path below never uses them; they
+// serve the 4bpp-packed and skip-colour paths (sprite-sized blits).
+static inline mp_int_t hdmi_px_get(const uint8_t *b, int x, int y) {
+    if (hdmi_rgb121) {
+        uint8_t v = b[(size_t)y * (hdmi_w / 2) + (x >> 1)];
+        return (x & 1) ? (v >> 4) : (v & 0x0f);
+    }
+    if (hdmi_native) {
+        return b[(size_t)y * hdmi_w + x];
+    }
+    return ((const uint16_t *)b)[(size_t)y * hdmi_w + x];
+}
+static inline void hdmi_px_set(uint8_t *b, int x, int y, mp_int_t v) {
+    if (hdmi_rgb121) {
+        uint8_t *p = &b[(size_t)y * (hdmi_w / 2) + (x >> 1)];
+        *p = (x & 1) ? ((*p & 0x0f) | (uint8_t)((v & 0x0f) << 4))
+                     : ((*p & 0xf0) | (uint8_t)(v & 0x0f));
+    } else if (hdmi_native) {
+        b[(size_t)y * hdmi_w + x] = (uint8_t)v;
+    } else {
+        ((uint16_t *)b)[(size_t)y * hdmi_w + x] = (uint16_t)v;
+    }
+}
+
+// hdmi.blit(x, y, w, h, x1, y1 [, src [, dst [, skip]]]) -- copy the w x h
+// rectangle at (x,y) of `src` to (x1,y1) of `dst`. src/dst are target letters
+// ("N"/"L"/"F", default: the current write target for both), so it blits
+// within one buffer or between any two. `skip` is a native-format colour that
+// is NOT copied (source pixels of that colour leave the destination alone,
+// -1/default = copy everything). Clipping follows MMBasic's BLIT: a rectangle
+// partly off either buffer is trimmed on both sides in step. Overlapping
+// same-buffer copies are safe in any direction (MMBasic BLIT semantics).
+static mp_obj_t hdmi_blit(size_t n_args, const mp_obj_t *args) {
+    if (!hdmi_running) {
+        mp_raise_ValueError(MP_ERROR_TEXT("display not initialised"));
+    }
+    int x = mp_obj_get_int(args[0]);
+    int y = mp_obj_get_int(args[1]);
+    int w = mp_obj_get_int(args[2]);
+    int h = mp_obj_get_int(args[3]);
+    int x1 = mp_obj_get_int(args[4]);
+    int y1 = mp_obj_get_int(args[5]);
+    uint8_t *s = (n_args > 6 && args[6] != mp_const_none)
+        ? hdmi_target_ptr_checked(hdmi_parse_target(args[6])) : hdmi_wbuf();
+    uint8_t *d = (n_args > 7 && args[7] != mp_const_none)
+        ? hdmi_target_ptr_checked(hdmi_parse_target(args[7])) : hdmi_wbuf();
+    mp_int_t skip = (n_args > 8) ? mp_obj_get_int(args[8]) : -1;
+    if (w < 1 || h < 1) {
+        return mp_const_none;
+    }
+    // Clip both rectangles in step (MMBasic cmd_blit, verbatim shape): a
+    // negative source origin shifts the destination (and vice versa), then
+    // both are clamped to the buffer geometry.
+    if (x < 0) {
+        x1 -= x;
+        w += x;
+        x = 0;
+    }
+    if (x1 < 0) {
+        x -= x1;
+        w += x1;
+        x1 = 0;
+    }
+    if (y < 0) {
+        y1 -= y;
+        h += y;
+        y = 0;
+    }
+    if (y1 < 0) {
+        y -= y1;
+        h += y1;
+        y1 = 0;
+    }
+    if (x + w > hdmi_w) {
+        w = hdmi_w - x;
+    }
+    if (x1 + w > hdmi_w) {
+        w = hdmi_w - x1;
+    }
+    if (y + h > hdmi_h) {
+        h = hdmi_h - y;
+    }
+    if (y1 + h > hdmi_h) {
+        h = hdmi_h - y1;
+    }
+    if (w < 1 || h < 1 || x < 0 || x + w > hdmi_w || x1 < 0 || x1 + w > hdmi_w
+        || y < 0 || y + h > hdmi_h || y1 < 0 || y1 + h > hdmi_h) {
+        return mp_const_none;
+    }
+    bool overlap = (s == d);
+    if (overlap && x == x1 && y == y1) {
+        return mp_const_none;
+    }
+
+    if (skip < 0 && !hdmi_rgb121) {
+        // Opaque, byte-addressable (8/16bpp): one memmove per row (memmove
+        // covers horizontal overlap); iterate bottom-up when the destination
+        // is below the source so vertical overlap is safe too.
+        int bpp = hdmi_native ? 1 : 2;
+        size_t stride = (size_t)hdmi_w * bpp;
+        size_t nbytes = (size_t)w * bpp;
+        if (overlap && y1 > y) {
+            for (int j = h - 1; j >= 0; j--) {
+                memmove(d + (size_t)(y1 + j) * stride + (size_t)x1 * bpp,
+                    s + (size_t)(y + j) * stride + (size_t)x * bpp, nbytes);
+            }
+        } else {
+            for (int j = 0; j < h; j++) {
+                memmove(d + (size_t)(y1 + j) * stride + (size_t)x1 * bpp,
+                    s + (size_t)(y + j) * stride + (size_t)x * bpp, nbytes);
+            }
+        }
+        return mp_const_none;
+    }
+
+    // Per-pixel path: 4bpp packed buffers and/or a skip colour. Row and
+    // column directions are chosen so overlapping same-buffer copies never
+    // read a pixel this blit already wrote.
+    int j0 = 0, jend = h, jstep = 1;
+    if (overlap && y1 > y) {
+        j0 = h - 1;
+        jend = -1;
+        jstep = -1;
+    }
+    int i0 = 0, iend = w, istep = 1;
+    if (overlap && y1 == y && x1 > x) {
+        i0 = w - 1;
+        iend = -1;
+        istep = -1;
+    }
+    for (int j = j0; j != jend; j += jstep) {
+        for (int i = i0; i != iend; i += istep) {
+            mp_int_t v = hdmi_px_get(s, x + i, y + j);
+            if (v != skip) {
+                hdmi_px_set(d, x1 + i, y1 + j, v);
+            }
+        }
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_blit_obj, 6, 9, hdmi_blit);
+
 // hdmi.close("L"/"F") or hdmi.close() for both -- drop the layer (the overlay
 // disappears; the display underneath is untouched) and/or release the F buffer.
 // If the write target was closed, drawing returns to the display (MMBasic).
@@ -1274,6 +1419,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_create), MP_ROM_PTR(&hdmi_create_obj) },
     { MP_ROM_QSTR(MP_QSTR_write), MP_ROM_PTR(&hdmi_write_obj) },
     { MP_ROM_QSTR(MP_QSTR_copy), MP_ROM_PTR(&hdmi_copy_obj) },
+    { MP_ROM_QSTR(MP_QSTR_blit), MP_ROM_PTR(&hdmi_blit_obj) },
     { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&hdmi_close_obj) },
     { MP_ROM_QSTR(MP_QSTR_RGB640), MP_ROM_INT(HDMI_MODE_RGB640) },
     { MP_ROM_QSTR(MP_QSTR_RGB320), MP_ROM_INT(HDMI_MODE_RGB320) },

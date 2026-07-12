@@ -1,10 +1,10 @@
 # Pico Computer 3 — MicroPython User Manual
 
-**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.3** (test release).
+**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.4** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.3 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.4 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -1065,5 +1065,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.3 — based on MicroPython. See
+*Pico Computer 3 firmware v0.4 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

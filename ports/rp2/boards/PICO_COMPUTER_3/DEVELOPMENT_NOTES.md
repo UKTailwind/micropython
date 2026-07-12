@@ -308,7 +308,7 @@ Details:
   Claimed DMA channels are kept. Fresh core1 vector on relaunch, so the exclusive
   handler re-registers cleanly.
 - **Python API:** `hdmi.init(mode=RGB565)`, `hdmi.deinit()`, `hdmi.fill(colour)`,
-  `hdmi.framebuffer()` (writable bytearray alias, mode-sized), `hdmi.width()`,
+  `hdmi.framebuffer()` (writable memoryview alias, mode-sized — see §32), `hdmi.width()`,
   `hdmi.height()`, `hdmi.stack_ok()`, `hdmi.RGB332/RGB565`, and **`hdmi.fb()`**
   which returns a ready-made **`pcgfx.Display`** at the current geometry/format
   (built from C via `mp_import_name`/`mp_call_function`).
@@ -1078,12 +1078,70 @@ source; MP3 + HDMI 1024×600 still coexist.
 
 ---
 
+### 32. Overlay layer + off-screen buffer (MMBasic FRAMEBUFFER N/L/F)
+
+Ports MMBasic's `FRAMEBUFFER LAYER/CREATE/WRITE/COPY/CLOSE` (FrameBuffer.c +
+the HDMI.c scanout merge). Three drawing targets in `hdmi.c`:
+
+- **N** — the display (`hdmi_fb`), always exists.
+- **L** — the overlay **layer, RGB320 only**: the *second half* of the static
+  video memory (2 × 320×240×2 = exactly the 307,200-byte buffer — the same
+  arithmetic MMBasic uses: `LayerBuf = DisplayBuf + ScreenSize`). core1's
+  RGB320 fill loop merges it per pixel before the H-double: layer pixel wins
+  unless it equals the single **transparent colour** (RGB565; converted from
+  RGB888 with pcgfx's exact `colour()` formula so Python-side colours match
+  the merge compare). Merge cost ~4 extra cycles/px — well inside the line
+  budget. The layer must be SRAM (core1 cannot scan PSRAM), which MMBasic
+  enforces too ("Layer Buffer must be in tightly coupled RAM").
+- **F** — an off-screen, display-sized buffer in **PSRAM** (GC heap), never
+  scanned — a draw/decode target and copy endpoint only. Held in a **rooted
+  pointer** (`MP_REGISTER_ROOT_POINTER(hdmi_framebuf_f)`) so it survives with
+  no Python reference; a soft reset clears the root and `hdmi_wbuf()` snaps
+  the target back to N.
+
+**Write-target switch:** one static `hdmi_target`; `hdmi_wbuf()` resolves it
+and every drawing entry point uses it — `framebuffer()` (and therefore
+`fb()`, the **image loaders** via pcimage, and `save_image`), `fill`,
+`scroll`, `putc`, `blit_glyph`/`text`, and the console (putc/scroll). This is
+MMBasic's `WriteBuf` model: `hdmi.write("L")` redirects *everything*,
+including REPL output — documented, and exactly how MMBasic behaves.
+
+**API:** `hdmi.layer(transparent=0)` (errors if it already exists, as
+MMBasic; layer pre-filled with the transparent colour *before* the volatile
+enable so it appears atomically), `hdmi.create()`, `hdmi.write("N"/"L"/"F")`
+(getter with no args), `hdmi.copy(src, dst)` (whole-buffer memcpy),
+`hdmi.close(["L"/"F"])` (no arg = both; resets the target to N if it was
+closed). **Any mode change (`hdmi.init`) closes both** L and F (sizes are
+mode-dependent) — as MMBasic's mode switch. Deviation from MMBasic: our
+transparent colour is a full RGB888→RGB565 value (MMBasic mode-2 uses 4-bit
+palette indices; its 16-bit HDMI mode uses `RGBtransparent` the same way we
+do).
+
+Verify: `screen(hdmi.RGB320)`; scenery via `draw_jpg`; `hdmi.layer()`;
+`hdmi.write("L")`; draw text/rects on `hdmi.fb()` → they overlay; `fill(0)`
+on the layer → scenery intact; `hdmi.copy("N","F")` + `hdmi.copy("F","N")`
+round-trip; mode change silently drops both; console follows the target.
+
+**`hdmi.framebuffer()` returns a MEMORYVIEW, not a bytearray** (hardware
+incident): typing `hdmi.framebuffer()` bare at the REPL makes the REPL print
+the buffer's repr — for a bytearray that is ~600 KB of `\x..` hex spam pushed
+through the 115200 UART *and* the on-screen console renderer (minutes of
+"scrolling garbage"), and a Ctrl-C landing inside the console's dupterm write
+raises there, which makes `os.dupterm` **deactivate the on-screen console** —
+net effect looked like a firmware lock-up. A memoryview's repr is a few
+characters, and it is interchangeable with a bytearray everywhere the buffer
+is actually consumed (`framebuf.FrameBuffer`, the image loaders, `bmp.save`
+all use the buffer protocol). General rule for this port: **never return a
+large bytearray from a REPL-facing function — return a memoryview.**
+
+---
+
 ## Files touched
 
 | File | Purpose |
 | --- | --- |
 | `ports/rp2/main.c` | board-overridable startup clock (`MICROPY_HW_CLK_SYS_KHZ`); safe flash-timing ordering |
-| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`) |
+| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`; §32 adds the layer/off-screen targets `layer/create/write/copy/close` + core1 layer merge) |
 | `ports/rp2/xmodem.c` | **new** `xmodem` module: XMODEM send/recv over the console UART, faithful port of MMBasic `misc/XModem.c` + trailing-pad trim on receive (§28) |
 | `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
 | `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard; `KeyDown[]` held-key state + `kbd_map_code` (§30); num-lock keypad remap |

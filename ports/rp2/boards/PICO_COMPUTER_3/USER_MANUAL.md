@@ -305,7 +305,7 @@ hdmi.text("BIG", 20, 20, d.colour(YELLOW), -1, 4)   # 4x-scaled 8x12 text
 | `hdmi.init(mode=RGB640, clock=252)` | start the scanout (no-op if running) |
 | `hdmi.deinit()` | stop the scanout (call before re-`init()` for a new mode) |
 | `hdmi.fb()` | a `Display` (framebuf subclass) over the framebuffer — rebuild after a mode change |
-| `hdmi.framebuffer()` | the raw framebuffer as a writable `bytearray` (for `framebuf.FrameBuffer` or the image decoders) |
+| `hdmi.framebuffer()` | the current write target's raw pixels as a writable `memoryview` (for `framebuf.FrameBuffer` or the image decoders) |
 | `hdmi.width()` / `hdmi.height()` | current logical width / height in pixels |
 | `hdmi.rgb565()` | `True` if the framebuffer is 16-bit RGB565 (RGB320/RGB512); `False` for RGB332 (RGB640) or RGB1024 |
 | `hdmi.bpp()` | bits per framebuffer pixel: `4` (RGB1024), `8` (RGB640) or `16` (RGB320/RGB512) |
@@ -321,6 +321,55 @@ Note that `hdmi.fill()`, `hdmi.scroll()` and `hdmi.putc()` take colours already
 in the framebuffer's native format — convert with `hdmi.fb().colour(...)` first.
 
 The on-screen text console uses an 8×12 font (80 columns × 40 rows at 640×480).
+
+### Overlay layer and off-screen buffer
+
+Three drawing targets are available (MMBasic's `FRAMEBUFFER` model):
+
+| Target | What it is |
+|---|---|
+| `"N"` | the **N**ormal display — always exists |
+| `"L"` | the **L**ayer — an overlay merged over the display live, **RGB320 mode only** |
+| `"F"` | an off-screen **F**ramebuffer in PSRAM — draw or decode into it invisibly, then copy |
+
+| Command | Description |
+|---|---|
+| `hdmi.layer(transparent=0x000000)` | enable the layer (RGB320 only). `transparent` is an RGB888 colour; layer pixels of that colour show the display through, anything else overlays it. The layer starts fully transparent |
+| `hdmi.create()` | allocate the off-screen F buffer (display-sized, in PSRAM) |
+| `hdmi.write("N"/"L"/"F")` | select where ALL drawing goes — `fb()`, `fill`, `text`, the console and the image loaders. `hdmi.write()` returns the current target |
+| `hdmi.copy(src, dst)` | block-copy one whole buffer to another, e.g. `hdmi.copy("F", "N")` |
+| `hdmi.close("L"/"F")` | remove the layer / free the F buffer (`hdmi.close()` = both) |
+
+The layer lives in the second half of the video memory (only RGB320 leaves it
+free — 2 × 320×240×16-bit exactly fills it), so it costs no extra RAM and the
+merge happens **per scanline in hardware-speed C on core 1**: moving a sprite on
+the layer never disturbs the artwork underneath. A mode change closes both
+targets.
+
+```python
+screen(hdmi.RGB320)
+d = hdmi.fb()                       # the display
+draw_jpg("/sd/background.jpg")      # scenery on the display
+
+hdmi.layer()                        # overlay, black = transparent
+hdmi.write("L")                     # draw to the layer now
+s = hdmi.fb()                       # a Display over the LAYER
+s.text("SCORE 100", 8, 8, s.colour(YELLOW))
+s.fill_rect(60, 100, 16, 16, s.colour(RED))   # a "sprite"
+s.fill(0)                           # clear the layer -> scenery intact below
+
+hdmi.write("N")                     # back to drawing on the display
+
+hdmi.create()                       # off-screen buffer in PSRAM
+hdmi.write("F"); draw_jpg("/sd/next_level.jpg")  # decode invisibly
+hdmi.write("N"); hdmi.copy("F", "N")             # flip it onto the screen
+```
+
+Notes: while `hdmi.write("L")` (or `"F"`) is selected, **console output also
+goes to that target** (as in MMBasic) — switch back to `"N"` (or run with the
+console printing little) when overlaying live. Drawing the transparent colour
+itself onto the layer erases to see-through; pick a transparent colour your
+artwork doesn't use.
 
 ---
 
@@ -880,6 +929,8 @@ screen(hdmi.RGB1024)             # native 1024x600, 16 colours
 palette(6, 0x00FF88)            # redefine an RGB1024 colour (persisted)
 d = hdmi.fb(); d.text("hi", 0, 0, d.colour(WHITE))
 hdmi.text("BIG", 0, 20, d.colour(RED), -1, 4)   # scaled 8x12 text
+hdmi.layer(); hdmi.write("L")   # overlay layer (RGB320): sprites over scenery
+hdmi.create(); hdmi.copy("F", "N")   # off-screen buffer -> screen (see section 5)
 
 # Input
 touch("DOWN"); touch("X"); touch("SWIPE")

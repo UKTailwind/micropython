@@ -35,6 +35,7 @@
 #include <string.h>
 
 #include "py/runtime.h"
+#include "py/objarray.h" // mp_obj_new_memoryview (hdmi.framebuffer())
 
 #if MICROPY_HW_ENABLE_HDMI
 
@@ -242,6 +243,63 @@ uint32_t hdmi_index_rgb888(int i) {
 static uint32_t hdmi_clock_khz = 252000;  // clk_sys for this init (252/315/378)
 static uint32_t hdmi_gen = 0;             // bumped each init() so the console resyncs
 
+// --- Write target / layer / off-screen buffer (MMBasic FRAMEBUFFER) --------
+//
+// Three drawing targets, MMBasic's N / L / F:
+//   N - the normal display framebuffer (hdmi_fb), always available.
+//   L - the LAYER: RGB320 only. Lives in the SECOND HALF of the static video
+//       memory (320x240x2 = 153,600 bytes each, exactly filling the 307,200-
+//       byte buffer). When enabled, core1's fill loop merges it over the main
+//       display per pixel: the layer pixel wins unless it equals the single
+//       transparent colour (MMBasic's HDMI layer merge). Must be SRAM - core1
+//       cannot scan PSRAM (same rule as the framebuffer itself).
+//   F - an off-screen buffer in PSRAM (GC heap), display-sized, never scanned:
+//       a drawing target and copy source/destination only (MMBasic
+//       FRAMEBUFFER CREATE).
+// hdmi.write("N"/"L"/"F") selects where ALL drawing goes: framebuffer()/fb(),
+// fill/scroll/putc/text and (because pcimage passes hdmi.framebuffer()) the
+// image loaders. hdmi.copy(src, dst) block-copies between any two targets.
+#define HDMI_TARGET_N 0
+#define HDMI_TARGET_L 1
+#define HDMI_TARGET_F 2
+static int hdmi_target = HDMI_TARGET_N;
+static volatile int hdmi_layer_on = 0;          // core1 merges the layer when set
+static volatile uint16_t hdmi_layer_transp = 0; // layer transparent colour (RGB565)
+
+// Bytes in one mode-sized framebuffer (the drawable size, not the static array).
+static size_t hdmi_fb_bytes(void) {
+    if (hdmi_rgb121) {
+        return (size_t)hdmi_w * hdmi_h / 2;
+    }
+    if (hdmi_native) {
+        return (size_t)hdmi_w * hdmi_h;
+    }
+    return (size_t)hdmi_w * hdmi_h * 2;
+}
+
+// Base address of a drawing target (NULL if that target doesn't exist now).
+static uint8_t *hdmi_target_ptr(int target) {
+    if (target == HDMI_TARGET_L) {
+        return hdmi_layer_on ? hdmi_fb + hdmi_fb_bytes() : NULL;
+    }
+    if (target == HDMI_TARGET_F) {
+        return MP_STATE_PORT(hdmi_framebuf_f);
+    }
+    return hdmi_fb;
+}
+
+// The current write target's base. If the selected target has vanished (e.g.
+// a soft reset cleared the F buffer's root pointer), snap back to the display
+// so hdmi.write() and the drawing functions stay consistent.
+static uint8_t *hdmi_wbuf(void) {
+    uint8_t *p = hdmi_target_ptr(hdmi_target);
+    if (p == NULL) {
+        hdmi_target = HDMI_TARGET_N;
+        p = hdmi_fb;
+    }
+    return p;
+}
+
 #define HDMI_CORE1_STACK_WORDS (1024) // 4 KB
 #define HDMI_STACK_SENTINEL    (0xf00dbeefu)
 static uint32_t hdmi_core1_stack[HDMI_CORE1_STACK_WORDS] __attribute__((aligned(8)));
@@ -391,6 +449,11 @@ static void __not_in_flash_func(hdmi_fill_loop)(void) {
         }
     } else {
         // 320x240 -> 640x480: double 320 source px to 640, vertical double.
+        // With the layer enabled (hdmi.layer()), merge per pixel first: the
+        // layer pixel wins unless it equals the transparent colour (verbatim
+        // MMBasic's HDMI layer merge). The layer is the second half of the
+        // static video memory, so every read here stays SRAM.
+        const uint16_t *layer16 = (const uint16_t *)(hdmi_fb + 320 * 240 * 2);
         while (hdmi_running) {
             if (v_scanline != last_line) {
                 last_line = v_scanline;
@@ -398,10 +461,23 @@ static void __not_in_flash_func(hdmi_fill_loop)(void) {
                 uint16_t *p = HDMIlines[last_line & 1];
                 if (active >= 0 && active < MODE_V_ACTIVE_LINES) {
                     const uint16_t *s = &fb16[(active >> 1) * 320];
-                    for (int i = 0; i < 320; i++) {
-                        uint16_t v = s[i];
-                        *p++ = v;
-                        *p++ = v;
+                    if (hdmi_layer_on) {
+                        const uint16_t *l = &layer16[(active >> 1) * 320];
+                        uint16_t t = hdmi_layer_transp;
+                        for (int i = 0; i < 320; i++) {
+                            uint16_t v = l[i];
+                            if (v == t) {
+                                v = s[i];
+                            }
+                            *p++ = v;
+                            *p++ = v;
+                        }
+                    } else {
+                        for (int i = 0; i < 320; i++) {
+                            uint16_t v = s[i];
+                            *p++ = v;
+                            *p++ = v;
+                        }
                     }
                 }
             }
@@ -700,6 +776,12 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
         dmach_ping = dma_claim_unused_channel(true);
         dmach_pong = dma_claim_unused_channel(true);
     }
+    // A mode change invalidates every FRAMEBUFFER-style target (buffer sizes
+    // differ per mode): drop the layer, release the F buffer (the GC reclaims
+    // it), and point drawing back at the display — as MMBasic's mode switch.
+    hdmi_layer_on = 0;
+    hdmi_target = HDMI_TARGET_N;
+    MP_STATE_PORT(hdmi_framebuf_f) = NULL;
     memset(hdmi_fb, 0, sizeof(hdmi_fb)); // clear to black (0 = black in both formats)
     hdmi_gen++;                          // signal the console to resync/home
     v_scanline = 2;
@@ -714,18 +796,16 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_init_obj, 0, 2, hdmi_init);
 
-// Framebuffer as a writable bytearray alias, sized for the active mode. Use with
+// The CURRENT WRITE TARGET (display / layer / F buffer — see hdmi.write()) as a
+// writable MEMORYVIEW alias, sized for the active mode. Use with
 // framebuf.FrameBuffer(buf, hdmi.WIDTH, hdmi.HEIGHT, framebuf.RGB565 or GS8).
+// A memoryview, not a bytearray: its repr is a few characters, so echoing
+// hdmi.framebuffer() at the REPL is instant — a bytearray's repr is ~600 KB of
+// hex spam through the UART + on-screen console (minutes of apparent lock-up,
+// and a Ctrl-C landing inside the console's dupterm write deactivates it).
 static mp_obj_t hdmi_framebuffer(void) {
-    int bytes;
-    if (hdmi_rgb121) {
-        bytes = hdmi_w * hdmi_h / 2;       // 4bpp packed
-    } else if (hdmi_native) {
-        bytes = hdmi_w * hdmi_h;           // 8bpp RGB332
-    } else {
-        bytes = hdmi_w * hdmi_h * 2;       // 16bpp RGB565
-    }
-    return mp_obj_new_bytearray_by_ref(bytes, hdmi_fb);
+    return mp_obj_new_memoryview('B' | MP_OBJ_ARRAY_TYPECODE_FLAG_RW,
+        hdmi_fb_bytes(), hdmi_wbuf());
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_framebuffer_obj, hdmi_framebuffer);
 
@@ -799,16 +879,17 @@ static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_deinit_obj, hdmi_deinit);
 
 static mp_obj_t hdmi_fill(mp_obj_t colour_in) {
     mp_int_t col = mp_obj_get_int(colour_in);
+    uint8_t *buf = hdmi_wbuf();
     if (hdmi_rgb121) {
         uint8_t c = (uint8_t)(col & 0x0f);
-        memset(hdmi_fb, (uint8_t)((c << 4) | c), (size_t)hdmi_w * hdmi_h / 2);
+        memset(buf, (uint8_t)((c << 4) | c), (size_t)hdmi_w * hdmi_h / 2);
     } else if (hdmi_native) {
         uint8_t c = (uint8_t)col;
         for (int i = 0; i < hdmi_w * hdmi_h; i++) {
-            hdmi_fb[i] = c;
+            buf[i] = c;
         }
     } else {
-        uint16_t *fb16 = (uint16_t *)hdmi_fb;
+        uint16_t *fb16 = (uint16_t *)buf;
         uint16_t c = (uint16_t)col;
         for (int i = 0; i < hdmi_w * hdmi_h; i++) {
             fb16[i] = c;
@@ -827,10 +908,11 @@ static mp_obj_t hdmi_scroll(size_t n_args, const mp_obj_t *args) {
     if (rows <= 0 || rows >= hdmi_h) {
         return mp_const_none;
     }
+    uint8_t *buf = hdmi_wbuf();
     int stride = hdmi_rgb121 ? (hdmi_w / 2) : (hdmi_w * ((hdmi_native) ? 1 : 2));
     int keep = hdmi_h - rows;
-    memmove(hdmi_fb, hdmi_fb + (size_t)rows * stride, (size_t)keep * stride);
-    uint8_t *bottom = hdmi_fb + (size_t)keep * stride;
+    memmove(buf, buf + (size_t)rows * stride, (size_t)keep * stride);
+    uint8_t *bottom = buf + (size_t)keep * stride;
     if (hdmi_rgb121) {
         uint8_t c = (uint8_t)(colour & 0x0f);
         memset(bottom, (uint8_t)((c << 4) | c), (size_t)rows * stride);
@@ -860,6 +942,7 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
         ch = FONT_FIRST;
     }
     const uint8_t *glyph = &font1[4 + (ch - FONT_FIRST) * FONT_H];
+    uint8_t *buf = hdmi_wbuf();
     for (int row = 0; row < FONT_H; row++) {
         int y = py + row;
         if (y < 0 || y >= hdmi_h) {
@@ -867,7 +950,7 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
         }
         uint8_t bits = glyph[row];
         if (hdmi_rgb121) {
-            uint8_t *line = hdmi_fb + (size_t)y * (hdmi_w / 2);
+            uint8_t *line = buf + (size_t)y * (hdmi_w / 2);
             for (int col = 0; col < FONT_W; col++) {
                 int x = px + col;
                 if (x >= 0 && x < hdmi_w) {
@@ -877,7 +960,7 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
                 }
             }
         } else if (hdmi_native) {
-            uint8_t *line = hdmi_fb + (size_t)y * hdmi_w;
+            uint8_t *line = buf + (size_t)y * hdmi_w;
             for (int col = 0; col < FONT_W; col++) {
                 int x = px + col;
                 if (x >= 0 && x < hdmi_w) {
@@ -885,7 +968,7 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
                 }
             }
         } else {
-            uint16_t *line = (uint16_t *)hdmi_fb + (size_t)y * hdmi_w;
+            uint16_t *line = (uint16_t *)buf + (size_t)y * hdmi_w;
             for (int col = 0; col < FONT_W; col++) {
                 int x = px + col;
                 if (x >= 0 && x < hdmi_w) {
@@ -908,6 +991,7 @@ static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, in
     }
     const uint8_t *glyph = &font1[4 + (ch - FONT_FIRST) * FONT_H];
     bool transparent = (bg < 0);
+    uint8_t *buf = hdmi_wbuf();
     for (int row = 0; row < FONT_H; row++) {
         uint8_t bits = glyph[row];
         for (int sy = 0; sy < scale; sy++) {
@@ -928,13 +1012,13 @@ static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, in
                         continue;
                     }
                     if (hdmi_rgb121) {
-                        uint8_t *pb = &hdmi_fb[(size_t)y * (hdmi_w / 2) + (x >> 1)];
+                        uint8_t *pb = &buf[(size_t)y * (hdmi_w / 2) + (x >> 1)];
                         uint8_t v = (uint8_t)(c & 0x0f);
                         *pb = (x & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
                     } else if (hdmi_native) {
-                        hdmi_fb[(size_t)y * hdmi_w + x] = (uint8_t)c;
+                        buf[(size_t)y * hdmi_w + x] = (uint8_t)c;
                     } else {
-                        ((uint16_t *)hdmi_fb)[(size_t)y * hdmi_w + x] = (uint16_t)c;
+                        ((uint16_t *)buf)[(size_t)y * hdmi_w + x] = (uint16_t)c;
                     }
                 }
             }
@@ -1038,6 +1122,135 @@ static mp_obj_t hdmi_height(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_height_obj, hdmi_height);
 
+// --- MMBasic FRAMEBUFFER commands: layer / create / write / copy / close ----
+
+// Parse a target letter ("N"/"L"/"F", case-insensitive) to HDMI_TARGET_*.
+static int hdmi_parse_target(mp_obj_t obj) {
+    const char *s = mp_obj_str_get_str(obj);
+    if ((s[0] == 'N' || s[0] == 'n') && s[1] == '\0') {
+        return HDMI_TARGET_N;
+    }
+    if ((s[0] == 'L' || s[0] == 'l') && s[1] == '\0') {
+        return HDMI_TARGET_L;
+    }
+    if ((s[0] == 'F' || s[0] == 'f') && s[1] == '\0') {
+        return HDMI_TARGET_F;
+    }
+    mp_raise_ValueError(MP_ERROR_TEXT("target must be 'N', 'L' or 'F'"));
+}
+
+// A target's base pointer, raising if it hasn't been created.
+static uint8_t *hdmi_target_ptr_checked(int target) {
+    uint8_t *p = hdmi_target_ptr(target);
+    if (p == NULL) {
+        if (target == HDMI_TARGET_L) {
+            mp_raise_ValueError(MP_ERROR_TEXT("layer not created"));
+        }
+        mp_raise_ValueError(MP_ERROR_TEXT("framebuffer not created"));
+    }
+    return p;
+}
+
+// hdmi.layer(transparent=0x000000) -- enable the overlay layer (RGB320 only,
+// MMBasic FRAMEBUFFER LAYER). The layer occupies the second half of the video
+// memory and is cleared to the transparent colour (RGB888, converted with the
+// same formula as pcgfx colour(), so fb.colour(c) values match the merge test).
+// Anything drawn in a different colour overlays the main display.
+static mp_obj_t hdmi_layer_fn(size_t n_args, const mp_obj_t *args) {
+    if (!hdmi_running || hdmi_mode != HDMI_MODE_RGB320) {
+        mp_raise_ValueError(MP_ERROR_TEXT("layer needs RGB320 mode"));
+    }
+    if (hdmi_layer_on) {
+        mp_raise_ValueError(MP_ERROR_TEXT("layer already exists"));
+    }
+    uint32_t rgb = (n_args > 0) ? ((uint32_t)mp_obj_get_int(args[0]) & 0xFFFFFFu) : 0;
+    uint16_t t565 = (uint16_t)((((rgb >> 16) & 0xF8) << 8)
+        | (((rgb >> 8) & 0xFC) << 3) | ((rgb & 0xFF) >> 3));
+    // Fill the layer with the transparent colour BEFORE enabling the merge, so
+    // it appears atomically (an all-transparent layer is invisible).
+    uint16_t *l = (uint16_t *)(hdmi_fb + hdmi_fb_bytes());
+    for (int i = 0; i < hdmi_w * hdmi_h; i++) {
+        l[i] = t565;
+    }
+    hdmi_layer_transp = t565;
+    hdmi_layer_on = 1;
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_layer_obj, 0, 1, hdmi_layer_fn);
+
+// hdmi.create() -- allocate the off-screen F buffer, display-sized, in PSRAM
+// (GC heap; rooted so it survives while unreferenced from Python). MMBasic
+// FRAMEBUFFER CREATE. Freed by hdmi.close("F") or any mode change.
+static mp_obj_t hdmi_create(void) {
+    if (!hdmi_running) {
+        mp_raise_ValueError(MP_ERROR_TEXT("display not initialised"));
+    }
+    if (MP_STATE_PORT(hdmi_framebuf_f) != NULL) {
+        mp_raise_ValueError(MP_ERROR_TEXT("framebuffer already exists"));
+    }
+    uint8_t *p = m_malloc(hdmi_fb_bytes()); // raises MemoryError if exhausted
+    memset(p, 0, hdmi_fb_bytes());
+    MP_STATE_PORT(hdmi_framebuf_f) = p;
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_create_obj, hdmi_create);
+
+// hdmi.write("N"/"L"/"F") -- select where ALL drawing goes (MMBasic
+// FRAMEBUFFER WRITE): framebuffer()/fb(), fill/scroll/putc/text, the console
+// and the image loaders. hdmi.write() returns the current target letter.
+static mp_obj_t hdmi_write(size_t n_args, const mp_obj_t *args) {
+    if (n_args == 0) {
+        static const char letters[3] = { 'N', 'L', 'F' };
+        return mp_obj_new_str(&letters[hdmi_target], 1);
+    }
+    int target = hdmi_parse_target(args[0]);
+    hdmi_target_ptr_checked(target); // must exist to be written
+    hdmi_target = target;
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_write_obj, 0, 1, hdmi_write);
+
+// hdmi.copy(src, dst) -- block-copy one whole buffer to another ("N"/"L"/"F",
+// MMBasic FRAMEBUFFER COPY). Both must exist; same-to-same is a no-op.
+static mp_obj_t hdmi_copy(mp_obj_t src_in, mp_obj_t dst_in) {
+    uint8_t *s = hdmi_target_ptr_checked(hdmi_parse_target(src_in));
+    uint8_t *d = hdmi_target_ptr_checked(hdmi_parse_target(dst_in));
+    if (s != d) {
+        memcpy(d, s, hdmi_fb_bytes());
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(hdmi_copy_obj, hdmi_copy);
+
+// hdmi.close("L"/"F") or hdmi.close() for both -- drop the layer (the overlay
+// disappears; the display underneath is untouched) and/or release the F buffer.
+// If the write target was closed, drawing returns to the display (MMBasic).
+static mp_obj_t hdmi_close(size_t n_args, const mp_obj_t *args) {
+    bool close_l = true, close_f = true;
+    if (n_args > 0) {
+        int target = hdmi_parse_target(args[0]);
+        if (target == HDMI_TARGET_N) {
+            mp_raise_ValueError(MP_ERROR_TEXT("cannot close the display"));
+        }
+        close_l = (target == HDMI_TARGET_L);
+        close_f = (target == HDMI_TARGET_F);
+    }
+    if (close_l) {
+        hdmi_layer_on = 0;
+        if (hdmi_target == HDMI_TARGET_L) {
+            hdmi_target = HDMI_TARGET_N;
+        }
+    }
+    if (close_f) {
+        if (hdmi_target == HDMI_TARGET_F) {
+            hdmi_target = HDMI_TARGET_N;
+        }
+        MP_STATE_PORT(hdmi_framebuf_f) = NULL; // the GC reclaims it
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_close_obj, 0, 1, hdmi_close);
+
 static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_hdmi) },
     { MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&hdmi_init_obj) },
@@ -1056,6 +1269,12 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_rgb565), MP_ROM_PTR(&hdmi_rgb565_obj) },
     { MP_ROM_QSTR(MP_QSTR_bpp), MP_ROM_PTR(&hdmi_bpp_obj) },
     { MP_ROM_QSTR(MP_QSTR_palette), MP_ROM_PTR(&hdmi_palette_obj) },
+    // MMBasic FRAMEBUFFER: overlay layer, off-screen buffer, target select, copy.
+    { MP_ROM_QSTR(MP_QSTR_layer), MP_ROM_PTR(&hdmi_layer_obj) },
+    { MP_ROM_QSTR(MP_QSTR_create), MP_ROM_PTR(&hdmi_create_obj) },
+    { MP_ROM_QSTR(MP_QSTR_write), MP_ROM_PTR(&hdmi_write_obj) },
+    { MP_ROM_QSTR(MP_QSTR_copy), MP_ROM_PTR(&hdmi_copy_obj) },
+    { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&hdmi_close_obj) },
     { MP_ROM_QSTR(MP_QSTR_RGB640), MP_ROM_INT(HDMI_MODE_RGB640) },
     { MP_ROM_QSTR(MP_QSTR_RGB320), MP_ROM_INT(HDMI_MODE_RGB320) },
     { MP_ROM_QSTR(MP_QSTR_RGB512), MP_ROM_INT(HDMI_MODE_RGB512) },
@@ -1069,5 +1288,9 @@ const mp_obj_module_t hdmi_module = {
 };
 
 MP_REGISTER_MODULE(MP_QSTR_hdmi, hdmi_module);
+
+// The off-screen F buffer (hdmi.create()) lives on the GC heap (PSRAM) with no
+// necessary Python reference, so it must be a GC root to stay alive.
+MP_REGISTER_ROOT_POINTER(uint8_t *hdmi_framebuf_f);
 
 #endif // MICROPY_HW_ENABLE_HDMI

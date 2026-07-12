@@ -69,7 +69,16 @@ void mp_uart_init(void) {
     irq_set_enabled(irq_num, true); // enable irq
 }
 
+// When set, REPL/stdout output to the UART is suppressed (console output
+// routed to the screen only — MMBasic OPTION CONSOLE SCREEN). Input and
+// direct UART writers (e.g. XMODEM's _outbyte) are unaffected. Default off,
+// so boards that never touch it keep standard behaviour.
+volatile bool mp_uart_repl_mute = false;
+
 void mp_uart_write_strn(const char *str, size_t len) {
+    if (mp_uart_repl_mute) {
+        return;
+    }
     uart_write_blocking(uart_default, (const uint8_t *)str, len);
 }
 

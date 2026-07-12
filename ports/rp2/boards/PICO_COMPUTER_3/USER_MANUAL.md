@@ -27,8 +27,22 @@ There are two consoles, and both are active at once:
   Connect a USB-serial adapter and open a terminal (TeraTerm, PuTTY, `screen`,
   `mpremote`). The Delete key works as forward-delete.
 - **On-screen console** — text appears on the HDMI monitor and a USB keyboard
-  drives it. This starts automatically at boot. `console(False)` detaches it,
-  `console()` re-attaches it.
+  drives it. This starts automatically at boot.
+
+**`console(target)`** routes console *output* (like MMBasic's
+`OPTION CONSOLE`); keyboard input — USB and serial — always works:
+
+```python
+console("both")     # HDMI screen + serial port (the power-up default)
+console("serial")   # serial only: nothing prints on the HDMI screen —
+                    #   ideal while testing graphics/sprites
+console("screen")   # HDMI screen only: the serial port stays silent
+console(fg=0x00FF00, bg=0)   # both, with green-on-black screen text
+```
+
+`console(False)` is shorthand for `"serial"`, `console()` for `"both"`. The
+setting is not persisted — every power-up starts as `"both"`. XMODEM
+transfers use the serial port directly and work in any mode.
 
 The USB device port is disabled (there is no USB-CDC prompt); the USB port is a
 **host** port for keyboards, mice and touch panels.
@@ -402,6 +416,66 @@ hdmi.blit(0, 0, 16, 16, px, py, "F", "N")     # put it back
 
 Works in every mode (8/16-bit blits use fast row copies; 4-bit RGB1024 and
 all skip-colour blits go pixel-by-pixel, fine at sprite sizes).
+
+`src`/`dst` can also be a **`(buffer, w, h)` tuple** — any bytearray in the
+mode's pixel format acts as an off-screen surface. That is how the sprite
+engine stores its images, and how you can keep any number of small graphics
+in RAM: `hdmi.blit(0, 0, 16, 16, x, y, (img, 16, 16), "N", skip)`.
+
+### Frame timing — `hdmi.vsync()`
+
+`hdmi.vsync()` waits for the start of the next **vertical blanking** interval.
+Draw right after it returns and the update is never caught mid-frame by the
+scanout; calling it once per loop also paces a game to the refresh rate
+(60 Hz, or 75 Hz at `clock=315`). USB input, audio and Ctrl-C keep running
+while it waits.
+
+### Sprites — `import pcsprite`
+
+A full sprite engine with MMBasic's game semantics — layers, collisions,
+walls, scrolling — but driven by Python objects. Sprites are drawn over the
+scenery and erased without disturbing it (in RGB320 they composite on the
+overlay layer; in other modes the F buffer holds a scenery snapshot — taken
+automatically, refresh with `sp.snapshot()` after redrawing the background).
+
+```python
+import pcsprite as sp
+
+draw_jpg("/sd/stars.jpg")                       # scenery first
+ships = sp.sheet("/sd/ships.png", 16, 16, count=4,
+                 transparent=hdmi.fb().colour(MAGENTA))
+ship = ships[0].show(150, 100)                  # visible at next update()
+rock = sp.grab(0, 0, 20, 20)                    # sprite from screen pixels
+wall = sp.wall(0, 220, 320, 20)                 # invisible collision rect
+
+while keydown(1) != keyboard.ESC:
+    ship.x += 1                                 # nothing drawn yet...
+    for a, b in sp.update(vsync=True):          # ...one pass draws it all
+        if b is wall:
+            print("hit the floor")
+        elif b == "right":
+            ship.x = 0                          # wrapped off the right edge
+```
+
+| API | Description |
+|---|---|
+| `sp.Sprite(img, w, h, transparent=None)` | a sprite from a mode-format `bytearray`; `transparent` = native colour that isn't drawn |
+| `sp.sheet(path, w, h, count, transparent=None)` | load an image file and cut `count` sprites from it, row-major (uses F as scratch — load sheets **first**) |
+| `sp.grab(x, y, w, h, transparent=None)` | a sprite copied from the current write target's pixels |
+| `s.show(x, y, layer=1)` / `s.hide()` / `s.visible` | visibility (committed at `update()`) |
+| `s.x`, `s.y`, `s.layer` | position (deferred) and collision layer; **layer 0** collides with every layer and scrolls with the scenery |
+| `s.top()` / `s.flip("h"/"v"/"hv")` | raise in z-order / mirrored copy |
+| `sp.update(vsync=False)` | commit everything in one pass; returns new collision events `(sprite, other)` where `other` is a Sprite, a Wall or `"left"/"right"/"top"/"bottom"` |
+| `sp.wall(x, y, w, h)` | static collision rectangle (not drawn); `w.remove()` deletes |
+| `sp.scroll(dx, dy, blank=None)` | scroll the scenery right/up with wraparound (or fill exposed edges with `blank`); layer-0 sprites and walls travel with it |
+| `sp.on_collision(cb)` | `cb(events)` called from `update()` on new collisions |
+| `sp.snapshot()` / `sp.reset()` | re-capture scenery (F mode) / hide all and forget walls |
+
+Collisions are bounding-box, reported **edge-triggered** (only when contact
+begins), and partitioned by layer exactly as MMBasic: sprites collide with
+their own layer and with layer 0, plus screen edges and walls. Sprites on the
+same layer draw in z-order (`show`/`top` order). A `screen()` mode change
+resets the engine.
 
 ---
 

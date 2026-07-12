@@ -43,3 +43,7 @@ freeze("$(BOARD_DIR)", "pcimage.py")
 
 # Persistent settings (keyboard layout, HDMI mode/clock) saved on the flash FS.
 freeze("$(BOARD_DIR)", "pcconfig.py")
+
+# Sprite engine: MMBasic sprite semantics (layers, AABB collisions, walls,
+# scroll) on a dirty-rectangle / overlay-layer compositor. `import pcsprite`.
+freeze("$(BOARD_DIR)", "pcsprite.py")

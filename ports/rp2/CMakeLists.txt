@@ -201,6 +201,7 @@ if(MICROPY_HW_ENABLE_HDMI)
         png.c
         upng.c
         dither.c
+        sercon.c
     )
 endif()
 
@@ -255,6 +256,7 @@ if(MICROPY_HW_ENABLE_HDMI)
         ${MICROPY_PORT_DIR}/bmp.c
         ${MICROPY_PORT_DIR}/png.c
         ${MICROPY_PORT_DIR}/hdmi.c
+        ${MICROPY_PORT_DIR}/sercon.c
     )
 endif()
 if(MICROPY_PY_MACHINE_SDCARD)

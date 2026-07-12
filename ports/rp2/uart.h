@@ -26,7 +26,12 @@
 #ifndef MICROPY_INCLUDED_RP2_UART_H
 #define MICROPY_INCLUDED_RP2_UART_H
 
+#include <stdbool.h>
+
 void mp_uart_init(void);
 void mp_uart_write_strn(const char *str, size_t len);
+
+// Suppress REPL/stdout output to the UART while set (input unaffected).
+extern volatile bool mp_uart_repl_mute;
 
 #endif // MICROPY_INCLUDED_RP2_UART_H

@@ -1169,6 +1169,88 @@ at all four edges.
 
 ---
 
+### 34. Sprite engine — `pcsprite` (MMBasic semantics, compositor rendering)
+
+A deep review of MMBasic Sprite.c (2,654 lines) concluded its *semantics* are
+battle-tested but its *rendering architecture* — save-under buffers ordered
+by two LIFO stacks, SHOW/HIDE SAFE tearing down and rebuilding everything
+above the target, MOVE/SCROLL hiding and re-showing every sprite on the live
+screen — is the organically-grown part (its own `"sprite internal error"`
+consistency checks say as much). The port keeps the semantics and replaces
+the architecture:
+
+- **Rendering = dirty-rectangle compositor** (`pcsprite.py`, frozen):
+  sprites are Python objects in one z-ordered list. `update()` collects
+  old+new rects of moved/hidden sprites, erases just those patches, redraws
+  intersecting sprites in z-order, then runs one collision pass — the
+  MMBasic `next_x/MOVE` deferred-commit idea promoted to the core primitive.
+  No stack discipline, no SAFE variants, no save-under buffers at all.
+- **Erase source per mode**: RGB320 composites sprites on the **overlay
+  layer** (erase = `fill_rect` of the layer-transparent colour; scenery on N
+  untouched — the §32 layer was built for this). Other modes: classic
+  dirty-rect engine with the **F buffer** as scenery snapshot (erase =
+  `blit(F→N)`); `snapshot()` refreshes it. Mode picked automatically on
+  first `update()`; `hdmi.gen()` watched so a `screen()` change resets.
+- **Collisions = MMBasic ProcessCollisions, faithfully**: AABB with
+  touching-counts for sprite-sprite (`<`/`>`), strict overlap for walls
+  (`<=`/`>=`, as MMBasic's static objects — their inconsistency, kept),
+  layer partition with layer 0 colliding with all, screen-edge flags,
+  **edge-triggered** reporting via a per-sprite contact set (MMBasic's
+  `lastcollisions` bitmask, pythonified). Events are `(sprite, other)`
+  tuples; optional `on_collision(cb)`. Dropped: the 0xF1/0x80 in-band codes,
+  numbered buffers, master/copy bookkeeping (shared image bytearrays),
+  SWAP (assign `.img`), per-frame rotation (pre-baked `flip()` copies).
+- **`scroll(dx,dy,blank)`** replicates SPRITE SCROLL: scenery shifts with
+  wraparound (a cached strip bytearray carries the wrapped band via the
+  tuple-surface blit), layer-0 sprites and walls travel with centre-point
+  wrap exactly as MMBasic; in F mode the sprites are lifted from N first
+  (they're painted into it), and both N and F scroll.
+- **C additions (hdmi.c)**: `hdmi.blit` src/dst generalised to
+  **`(buffer, w, h)` tuple surfaces** with per-surface geometry/stride
+  (sprite images live in PSRAM bytearrays; even width required in 4bpp);
+  **`hdmi.vsync()`** — waits for the next vertical-blanking start, pumping
+  `mp_event_handle_nowait()` so USB HID polling, the audio feeder and Ctrl-C
+  stay alive during the wait (a bare busy-wait would stall input ~16 ms per
+  frame — exactly where games hurt); **`hdmi.transparent()`** exposes the
+  layer's RGB565 transparent colour (pcsprite's erase colour).
+- **Perf shape**: all pixel work is C; Python moves rectangles. ~20 sprites
+  of 16×16 ≈ 40 small C blits + trivial arithmetic per frame — comfortably
+  inside a 60 Hz budget. `update()`'s state lives in flat lists so the loop
+  can be promoted to C later without changing the API.
+
+Verify: RGB320 — scenery jpg, 4-sprite sheet, move with keydown() at
+`update(vsync=True)` (no flicker, scenery intact); collisions fire once per
+contact (sprite/edge/wall); `scroll()` wraps scenery+layer-0 sprites; RGB640
+and RGB1024 — same test over the F snapshot incl. `snapshot()` after
+redrawing scenery; `screen()` change mid-game resets cleanly.
+
+---
+
+### 35. Console output routing — `console("both"/"serial"/"screen")`
+
+MMBasic `OPTION CONSOLE`: route console *output* so prints don't corrupt the
+HDMI screen while testing graphics (or don't clutter the serial log). Input
+(USB keyboard + UART) is never affected. **Not persisted — power-up is
+always "both".**
+
+- **"serial"** = detach the dupterm screen console (existing `console(False)`
+  mechanics; `True`/`False` remain as shorthands).
+- **"screen"** = mute the UART side: new `mp_uart_repl_mute` flag in the
+  shared `uart.c` (default off, one branch in `mp_uart_write_strn` — inert
+  for other boards), exposed by the tiny board-gated **`_sercon`** C module
+  (`_sercon.mute()`); `pcconsole.console()` wraps the routing. XMODEM is
+  unaffected by the mute (its `_outbyte` writes the UART directly), and a
+  muted serial terminal can still type — including Ctrl-C (RX path untouched).
+- `sync_terminal()`'s resize escape is muted too in "screen" mode — harmless
+  (it only matters to a serial terminal, which isn't listening).
+
+Verify: `console("serial")` → REPL echo continues on the terminal, screen
+static while a sprite demo runs; `console("screen")` → terminal silent but
+typing there still executes (echo on the monitor); `console("both")`
+restores; XMODEM works in all three.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -1184,7 +1266,8 @@ at all four edges.
 | `ports/rp2/usb_mouse.c` + `usb_mouse.h` | **new** USB mouse: descriptor type-detect (8/12/16-bit) + report decode + cursor accumulation/buttons/wheel/double-click (vendored MMBasic) |
 | `ports/rp2/usb_mouse_mod.c` | **new** `mouse` module (`mouse()` query: X/Y/L/R/M/W/B/D/T; `mouse_speed()`) |
 | `shared/tinyusb/tusb_config.h` | `#if MICROPY_HW_USB_HOST` block (host mode, hub, enum buf 1024, HID) |
-| `ports/rp2/uart.c` | translate serial-terminal Del (`0x7f`) → `\x1b[3~` under `MICROPY_HW_UART_REPL_DEL_FORWARD` |
+| `ports/rp2/uart.c` | translate serial-terminal Del (`0x7f`) → `\x1b[3~` under `MICROPY_HW_UART_REPL_DEL_FORWARD`; `mp_uart_repl_mute` output-mute flag (§35) |
+| `ports/rp2/sercon.c` | **new** `_sercon` module: serial-console output mute for `console()` routing (§35) |
 | `ports/rp2/audio.c` | **new** `audio` module: `scale()` volume + `{wav,mp3,flac}_{open,read,close}` via dr_* + GC/rooted allocator; `usb_sound()` decodes the plug-in/unplug WAVs; tone generator + 4-voice synth + MOD player backends (§31) |
 | `ports/rp2/hxcmod.c`/`.h` | **new** vendored HxCMOD tracker player (MMBasic's copy, incl. its sound-effect extension for `mod_sample`) (§31) |
 | `ports/rp2/sound_tables.h` | **new** vendored MMBasic SineTable/triangletable (4096) + mapping[101] volume table (§31) |
@@ -1220,6 +1303,7 @@ at all four edges.
 | `boards/PICO_COMPUTER_3/USER_MANUAL.md` | **new** end-user manual (pins, all commands/modules, standard-module list, MicroPython doc reference) — ships with the release |
 | `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1`; 12 MB flash FS; ulab via `USER_C_MODULES`; feature-gate vars `MICROPY_HW_ENABLE_HDMI`/`MICROPY_PY_MACHINE_SDCARD`/`MICROPY_HW_USB_HOST` (§27) |
 | `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `_boot_board`/`pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |
+| `boards/PICO_COMPUTER_3/pcsprite.py` | **new** sprite engine: MMBasic collision/layer/scroll semantics on a dirty-rect / overlay-layer compositor (§34) |
 | `boards/PICO_COMPUTER_3/pcshell.py` | **new** shell commands (`ls`/`run`/`edit`/file ops) + `COMMANDS` |
 | `boards/PICO_COMPUTER_3/pye.py` | **new** vendored pye editor (MIT, V2.79) with one local Backspace patch |
 

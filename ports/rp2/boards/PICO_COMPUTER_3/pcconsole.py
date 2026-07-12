@@ -213,13 +213,32 @@ class Console(io.IOBase):
 _con = None
 
 
-def console(on=True, fg=0xFFFFFF, bg=0x000000):
-    """Enable/disable mirroring the REPL output onto the HDMI screen."""
+def console(target=True, fg=0xFFFFFF, bg=0x000000):
+    """Route console output (MMBasic OPTION CONSOLE). target is one of:
+      "both"   - HDMI screen + serial port (the power-up default)
+      "screen" - HDMI screen only (serial output muted; input still works)
+      "serial" - serial port only (nothing printed on the HDMI screen --
+                 handy while testing graphics)
+    True/False are accepted as shorthand for "both"/"serial". Keyboard input
+    (USB and serial) is never affected. Returns the on-screen Console (or
+    None for "serial")."""
     global _con
+    if target is True:
+        target = "both"
+    elif target is False:
+        target = "serial"
+    if target not in ("both", "screen", "serial"):
+        raise ValueError("console target must be 'both', 'screen' or 'serial'")
+    try:
+        import _sercon
+
+        _sercon.mute(target == "screen")
+    except ImportError:
+        pass  # no serial console in this build: screen behaves like both
     if _con is not None:  # tear down any existing console (stops its blink timer)
         _con.deinit()
         _con = None
-    if on:
+    if target != "serial":
         _con = Console(fg, bg)
         sync_terminal()
         os.dupterm(_con)

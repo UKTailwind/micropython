@@ -14,6 +14,7 @@
 # Press any (USB) key to stop, or it ends after ~30 s.
 
 import random
+import time
 
 import hdmi
 import keyboard
@@ -27,6 +28,7 @@ NROCKS = 6
 def run():
     hdmi.deinit()
     hdmi.init(hdmi.RGB320)
+    time.sleep(3)  # let the monitor re-lock to the new resolution
     w, h = hdmi.width(), hdmi.height()
 
     # Off-screen back buffer (F, in PSRAM) + a Display over it to draw scenery.

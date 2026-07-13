@@ -111,8 +111,8 @@ so they are available without an `import`. A program launched with `run()`
 inherits the same names. The most useful are:
 
 **Modules / objects:** `os`, `machine`, `Pin` (= `machine.Pin`), `framebuf`,
-`hdmi`, `Display`, and the named colour palette (`RED`, `GREEN`, `BLUE`, `WHITE`,
-`BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, …).
+`hdmi`, `Display`, `Turtle` (turtle graphics — section 5), and the named colour
+palette (`RED`, `GREEN`, `BLUE`, `WHITE`, `BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, …).
 
 **Shell commands:** `ls`, `run`, `edit`, `pwd`, `cd`, `mkdir`, `rmdir`, `rm`,
 `cat`, `cp`, `mv`.
@@ -259,6 +259,15 @@ The optional `clock` is the CPU/pixel clock and applies **only to `RGB640` and
 raises a `ValueError`. The chosen mode/clock is saved and restored on the next boot
 (section 13). If a saved mode does not suit your monitor, the serial console
 still works — use `screen(hdmi.RGB640)` to reset it.
+
+> **Monitor re-lock delay.** Changing resolution puts out a new video signal,
+> and the monitor takes a couple of seconds to lock onto it and start showing
+> pixels again. If a program switches mode and immediately starts drawing, that
+> first drawing happens while the monitor is still blank and is missed. In a
+> program that changes mode, add `time.sleep(3)` right after the `screen()` /
+> `hdmi.init()` call before drawing anything you need to be seen. (At the REPL
+> this doesn't matter — you're already several seconds past the switch by the
+> time you type the next command.)
 
 ### Low-level control: `hdmi.init()` / `hdmi.deinit()`
 
@@ -524,6 +533,57 @@ sprites, double-buffer in your own loop with the buffer primitives (section 5,
 "Overlay layer and off-screen buffer"): compose each frame into the off-screen
 `F` buffer, then `hdmi.vsync(); hdmi.copy("F", "N")` to flip it onto the screen
 in one fast copy. `tests/demo_asteroids.py` shows this with `load_image()`.
+
+### Turtle graphics — `Turtle`
+
+A turtle-graphics engine (MMBasic's `TURTLE`), injected as `Turtle`. A turtle
+draws on the HDMI screen from a pen with a position and heading:
+
+```python
+t = Turtle()                       # draws on hdmi.fb()
+t.reset()                          # clear screen; turtle centred, facing up
+for _ in range(36):                # a spirograph-ish star
+    t.forward(100)
+    t.right(160)
+```
+
+Conventions (as MMBasic): coordinates are **screen pixels**, **home** is the
+screen centre, and the heading is **0 = up, 90 = right** (clockwise), so
+`right()` turns clockwise. Colours are 24-bit RGB — use the palette names
+(`RED`, `WHITE`, …) or `0xRRGGBB`; they convert to the current mode's format.
+
+| Method | Description |
+|---|---|
+| `forward(d)` / `fd` , `back(d)` / `bk` | move (and draw if the pen is down) |
+| `right(a=90)` / `rt` , `left(a=90)` / `lt` | turn clockwise / counter-clockwise |
+| `goto(x, y)` , `setx(x)` , `sety(y)` | move to an absolute pixel |
+| `setheading(a)` / `seth` , `home()` | set heading / return to the centre facing up |
+| `penup()` / `pu` , `pendown()` / `pd` | lift / lower the pen |
+| `pencolor(rgb)` , `pensize(w)` | pen colour (RGB) and width (1–50) |
+| `arc(radius, angle)` | move along a circular arc, turning `angle`° total |
+| `bezier(d1,a1, d2,a2, d3,a3)` | Bézier curve; control/end points as (distance, angle) from the turtle |
+| `circle(r)` , `dot(size)` , `fcircle(r)` | circle outline / filled dot / filled circle at the turtle |
+| `rectangle(w, h)` | rectangle centred on the turtle (filled if a fill colour is set) |
+| `wedge(radius, start, end)` | filled pie slice |
+| `fillcolor(rgb)` / `nofill()` | set fill colour (enables filling) / disable |
+| `begin_fill()` / `end_fill()` | record the turtle's path and fill it as a polygon |
+| `stamp(size=12)` | stamp a small triangle showing position + heading |
+| `push()` / `pop()` | save / restore position + heading |
+| `position()` , `xcor()` , `ycor()` , `heading()` | read the state |
+
+```python
+t = Turtle(); t.reset()
+t.pencolor(CYAN); t.pensize(2)
+t.fillcolor(0x002040)
+t.begin_fill()
+for _ in range(5):                 # a filled star
+    t.forward(90); t.right(144)
+t.end_fill()
+```
+
+Make a new `Turtle` after a `screen()` mode change (the pixel format differs
+per mode). A turtle draws on the current write target, so `hdmi.write("F")` +
+a `Turtle()` draws off-screen.
 
 ---
 

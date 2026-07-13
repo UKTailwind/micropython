@@ -1488,6 +1488,38 @@ feed the engine and animate; `flip()` a sheet cell; all in RGB320/640/1024.
 
 ---
 
+### 42. Turtle graphics — `pcturtle` (MMBasic TURTLE)
+
+Frozen `pcturtle.py`, a `Turtle` class on top of the §40 `pcgfx` primitives —
+faithful to MMBasic's `Turtle.c` semantics (see [[replicate-mmbasic-exactly]]):
+
+- **Conventions**: screen-pixel coordinates, **home = screen centre**, heading
+  **0 = up, 90 = right (clockwise)** — `forward` is `x += d·sin(h);
+  y −= d·cos(h)`, `right()` increments the heading (verbatim MMBasic). Colours
+  are 24-bit RGB, converted to the mode format via `Display.colour()` and cached
+  native.
+- **Drawn with the primitives**: lines via `pcgfx.line(w=)` (thick pen), arcs by
+  MMBasic's step-and-turn (`segs = |angle|/5+1`, chord
+  `2r·sin(step/2)`, `forward` + `heading += step`), `wedge` = a filled sector
+  (`arc(...,r1=0)`), `circle`/`dot`/`fcircle` via `ellipse`, `rectangle` via
+  `rect`/`fill_rect`, `bezier` (control/end points as distance+angle offsets
+  from the turtle) via `pcgfx.bezier`, polygon fill (`begin_fill`/`end_fill`)
+  via `framebuf.poly`. CPython-style aliases (`fd`/`bk`/`lt`/`rt`/`pu`/`pd`/
+  `setpos`/`seth`/…) plus MMBasic names.
+- **Target**: draws on `hdmi.fb()` (the current write target), so `write("F")`
+  + a `Turtle()` draws off-screen; make a fresh `Turtle` after a `screen()`
+  mode change (format differs). Injected into the REPL as `Turtle`.
+- **Deviations (deliberate):** the animated on-screen cursor (pixel save/restore
+  under a moving turtle sprite) and the 32 fill *patterns* are not ported — the
+  cursor is off by default in MMBasic anyway, and fills are solid; `stamp()`
+  draws a static heading triangle. Can add later if wanted.
+
+Verify: a square (`forward`/`right` ×4); a filled star (`begin_fill`/`end_fill`);
+`arc`/`circle`/`wedge`; `pencolor`/`pensize`; `push`/`pop`; all in
+RGB320/640/1024.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -1542,6 +1574,7 @@ feed the engine and animate; `flip()` a sheet cell; all in RGB320/640/1024.
 | `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `_boot_board`/`pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |
 | `boards/PICO_COMPUTER_3/pcsprite.py` | **new** sprite engine: MMBasic collision/layer/scroll semantics on a dirty-rect / overlay-layer compositor (§34) |
 | `boards/PICO_COMPUTER_3/pcnet.py` | **new** Wi-Fi + NTP time: `wifi`/`ntpsync`/`tz`/`auto`; credentials in `pcconfig` (§39) |
+| `boards/PICO_COMPUTER_3/pcturtle.py` | **new** `Turtle` graphics class (MMBasic TURTLE on the pcgfx primitives) (§42) |
 | `boards/PICO_COMPUTER_3/pcshell.py` | **new** shell commands (`ls`/`run`/`edit`/file ops) + `COMMANDS` |
 | `boards/PICO_COMPUTER_3/pye.py` | **new** vendored pye editor (MIT, V2.79) with one local Backspace patch |
 

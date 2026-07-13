@@ -110,6 +110,11 @@ __main__.draw_png = pcimage.draw_png
 __main__.save_image = pcimage.save_image
 __main__.load_image = pcimage.load_image  # image file -> in-memory blit surface
 
+# Turtle graphics: Turtle() draws on the HDMI screen (MMBasic TURTLE).
+import pcturtle
+
+__main__.Turtle = pcturtle.Turtle
+
 try:
     ds3231.synctime()
 except Exception:

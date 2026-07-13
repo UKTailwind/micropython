@@ -50,3 +50,6 @@ freeze("$(BOARD_DIR)", "pcsprite.py")
 
 # Wi-Fi + NTP time: wifi(), ntpsync(), tz(), auto() (credentials in settings).
 freeze("$(BOARD_DIR)", "pcnet.py")
+
+# Turtle graphics (MMBasic TURTLE, on the pcgfx primitives): `Turtle` class.
+freeze("$(BOARD_DIR)", "pcturtle.py")

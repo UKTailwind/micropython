@@ -41,6 +41,11 @@ and headless.
 | `test_keydown.py` | interactive | `keydown()` codes/modifiers/multi-key, `keyboard.on_key` |
 | `test_audio.py` | interactive | tone (incl. click-free retune), 4-voice synth, pause/resume; optional `test.mod`/`test.mp3` |
 | `test_console.py` | interactive | `console("both"/"serial"/"screen")` output routing |
+| `turtle_test.py` | visual demo | `Turtle` graphics — a port of MMBasic's `turtletest.bas` (run standalone) |
+| `demo_asteroids.py` | visual demo | `load_image()` sprite sheet + Python double-buffering (needs `/sd/asteroid-sprite-440x464.png`) |
+
+The visual demos (`turtle_test.py`, `demo_asteroids.py`) are **not** part of
+`test_all.py`; run them standalone and watch the HDMI screen.
 
 Optional test assets (put next to the tests, all skipped if absent):
 `test.jpg`, `test.png`, `test.mod`, `test.mp3`.

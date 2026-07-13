@@ -115,9 +115,9 @@ inherits the same names. The most useful are:
 `BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, …).
 
 **Shell commands:** `ls`, `run`, `edit`, `pwd`, `cd`, `mkdir`, `rmdir`, `rm`,
-`cat`, `cp`, `mv`, `console`.
+`cat`, `cp`, `mv`.
 
-**Display / settings:** `screen`, `keymap`, `keymaps`.
+**Display / settings:** `screen`, `palette`, `keymap`, `keymaps`, `console`.
 
 **Audio:** `play`, `volume`, `beep`, `stop`, `is_playing`, `pause`, `resume`,
 `tone`, `sound`, `mod_sample`.
@@ -1024,6 +1024,10 @@ directly: `hdmi`, `keyboard`, `mouse`, `touch`, `audio`, `jpeg`, `bmp`, `png`,
 Most users will prefer the auto-imported helpers (`play`, `draw_jpg`, `touch`,
 `mouse`, `screen`, …) rather than these directly.
 
+The **`pcsprite`** module (the sprite engine — `import pcsprite`, section 5) is a
+frozen Python module built on `hdmi`; `pcconfig`, `pcconsole` and `pcaudio` are
+the frozen Python modules behind `screen`/`console`/`play` and friends.
+
 ---
 
 ## Quick reference
@@ -1038,6 +1042,14 @@ hdmi.text("BIG", 0, 20, d.colour(RED), -1, 4)   # scaled 8x12 text
 hdmi.layer(); hdmi.write("L")   # overlay layer (RGB320): sprites over scenery
 hdmi.create(); hdmi.copy("F", "N")   # off-screen buffer -> screen (see section 5)
 hdmi.blit(0, 0, 16, 16, x, y, "F", "N", d.colour(MAGENTA))  # sprite w/ cut-out
+hdmi.vsync()                    # wait for vertical blank (tear-free / pacing)
+console("serial")               # keep prints off the screen while testing graphics
+
+# Sprites (see section 5)
+import pcsprite as sp
+ship = sp.grab(0, 0, 16, 16, d.colour(MAGENTA)); ship.show(100, 80)
+ship.x += 2
+for a, b in sp.update(vsync=True): print("hit", b)   # move + collisions
 
 # Input
 touch("DOWN"); touch("X"); touch("SWIPE")

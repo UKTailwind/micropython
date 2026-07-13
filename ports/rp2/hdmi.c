@@ -1487,6 +1487,94 @@ static mp_obj_t hdmi_blit(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_blit_obj, 6, 9, hdmi_blit);
 
+// Push a seed point onto the flood stack, growing it if full. Returns the
+// (possibly moved) stack base.
+static int32_t *hdmi_flood_push(int32_t *stack, int *sp, int *cap, int px, int py) {
+    if (*sp >= *cap) {
+        int nc = *cap * 2;
+        stack = m_renew(int32_t, stack, (size_t)*cap * 2, (size_t)nc * 2);
+        *cap = nc;
+    }
+    stack[*sp * 2] = px;
+    stack[*sp * 2 + 1] = py;
+    (*sp)++;
+    return stack;
+}
+
+// hdmi.flood(x, y, colour [, border]) -- scanline flood fill of the current
+// write target (MMBasic floodfill). Without `border` (or border < 0): FLOOD
+// mode — replace the contiguous region of the seed pixel's colour with
+// `colour` (a paint-bucket). With `border` >= 0: BOUNDARY mode — fill outward
+// from the seed over any colour, stopping at pixels of the `border` colour.
+// Colours are native-format (as fill/blit); works in every video mode.
+static mp_obj_t hdmi_flood(size_t n_args, const mp_obj_t *args) {
+    if (!hdmi_running) {
+        mp_raise_ValueError(MP_ERROR_TEXT("display not initialised"));
+    }
+    int x = mp_obj_get_int(args[0]);
+    int y = mp_obj_get_int(args[1]);
+    mp_int_t fill = mp_obj_get_int(args[2]);
+    mp_int_t border = (n_args > 3) ? mp_obj_get_int(args[3]) : -1;
+    int W = hdmi_w, H = hdmi_h;
+    if (x < 0 || x >= W || y < 0 || y >= H) {
+        return mp_const_none;
+    }
+    uint8_t *buf = hdmi_wbuf();
+    mp_int_t seed = hdmi_px_get(buf, W, x, y);
+    bool boundary = (border >= 0);
+    // Nothing to do if the seed is already the boundary, or (flood mode) is
+    // already the fill colour — both would loop forever otherwise.
+    if (boundary ? (seed == border) : (seed == fill)) {
+        return mp_const_none;
+    }
+    #define HDMI_FLOOD_MATCH(px) \
+        (boundary ? ((px) != border && (px) != fill) : ((px) == seed))
+
+    int cap = 256, sp = 0;
+    int32_t *stack = m_new(int32_t, (size_t)cap * 2);
+    stack = hdmi_flood_push(stack, &sp, &cap, x, y);
+    while (sp > 0) {
+        sp--;
+        int sx = stack[sp * 2], sy = stack[sp * 2 + 1];
+        if (!HDMI_FLOOD_MATCH(hdmi_px_get(buf, W, sx, sy))) {
+            continue;
+        }
+        int x1 = sx, x2 = sx;
+        while (x1 > 0 && HDMI_FLOOD_MATCH(hdmi_px_get(buf, W, x1 - 1, sy))) {
+            x1--;
+        }
+        while (x2 < W - 1 && HDMI_FLOOD_MATCH(hdmi_px_get(buf, W, x2 + 1, sy))) {
+            x2++;
+        }
+        bool above = false, below = false;
+        for (int i = x1; i <= x2; i++) {
+            hdmi_px_set(buf, W, i, sy, fill);
+            if (sy > 0) {
+                bool m = HDMI_FLOOD_MATCH(hdmi_px_get(buf, W, i, sy - 1));
+                if (m && !above) {
+                    stack = hdmi_flood_push(stack, &sp, &cap, i, sy - 1);
+                    above = true;
+                } else if (!m) {
+                    above = false;
+                }
+            }
+            if (sy < H - 1) {
+                bool m = HDMI_FLOOD_MATCH(hdmi_px_get(buf, W, i, sy + 1));
+                if (m && !below) {
+                    stack = hdmi_flood_push(stack, &sp, &cap, i, sy + 1);
+                    below = true;
+                } else if (!m) {
+                    below = false;
+                }
+            }
+        }
+    }
+    #undef HDMI_FLOOD_MATCH
+    m_free(stack);  // m_new blocks are GC-managed; free promptly anyway
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_flood_obj, 3, 4, hdmi_flood);
+
 // hdmi.close("L"/"F") or hdmi.close() for both -- drop the layer (the overlay
 // disappears; the display underneath is untouched) and/or release the F buffer.
 // If the write target was closed, drawing returns to the display (MMBasic).
@@ -1541,6 +1629,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_write), MP_ROM_PTR(&hdmi_write_obj) },
     { MP_ROM_QSTR(MP_QSTR_copy), MP_ROM_PTR(&hdmi_copy_obj) },
     { MP_ROM_QSTR(MP_QSTR_blit), MP_ROM_PTR(&hdmi_blit_obj) },
+    { MP_ROM_QSTR(MP_QSTR_flood), MP_ROM_PTR(&hdmi_flood_obj) },
     { MP_ROM_QSTR(MP_QSTR_vsync), MP_ROM_PTR(&hdmi_vsync_obj) },
     { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&hdmi_close_obj) },
     { MP_ROM_QSTR(MP_QSTR_RGB640), MP_ROM_INT(HDMI_MODE_RGB640) },

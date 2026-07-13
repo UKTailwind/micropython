@@ -1231,6 +1231,19 @@ the architecture:
   of 16×16 ≈ 40 small C blits + trivial arithmetic per frame — comfortably
   inside a 60 Hz budget. `update()`'s state lives in flat lists so the loop
   can be promoted to C later without changing the API.
+- **Single-buffered — a note on tearing.** The engine composites *live* (dirty
+  rects straight onto the layer in RGB320, or N in F-mode), which core1 is
+  scanning top-to-bottom. With many/large sprites the per-pixel skip-blits
+  (~1 ms for a few 55×58) overrun the ~1.4 ms vblank, so a sprite redrawn after
+  the beam passed its row shows the erased hole — it vanishes near the top, tear
+  line drifting with jitter. This is inherent to a single-buffer live
+  compositor; it's fine for modest sprite counts. For tear-free animation of
+  big/many sprites, **double-buffer in the application** with the existing
+  buffer primitives: compose the whole frame into the off-screen F buffer
+  (`hdmi.create()`, draw to it via a `Display`/`Image.blit(dst="F")`), then
+  `hdmi.vsync(); hdmi.copy("F", "N")` to flip — the only screen write is one
+  fast opaque copy. `tests/demo_asteroids.py` does exactly this. (Deliberately
+  kept out of the engine to avoid forcing a 150 KB shadow buffer on every game.)
 
 Verify: RGB320 — scenery jpg, 4-sprite sheet, move with keydown() at
 `update(vsync=True)` (no flicker, scenery intact); collisions fire once per
@@ -1395,12 +1408,92 @@ boot; no network / bad creds never blocks boot.
 
 ---
 
+### 40. Richer 2D primitives — arc / rbox / thick line / bezier / flood fill
+
+`framebuf` covers line/rect/ellipse/poly; MMBasic has more. Added the rest —
+the vector shapes as clean Python on `pcgfx.Display` (framebuf primitives), the
+flood fill in C (per-pixel scanline work, too slow in Python). See
+[[replicate-mmbasic-exactly]] — MMBasic's *semantics* are matched; the vector
+shapes use MicroPython's proven primitives rather than porting MMBasic's exact
+pixel loops.
+
+- **`d.line(..., w)`** — thick line as a **filled quadrilateral** via
+  `framebuf.poly` (the 4 corners offset ±w/2 along the perpendicular): gap-free,
+  butt caps. `w<=1` falls through to `super().line`.
+- **`d.rbox(x, y, w, h, r, colour, fill)`** — rounded rectangle from four
+  `framebuf.ellipse` **quadrant-mask** corners (masks 1/2/4/8 = TR/TL/BL/BR) +
+  straight `hline`/`vline` edges (+ band `fill_rect`s and quadrant fills when
+  filled). `r` clamped to half the shorter side (as MMBasic RBOX).
+- **`d.arc(x, y, r1, r2, a1, a2, colour)`** — filled annular sector, MMBasic's
+  angle convention (0°=up, clockwise: `x+r·sinθ, y−r·cosθ`). Two paths, both
+  **gap-free** (an early radial-spoke version left 1px gaps at the outer edge):
+  a **full ring** (`a2−a1 ≥ 360`, incl. `a2==a1`) draws two annulus x-spans per
+  row (`±[√(r1²−dy²) .. √(r2²−dy²)]`), no angle test; a **partial sector** fills
+  the annular-sector **polygon** (outer arc forward + inner arc back, or the
+  apex for r1=0) with one `framebuf.poly` C fill. The polygon replaced a
+  correct-but-slow per-pixel-`atan2` scanline (MMBasic's literal `cmd_arc`,
+  ~O(annulus·atan2)) — the poly fill is a C scanline with no per-pixel trig, so
+  a big partial arc went from ~100 ms to a few ms. Curved edges are
+  chord-approximated (~2px chords); a very thin band (`r2−r1 ≤ 3`) additionally
+  strokes its outer/inner polylines, since a polygon fill can drop rows there.
+- **`d.bezier(points, colour)`** — N-point **Bernstein** curve (binomials
+  `C(n-1,i)`), `steps = clamp(bbox_diag·3, 10, 2000)`, drawn as line segments —
+  MMBasic's `PlotBezier` scheme.
+- **`d.flood(x, y, colour, border)` → `hdmi.flood` (C):** scanline seed fill
+  with a growable span stack (`hdmi_flood_push` via `m_renew`), reusing the
+  §33 `hdmi_px_get/px_set` helpers so it works in every pixel format. Two modes,
+  faithful to MMBasic `floodfill`: **flood** (`border<0`) replaces the seed
+  colour; **boundary** (`border>=0`) fills over any colour up to the border. The
+  match predicate makes filled pixels stop recursion (flood: now ≠ seed;
+  boundary: now == fill). Operates on the current write target (`hdmi_wbuf()`).
+
+Verify: thick lines at various angles (no gaps); `rbox` outline+fill; `arc`
+quarter/half/full ring and a thin outline (r1=r-1); a bezier squiggle; draw a
+`rect` then `flood` inside it (flood mode) and `flood` a shape to a border
+colour (boundary mode); all in RGB320/RGB640/RGB1024.
+
+---
+
+### 41. `load_image()` / `Image` — images into memory (sprite sheets)
+
+The `draw_*` loaders already decode into a generic `(buffer, w, h, bpp)` target
+and clip to it (§21) — `pcimage` just fed them the HDMI framebuffer. The blitter
+already takes `(buffer, w, h)` surfaces (§34). So loading a sheet **into memory**
+needed almost no new machinery — just sizing the buffer before decoding.
+
+- **`load_image(path, transparent, dither, cutoff, scale) -> Image`**
+  (pcimage): peeks the image **dimensions** in pure Python — PNG IHDR (offsets
+  16/20, BE), BMP (offsets 18/22, LE, signed height), JPEG (`_jpeg_size` scans
+  segments for an SOFn marker) — allocates a `bytearray` in the current format
+  (`hdmi.bpp()`; even width in 4bpp), optionally pre-fills it with a
+  `transparent` native colour via a throwaway `framebuf` (so PNG alpha areas
+  become that colour, i.e. the future skip colour), then calls the **existing**
+  `jpeg.render`/`png.render`/`bmp.load` with `x=y=0`. No C changes.
+- **`Image`**: thin wrapper (`buf`, `w`, `h`); `.surface` = `(buf,w,h)`;
+  `.blit(x,y,sx,sy,w,h,dst,skip)` and `.cell(col,row,cw,ch,x,y,…)` are one
+  `hdmi.blit` each — blit the whole image or a sheet cell straight from RAM.
+- **`Image.sprites(cw, ch, …)`**: cuts the sheet into `pcsprite.Sprite`s that
+  **share** the one buffer (no per-cell copy, and it doesn't clobber the F
+  buffer like the older `sheet()`). Enabled by extending `Sprite` to reference a
+  sub-rectangle of a shared surface — new `sw/sh/sx/sy` ctor args (default =
+  the whole own buffer, so standalone sprites are unchanged); `update()`'s blit
+  and `flip()` now use the surface geometry + cell offset. `flip()` extracts the
+  cell into a standalone flipped copy.
+- Buffer lives in the PSRAM GC heap; format is per-mode (reload after
+  `screen()`), like the framebuffer.
+
+Verify: `load_image` a PNG/JPEG/BMP; `.cell()`/`.blit()` sub-rectangles;
+`transparent=` + skip gives per-pixel transparency from a PNG; `.sprites()`
+feed the engine and animate; `flip()` a sheet cell; all in RGB320/640/1024.
+
+---
+
 ## Files touched
 
 | File | Purpose |
 | --- | --- |
 | `ports/rp2/main.c` | board-overridable startup clock (`MICROPY_HW_CLK_SYS_KHZ`); safe flash-timing ordering |
-| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`; §32 adds the layer/off-screen targets `layer/create/write/copy/close` + core1 layer merge; §33 adds `hdmi.blit` with skip-colour; §34 adds `hdmi.vsync`/`transparent` + `(buffer,w,h)` blit surfaces; §37 makes `hdmi.scroll` a directional pixel band) |
+| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`; §32 adds the layer/off-screen targets `layer/create/write/copy/close` + core1 layer merge; §33 adds `hdmi.blit` with skip-colour; §34 adds `hdmi.vsync`/`transparent` + `(buffer,w,h)` blit surfaces; §37 makes `hdmi.scroll` a directional pixel band; §40 adds `hdmi.flood` scanline fill) |
 | `ports/rp2/xmodem.c` | **new** `xmodem` module: XMODEM send/recv over the console UART, faithful port of MMBasic `misc/XModem.c` + trailing-pad trim on receive (§28) |
 | `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
 | `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard; `KeyDown[]` held-key state + `kbd_map_code` (§30); num-lock keypad remap |
@@ -1427,9 +1520,9 @@ boot; no network / bad creds never blocks boot.
 | `ports/rp2/png.c` + `upng.c`/`.h` | **new** `png` module (`render`) + vendored upng (PNG decode, RGBA alpha) |
 | `ports/rp2/dither.c`/`.h` | **new** RGB121/RGB332 error-diffusion (Floyd-Steinberg / Atkinson), ported from MMBasic `FileIO.c`; used by `jpeg`/`bmp` load in RGB1024/RGB640 (§29) |
 | `ports/rp2/hdmi.c` (image) | `hdmi.framebuffer()`/`width()`/`height()`/`bpp()` expose the framebuffer to the decoders (+ `hdmi_nearest_index`/`hdmi_index_rgb888` for RGB121 4bpp packing, §29); `hdmi_get_width/height()` C accessors for touch scaling |
-| `boards/PICO_COMPUTER_3/pcimage.py` | **new** `draw_jpg`/`draw_bmp`/`draw_png`/`save_image` wrappers (injected into the REPL) |
+| `boards/PICO_COMPUTER_3/pcimage.py` | **new** `draw_jpg`/`draw_bmp`/`draw_png`/`save_image` wrappers (injected into the REPL); `load_image()` + `Image` (in-memory blit surface / sprite sheets, §41) |
 | `boards/PICO_COMPUTER_3/pcconfig.py` | **new** persistent settings in `/settings.json`; `keymap()`/`screen()` apply + persist |
-| `boards/PICO_COMPUTER_3/pcgfx.py` | **new** `Display` (framebuf subclass, RGB888→format `colour()`) + MMBasic palette |
+| `boards/PICO_COMPUTER_3/pcgfx.py` | **new** `Display` (framebuf subclass, RGB888→format `colour()`) + MMBasic palette; extra primitives `line(w=)`/`rbox`/`arc`/`bezier`/`flood` (§40) |
 | `boards/PICO_COMPUTER_3/pcconsole.py` | **new** on-screen console (`io.IOBase`/dupterm, ANSI, blink cursor, terminal-sync) |
 | `ports/rp2/mpconfigport.h` | `#ifndef`-guard float impl + MCU name; default `MICROPY_PY_MACHINE_SDCARD 0` (flash FS size + feature enables moved to board scope — §27) |
 | `ports/rp2/help.c` | overridable `MICROPY_HW_HELP_PIN_TEXT` (generic `0-29` default; PC3 sets `0-47`) |

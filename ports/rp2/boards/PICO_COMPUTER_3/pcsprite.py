@@ -60,10 +60,17 @@ class Sprite:
     """One sprite: an image (mode-format bytearray) plus position/layer.
     Set .x/.y freely; nothing is drawn until pcsprite.update()."""
 
-    def __init__(self, img, w, h, transparent=None):
+    def __init__(self, img, w, h, transparent=None, sw=None, sh=None, sx=0, sy=0):
         self.img = img
         self.w = w
         self.h = h
+        # Source SURFACE geometry (sw x sh) and cell offset (sx, sy): lets a
+        # sprite reference a sub-rectangle of a SHARED sheet buffer without a
+        # per-sprite copy. Default = the whole of its own buffer (standalone).
+        self._sw = w if sw is None else sw
+        self._sh = h if sh is None else sh
+        self._ox = sx
+        self._oy = sy
         # Native-format colour treated as see-through when drawing (None = opaque).
         self.transparent = -1 if transparent is None else transparent
         self.x = 0
@@ -108,8 +115,9 @@ class Sprite:
         return self
 
     def flip(self, direction="h"):
-        """A new Sprite with the image mirrored: "h", "v" or "hv"."""
-        src = framebuf.FrameBuffer(self.img, self.w, self.h, _fbformat())
+        """A new (standalone) Sprite with the image mirrored: "h", "v" or "hv".
+        Works for sheet-backed sprites too — it extracts the cell."""
+        src = framebuf.FrameBuffer(self.img, self._sw, self._sh, _fbformat())
         img = _imgbytes(self.w, self.h)
         dst = framebuf.FrameBuffer(img, self.w, self.h, _fbformat())
         fh = "h" in direction
@@ -117,9 +125,21 @@ class Sprite:
         for yy in range(self.h):
             for xx in range(self.w):
                 dst.pixel(self.w - 1 - xx if fh else xx,
-                          self.h - 1 - yy if fv else yy, src.pixel(xx, yy))
+                          self.h - 1 - yy if fv else yy,
+                          src.pixel(self._ox + xx, self._oy + yy))
         t = self.transparent
         return Sprite(img, self.w, self.h, None if t < 0 else t)
+
+    def frame(self, index):
+        """For a sheet-backed sprite (from Image.sprites() / a shared sheet):
+        show frame `index` of the sheet, row-major, for animation. Redrawn at
+        the next update() even if the position is unchanged."""
+        per_row = max(1, self._sw // self.w)
+        self._ox = (index % per_row) * self.w
+        self._oy = (index // per_row) * self.h
+        if self._sx is not None:  # mark the current cell dirty -> erase + redraw
+            _dirty.append((self._sx, self._sy, self.w, self.h))
+        return self
 
     def touching(self, other):
         """AABB test against another Sprite right now (ignores layers)."""
@@ -259,7 +279,7 @@ def _isect(a, b):
 def _erase_rect(r):
     if _mode == "L":
         _ldisp.fill_rect(r[0], r[1], r[2], r[3], _erase)
-    else:
+    else:  # F mode: restore a patch of the scenery snapshot onto the live N.
         hdmi.blit(r[0], r[1], r[2], r[3], r[0], r[1], "F", "N")
 
 
@@ -344,8 +364,8 @@ def update(vsync=False):
         rect = (s.x, s.y, s.w, s.h)
         for r in _dirty:
             if _isect(rect, r):
-                hdmi.blit(0, 0, s.w, s.h, s.x, s.y,
-                          (s.img, s.w, s.h), target, s.transparent)
+                hdmi.blit(s._ox, s._oy, s.w, s.h, s.x, s.y,
+                          (s.img, s._sw, s._sh), target, s.transparent)
                 break
         s._sx = s.x
         s._sy = s.y

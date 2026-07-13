@@ -45,6 +45,171 @@ class Display(framebuf.FrameBuffer):
         self._is332 = fmt == framebuf.GS8
         self._is121 = fmt == framebuf.GS4_HMSB
 
+    # --- Richer 2D primitives (framebuf lacks these) ----------------------
+    # Colours are native-format, like the framebuf methods: pass fb.colour(RED).
+
+    def line(self, x1, y1, x2, y2, colour, w=1):
+        """A line, optionally `w` pixels wide (framebuf's line is 1px only).
+        A thick line is drawn as a filled quadrilateral (butt caps)."""
+        if w <= 1:
+            return super().line(x1, y1, x2, y2, colour)
+        import math
+        import array
+
+        dx = x2 - x1
+        dy = y2 - y1
+        length = math.sqrt(dx * dx + dy * dy)
+        if length < 1:
+            return self.fill_rect(x1 - w // 2, y1 - w // 2, w, w, colour)
+        # Perpendicular unit vector * half-width -> the 4 corners of the band.
+        ox = -dy / length * w / 2
+        oy = dx / length * w / 2
+        pts = array.array("h", (
+            round(x1 + ox), round(y1 + oy), round(x2 + ox), round(y2 + oy),
+            round(x2 - ox), round(y2 - oy), round(x1 - ox), round(y1 - oy),
+        ))
+        self.poly(0, 0, pts, colour, True)
+
+    def rbox(self, x, y, w, h, r, colour, fill=None):
+        """A rounded rectangle: top-left (x,y), size w x h, corner radius r,
+        `colour` outline, optional `fill`. r is clamped to half the shorter
+        side (as MMBasic RBOX)."""
+        r = min(r, w // 2, h // 2)
+        if r < 1:  # no rounding possible -> plain rectangle
+            if fill is not None:
+                self.fill_rect(x, y, w, h, fill)
+            return self.rect(x, y, w, h, colour)
+        xl = x + r
+        xr = x + w - 1 - r
+        yt = y + r
+        yb = y + h - 1 - r
+        if fill is not None:
+            self.fill_rect(x, yt, w, h - 2 * r, fill)          # centre band
+            self.fill_rect(xl, y, w - 2 * r, r, fill)          # top strip
+            self.fill_rect(xl, y + h - r, w - 2 * r, r, fill)  # bottom strip
+            self.ellipse(xl, yt, r, r, fill, True, 2)          # corners (quadrant masks)
+            self.ellipse(xr, yt, r, r, fill, True, 1)
+            self.ellipse(xl, yb, r, r, fill, True, 4)
+            self.ellipse(xr, yb, r, r, fill, True, 8)
+        self.hline(xl, y, w - 2 * r, colour)
+        self.hline(xl, y + h - 1, w - 2 * r, colour)
+        self.vline(x, yt, h - 2 * r, colour)
+        self.vline(x + w - 1, yt, h - 2 * r, colour)
+        self.ellipse(xl, yt, r, r, colour, False, 2)
+        self.ellipse(xr, yt, r, r, colour, False, 1)
+        self.ellipse(xl, yb, r, r, colour, False, 4)
+        self.ellipse(xr, yb, r, r, colour, False, 8)
+
+    def arc(self, x, y, r1, r2, a1, a2, colour):
+        """A filled arc / annular sector centred at (x,y) between inner radius
+        r1 and outer radius r2, from angle a1 to a2 degrees (MMBasic ARC:
+        0 deg = up, 90 = right, clockwise). a1==a2 (or a2<a1) sweeps a full
+        ring. For a thin arc outline use e.g. r1 = r-1, r2 = r."""
+        import math
+
+        if r2 < r1:
+            r1, r2 = r2, r1
+        a1 %= 360
+        a2 %= 360
+        if a2 < a1:
+            a2 += 360
+        if a1 == a2:  # equal radials -> a full ring
+            a2 = a1 + 360
+        sweep = a2 - a1
+        sqrt = math.sqrt
+
+        if sweep >= 360:
+            # Full ring: two annulus x-spans per row, no angle test needed.
+            hl = self.hline
+            r1sq = r1 * r1
+            r2sq = r2 * r2
+            for sy in range(y - r2, y + r2 + 1):
+                dy2 = (sy - y) ** 2
+                if dy2 > r2sq:
+                    continue
+                dxo = int(sqrt(r2sq - dy2))
+                dxi = int(sqrt(r1sq - dy2)) if r1sq > dy2 else 0
+                w = dxo - dxi + 1
+                hl(x - dxo, sy, w, colour)  # left span
+                hl(x + dxi, sy, w, colour)  # right span
+            return
+
+        # Partial sector: fill the annular-sector POLYGON (outer arc forward +
+        # inner arc back). One C poly-fill, so no per-pixel angle test -> fast
+        # and gap-free. The curved edges are chord-approximated (~2px chords).
+        import array
+
+        sin = math.sin
+        cos = math.cos
+        rad = math.radians
+        segs = max(4, min(720, int(rad(sweep) * r2 / 2)))
+        outer = []
+        for k in range(segs + 1):
+            ang = rad(a1 + sweep * k / segs)
+            outer.append((round(x + r2 * sin(ang)), round(y - r2 * cos(ang))))
+        if r1 > 0:
+            inner = []
+            for k in range(segs + 1):
+                ang = rad(a1 + sweep * k / segs)
+                inner.append((round(x + r1 * sin(ang)), round(y - r1 * cos(ang))))
+            seq = outer + inner[::-1]
+        else:
+            inner = None
+            seq = outer + [(x, y)]
+        flat = array.array("h")
+        for px, py in seq:
+            flat.append(px)
+            flat.append(py)
+        self.poly(0, 0, flat, colour, True)
+        # A very thin band can lose rows in a polygon fill; stroke its edges.
+        if r2 - r1 <= 3:
+            for edge in (outer, inner):
+                if edge:
+                    for i in range(len(edge) - 1):
+                        super().line(edge[i][0], edge[i][1],
+                                     edge[i + 1][0], edge[i + 1][1], colour)
+
+    def bezier(self, pts, colour):
+        """A Bezier curve through the control points `pts` (a list of (x, y),
+        2 or more), as connected line segments. MMBasic BEZIER (N-point
+        Bernstein)."""
+        import math
+
+        n = len(pts)
+        if n < 2:
+            return
+        binom = [1] * n  # C(n-1, i)
+        for i in range(1, n):
+            binom[i] = binom[i - 1] * (n - i) // i
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        diag = math.sqrt((max(xs) - min(xs)) ** 2 + (max(ys) - min(ys)) ** 2)
+        steps = max(10, min(2000, int(diag) * 3))
+        px, py = pts[0]
+        for k in range(1, steps + 1):
+            t = k / steps
+            mt = 1 - t
+            bx = 0.0
+            by = 0.0
+            for i in range(n):
+                b = binom[i] * (t ** i) * (mt ** (n - 1 - i))
+                bx += b * pts[i][0]
+                by += b * pts[i][1]
+            nx = round(bx)
+            ny = round(by)
+            super().line(px, py, nx, ny, colour)
+            px, py = nx, ny
+
+    def flood(self, x, y, colour, border=None):
+        """Flood fill from (x, y). Without `border`: replace the contiguous
+        region of the seed pixel's colour with `colour` (paint bucket). With
+        `border` (a native colour): fill outward over any colour, stopping at
+        the border colour. Operates on the current HDMI write target (so use
+        the Display from hdmi.fb())."""
+        import hdmi
+
+        hdmi.flood(x, y, colour, -1 if border is None else border)
+
     def colour(self, r, g=None, b=None):
         """Return an RGB888 colour packed for this display's format.
         colour(0xRRGGBB) or colour(r, g, b). In RGB1024 mode (GS4_HMSB / RGB121

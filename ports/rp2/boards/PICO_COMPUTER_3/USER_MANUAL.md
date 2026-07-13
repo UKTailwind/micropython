@@ -1,10 +1,10 @@
 # Pico Computer 3 — MicroPython User Manual
 
-**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.4** (test release).
+**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.5** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.4 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.5 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -126,7 +126,7 @@ inherits the same names. The most useful are:
 
 **Network / time:** `wifi`, `ntpsync`, `tz`.
 
-**Images:** `draw_jpg`, `draw_bmp`, `draw_png`, `save_image`.
+**Images:** `draw_jpg`, `draw_bmp`, `draw_png`, `save_image`, `load_image`.
 
 **Input devices:** `touch`, `mouse`, `mouse_speed`, `keydown`.
 
@@ -299,6 +299,30 @@ d.text("Hello", 20, 30, d.colour(WHITE))
 Rebuild the `Display` (call `hdmi.fb()` again) after any mode change, because the
 geometry and pixel format change.
 
+**Extra primitives** (beyond `framebuf`'s line/rect/ellipse/poly), on the
+`Display`:
+
+| Method | Description |
+|---|---|
+| `d.line(x1, y1, x2, y2, colour, w)` | a line `w` pixels **thick** (`w=1` is the normal framebuf line) |
+| `d.rbox(x, y, w, h, r, colour, fill=None)` | a **rounded rectangle**, corner radius `r`, optional fill |
+| `d.arc(x, y, r1, r2, a1, a2, colour)` | a filled **arc / ring segment** between radii `r1`–`r2`, angles `a1`–`a2`° (0°=up, clockwise); `a1==a2` = full ring; thin arc = `r1=r-1, r2=r` |
+| `d.bezier(points, colour)` | a **Bézier curve** through a list of `(x, y)` control points (2 or more) |
+| `d.flood(x, y, colour, border=None)` | **flood fill**: no `border` = replace the seed pixel's colour (paint bucket); with `border` = fill outward to that boundary colour |
+
+```python
+d.line(0, 0, 200, 120, d.colour(CYAN), 5)     # 5px-thick line
+d.rbox(20, 20, 120, 70, 12, d.colour(WHITE), d.colour(0x002040))
+d.arc(160, 120, 40, 60, 0, 270, d.colour(YELLOW))   # 3/4 ring
+d.bezier([(10, 200), (60, 100), (140, 260), (200, 160)], d.colour(GREEN))
+d.rect(50, 50, 60, 40, d.colour(RED))          # outline a shape...
+d.flood(60, 60, d.colour(RED))                 # ...then fill inside it
+```
+
+Colours are native-format, same as the framebuf methods — wrap in `d.colour(...)`.
+`flood()` works on the current HDMI write target (i.e. the buffer `hdmi.fb()`
+draws to).
+
 **Colours must be converted first.** The `framebuf` drawing methods take a colour
 in the framebuffer's *native* pixel format, so always wrap a colour in
 `d.colour(...)`: `d.colour(0xRRGGBB)` or `d.colour(r, g, b)` converts a 24-bit
@@ -332,6 +356,7 @@ hdmi.text("BIG", 20, 20, d.colour(YELLOW), -1, 4)   # 4x-scaled 8x12 text
 | `hdmi.palette([i[, rgb]])` | RGB1024 16-colour palette: no args lists all 16 (RGB888); `palette(i)` reads entry `i` (0–15); `palette(i, 0xRRGGBB)` sets it (takes effect at once). Use `palette()` (below) to also persist. |
 | `hdmi.fill(colour)` | fast fill of the whole framebuffer with a **native-format** colour (e.g. `hdmi.fill(hdmi.fb().colour(BLUE))`) |
 | `hdmi.scroll(dy, colour=0, y0=0, height=None)` | fast vertical scroll of the pixel band `[y0, y0+height)` (default: whole screen) by `dy` pixels — positive moves content up (blank at the bottom), negative moves it down — filling the exposed edge with `colour` (native format) |
+| `hdmi.flood(x, y, colour, border=-1)` | flood fill from `(x,y)` (C); `border<0` = replace the seed colour, else fill to the `border` colour. Prefer the `Display.flood()` wrapper |
 | `hdmi.putc(x, y, ch, fg, bg)` | blit one 8×12 console glyph at pixel `x,y` (native-format `fg`/`bg`) |
 | `hdmi.text(s, x, y, fg, bg=-1, scale=1)` | draw a string in the 8×12 console font at pixel `x,y`; `bg=-1` is transparent, `scale` enlarges each glyph pixel into a `scale`×`scale` block. Returns the x just past the string |
 | `hdmi.test()` | draw an 8-bar colour test pattern |
@@ -480,6 +505,7 @@ while keydown(1) != keyboard.ESC:
 | `s.show(x, y, layer=1)` / `s.hide()` / `s.visible` | visibility (committed at `update()`) |
 | `s.x`, `s.y`, `s.layer` | position (deferred) and collision layer; **layer 0** collides with every layer and scrolls with the scenery |
 | `s.top()` / `s.flip("h"/"v"/"hv")` | raise in z-order / mirrored copy |
+| `s.frame(index)` | for a sheet-backed sprite (from `Image.sprites()` — section 10): show frame `index` of the sheet, for animation |
 | `sp.update(vsync=False)` | commit everything in one pass; returns new collision events `(sprite, other)` where `other` is a Sprite, a Wall or `"left"/"right"/"top"/"bottom"` |
 | `sp.wall(x, y, w, h)` | static collision rectangle (not drawn); `w.remove()` deletes |
 | `sp.scroll(dx, dy, blank=None)` | scroll the scenery right/up with wraparound (or fill exposed edges with `blank`); layer-0 sprites and walls travel with it |
@@ -491,6 +517,13 @@ begins), and partitioned by layer exactly as MMBasic: sprites collide with
 their own layer and with layer 0, plus screen edges and walls. Sprites on the
 same layer draw in z-order (`show`/`top` order). A `screen()` mode change
 resets the engine.
+
+The engine composites *live* (fast, minimal drawing), which is smooth for
+modest numbers of sprites. For flicker-free animation of **many or large**
+sprites, double-buffer in your own loop with the buffer primitives (section 5,
+"Overlay layer and off-screen buffer"): compose each frame into the off-screen
+`F` buffer, then `hdmi.vsync(); hdmi.copy("F", "N")` to flip it onto the screen
+in one fast copy. `tests/demo_asteroids.py` shows this with `load_image()`.
 
 ---
 
@@ -735,6 +768,46 @@ the RGB565 modes (RGB320/RGB512) or on `draw_png` (nearest-colour only).
 screen(hdmi.RGB1024)
 draw_jpg("/sd/photo.jpg", dither=True)   # Atkinson — best on 16 colours
 ```
+
+### Loading images into memory (sprite sheets) — `load_image()`
+
+`draw_*` decode straight onto the screen. **`load_image(path)`** instead decodes
+into a **memory buffer** (an `Image`) in the current pixel format, which you can
+then blit whole or in pieces — the standard way to hold a **sprite sheet** and
+blit individual sprites out of it.
+
+```python
+d = hdmi.fb()
+sheet = load_image("/sd/enemies.png", transparent=d.colour(MAGENTA))
+sheet.cell(2, 0, 16, 16, px, py, skip=d.colour(MAGENTA))  # blit cell (col 2,row 0)
+sheet.blit(0, 0)                                          # blit the whole image
+```
+
+| `Image` member | Description |
+|---|---|
+| `img.w`, `img.h` | image size in pixels |
+| `img.blit(x, y, sx=0, sy=0, w=None, h=None, dst=None, skip=-1)` | blit a region (default the whole image) to `(x,y)` |
+| `img.cell(col, row, cw, ch, x, y, dst=None, skip=-1)` | blit grid cell `(col,row)` of a `cw×ch` sheet |
+| `img.surface` | the `(buffer, w, h)` tuple, to pass straight to `hdmi.blit()` |
+| `img.sprites(cw, ch, count=None, transparent=None)` | cut into `pcsprite` **Sprites** that share this buffer (no copy) |
+
+`load_image(path, transparent=None, dither=False, cutoff=20, scale=1)`:
+`transparent` (a native colour) pre-fills the buffer, so a PNG's transparent
+areas become that colour — ready to use as the blit **skip** colour. `dither`
+(jpg/bmp) and `cutoff` (png) match `draw_*`; `scale` downsamples a JPEG.
+
+For the sprite engine, `img.sprites()` gives ready-made sprites backed by the
+one sheet in memory:
+
+```python
+ships = load_image("/sd/ships.png", transparent=d.colour(MAGENTA)).sprites(
+    16, 16, count=4, transparent=d.colour(MAGENTA))
+ships[0].show(150, 100)          # then move + sp.update() as usual (section 5)
+```
+
+> The buffer is in the **current mode's format** (RGB565 / RGB332 / RGB121), so
+> reload after a `screen()` mode change. In RGB1024 (4-bit) cell widths and x
+> offsets should be even.
 
 ---
 
@@ -1121,5 +1194,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.4 — based on MicroPython. See
+*Pico Computer 3 firmware v0.5 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

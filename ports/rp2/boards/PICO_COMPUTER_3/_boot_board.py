@@ -108,6 +108,7 @@ __main__.draw_jpg = pcimage.draw_jpg
 __main__.draw_bmp = pcimage.draw_bmp
 __main__.draw_png = pcimage.draw_png
 __main__.save_image = pcimage.save_image
+__main__.load_image = pcimage.load_image  # image file -> in-memory blit surface
 
 try:
     ds3231.synctime()

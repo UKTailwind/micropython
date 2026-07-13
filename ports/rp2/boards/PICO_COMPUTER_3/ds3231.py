@@ -15,12 +15,20 @@ _SDA = 20
 _SCL = 21
 
 _i2c = None
+_i2c_freq = 0  # machine.freq() at which _i2c's baud divider was computed
 
 
 def _bus():
-    global _i2c
-    if _i2c is None:
+    # The I2C baud divider is derived from the peripheral clock (which tracks
+    # clk_sys) when the bus is created. A live CPU-clock change — screen(mode,
+    # 315/378) — would otherwise leave a cached bus clocking SCL at the wrong
+    # speed (too fast for the DS3231's 400 kHz limit when the clock rises), so
+    # re-create the bus whenever clk_sys has changed since it was built.
+    global _i2c, _i2c_freq
+    f = machine.freq()
+    if _i2c is None or f != _i2c_freq:
         _i2c = machine.I2C(0, sda=machine.Pin(_SDA), scl=machine.Pin(_SCL), freq=400000)
+        _i2c_freq = f
     return _i2c
 
 

@@ -484,6 +484,18 @@ the system clock. `_boot` calls `synctime()` in a `try/except` so the clock is
 right at boot and a missing chip/dead battery never blocks boot. Pins left
 unreserved (I2C claims them via `Pin()`).
 
+**Clock-change robustness:** `machine.I2C`'s baud divider is derived from the
+peripheral clock (which tracks `clk_sys`) at bus creation, so a **live** CPU
+clock change — `screen(mode, 315/378)` — would leave a cached bus clocking SCL
+too fast for the DS3231's 400 kHz limit (400 kHz × 378/252 ≈ 600 kHz),
+corrupting reads. `_bus()` records `machine.freq()` at creation and re-creates
+the bus whenever the clock differs, so `gettime`/`settime` stay correct across
+a clock switch. (The C-side clock switch already re-times UART/PSRAM/cyw43 in
+`hdmi_set_clock`; this covers the one board-managed peripheral built in Python.
+A user's own `machine.I2C`/`SPI`/`PWM` created before a live clock change has
+the same limitation and would need re-creating — inherent to live clock
+switching.)
+
 ### 18. cyw43 Wi-Fi — gSPI PIO clock divider must scale with clk_sys
 
 Wi-Fi broke after the boot clock rose to 252 MHz ("hdr mismatch" / ioctl

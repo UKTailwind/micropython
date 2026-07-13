@@ -20,6 +20,17 @@ suites, which need a human (press keys, listen, watch the screen).
 
 Each file also runs standalone: `run("test_blit.py")` etc.
 
+### Watching the graphics
+
+The automatic tests verify by reading pixels back, so they flash tiny shapes
+and clear them — nothing stays on screen. To *watch* the blitter and sprite
+engine work, edit the file and set `WATCH = True` near the top, then
+`run("test_blit.py")` / `run("test_sprites.py")`: after the (fast) checks pass
+each plays a large, slow, on-screen demonstration — copies, cut-out sprites,
+region scrolling; bouncing sprites, collisions and a scrolling background.
+`test_all.py` always runs with `WATCH = False`, so the full suite stays fast
+and headless.
+
 | File | Kind | Covers |
 |---|---|---|
 | `test_blit.py` | automatic | `hdmi.blit`: copy/skip-colour/overlap/tuple surfaces/clipping, in all 4 video modes |

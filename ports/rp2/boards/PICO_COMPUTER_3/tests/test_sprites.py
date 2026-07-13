@@ -1,11 +1,17 @@
 # pcsprite engine: rendering (pixel-verified), z-order, collisions (sprite/
 # edge/wall, layers, edge-triggered), scroll — in both compositor modes
 # (RGB320 = overlay layer, RGB640 = F-snapshot dirty rectangles).
+#
+# Set WATCH = True (or run("test_sprites.py") after editing it) to also play a
+# small animated demo — bouncing sprites, collisions, a scrolling background —
+# on the HDMI screen after the checks pass.
 
 import framebuf
 import hdmi
 import pcsprite as sp
 import testutil as T
+
+WATCH = False
 
 T.quiet()
 
@@ -150,6 +156,81 @@ sp.scroll(4, 0)
 T.check(fbN.pixel(3, 100) == c1, "right edge wraps to the left")
 sp.reset()
 
+def _demo():
+    # Animated on-screen demo: bouncing sprites with collisions, then a
+    # scrolling background carrying a layer-0 sprite (RGB320 overlay mode).
+    import time
+
+    hdmi.deinit()
+    hdmi.init(hdmi.RGB320)
+    sp.reset()
+    fb = hdmi.fb()
+    W = hdmi.width()
+    H = hdmi.height()
+
+    # Scenery: sky, a starfield, and ground.
+    hdmi.fill(fb.colour(0x001028))
+    for i in range(60):
+        sx = (i * 53) % W
+        sy = (i * 29) % (H - 30)
+        fb.pixel(sx, sy, fb.colour(0xC0C0C0))
+    fb.fill_rect(0, H - 14, W, 14, fb.colour(0x304018))
+
+    def make(colour, w=18, h=18):
+        img = bytearray(w * h * 2)
+        d = framebuf.FrameBuffer(img, w, h, framebuf.RGB565)
+        d.fill(fb.colour(0x000000))               # black = transparent-ish frame
+        d.fill_rect(1, 1, w - 2, h - 2, fb.colour(colour))
+        d.fill_rect(4, 4, 4, 4, fb.colour(0xFFFFFF))  # a little "eye"
+        return sp.Sprite(img, w, h, transparent=fb.colour(0x000000))
+
+    a = make(0xFF3020)
+    b = make(0x20A0FF)
+    a.show(30, 40)
+    b.show(220, 150)
+    sp.update()
+
+    # Bounce both around; flash the frozen one white on contact.
+    ax, ay, bx, by = 3, 2, -2, -3
+    hits = 0
+    for _ in range(320):
+        a.x += ax
+        a.y += ay
+        b.x += bx
+        b.y += by
+        if a.x < 0 or a.x + a.w > W:
+            ax = -ax
+        if a.y < 14 or a.y + a.h > H - 14:
+            ay = -ay
+        if b.x < 0 or b.x + b.w > W:
+            bx = -bx
+        if b.y < 14 or b.y + b.h > H - 14:
+            by = -by
+        for pair in sp.update(vsync=True):
+            if b in pair and a in pair:
+                hits += 1
+                ax, ay, bx, by = -ax, -ay, -bx, -by  # bounce apart
+    print("demo: sprite-sprite collisions detected:", hits)
+
+    # Scroll: a layer-0 sprite rides the background, layer-1 stays put.
+    sp.reset()
+    hdmi.fill(fb.colour(0x102000))
+    for x in range(0, W, 24):
+        fb.fill_rect(x, H - 40, 12, 40, fb.colour(0x406020))  # ground pillars
+    rider = make(0xFFC020)
+    rider.layer = 0
+    rider.show(40, H - 70)
+    hud = make(0xFF40FF)
+    hud.show(W - 30, 20)  # layer 1: a fixed HUD marker
+    sp.update()
+    for _ in range(140):
+        sp.scroll(3, 0)
+        time.sleep_ms(10)
+    print("demo done")
+
+
 if __name__ == "__main__":
+    if WATCH:
+        _demo()
     T.restore_screen()
     T.report()

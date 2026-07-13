@@ -347,8 +347,9 @@ keyboard is the next step) — the console is output-only (`readinto` → `None`
 - **ANSI/CSI interpreter** — honours the sequences the REPL line editor emits:
   `\x1b[nD`/`\x1b[nC` (cursor back/forward, needed for **backspace** & arrows),
   `\x1b[K` (erase to EOL), plus `A/B` (up/down), `H`/`f` (position), `J` (erase
-  display). SGR colour (`m`), device queries (`n`), private (`?…`) are ignored.
-  This also renders most of pye on-screen (minus colour).
+  display), `r` (DECSTBM scroll region) and `ESC M` (reverse index) — the last
+  two added in §37 so pye's full-screen scrolling renders correctly. SGR colour
+  (`m`), device queries (`n`), private (`?…`) are ignored.
 - **Blinking underline cursor** (like MMBasic) — `machine.Timer` toggles a
   bottom-row underline ~1 Hz. `write()` erases it before rendering and redraws
   after (and an `_in_write` guard), so it's never left behind or scrolled.
@@ -1277,12 +1278,47 @@ skipped when absent. Every file also runs standalone.
 
 ---
 
+### 37. On-screen editor scrolling — scroll region + reverse index
+
+**Bug (hardware):** the pye editor scrolled correctly over the serial
+terminal but on the HDMI console only the single newly-exposed line changed,
+not the whole screen. **Cause:** pye scrolls by setting a **DECSTBM scroll
+region** (`\x1b[1;{rows-1}r`, reserving the bottom status line) and then
+emitting **reverse index `\x1bM`** at the region top (scroll down) or `\n` at
+the region bottom (scroll up); it redraws only the exposed line, trusting the
+terminal to move the rest. Our `pcconsole` ANSI interpreter ignored `\x1bM`
+(non-CSI ESC → dropped) and DECSTBM (`r` fell through `_csi`), and `_newline`
+only scrolled at the very last *screen* row — so `\n` at the region bottom
+(row 38, above the status line) never scrolled. Real terminals implement all
+three, hence serial worked.
+
+Fix, in two parts:
+- **`hdmi.scroll` generalised to a directional pixel band**:
+  `hdmi.scroll(dy, colour=0, y0=0, height=None)` — scrolls only `[y0,
+  y0+height)`, `dy>0` content up / `dy<0` content down, via one banded
+  `memmove` + edge fill (helper `hdmi_fill_rows`). Whole-screen up-scroll (the
+  old 1–2 arg form) is unchanged, so the REPL path is byte-identical.
+- **`pcconsole` scroll-region support**: track `rtop/rbot`; parse DECSTBM
+  (`\x1b[t;b r`, `\x1b[r` resets, homes cursor per VT100); implement `ESC M`
+  reverse index and (for completeness) `ESC D` index; `_newline` now scrolls
+  the *region* when the cursor is at `rbot` (via `_scroll_region(±1)` →
+  banded `hdmi.scroll`), leaving pye's status line untouched. Region resets to
+  full screen on a mode change (`_resync`). For the REPL (region = full
+  screen) behaviour is identical to before.
+
+Verify: `edit("/sd/somefile.py")` on the HDMI screen — arrow past the top/
+bottom scrolls the whole text area smoothly, status line stays put; exit
+returns cleanly to the REPL; serial editing still fine; REPL scrolling
+unchanged.
+
+---
+
 ## Files touched
 
 | File | Purpose |
 | --- | --- |
 | `ports/rp2/main.c` | board-overridable startup clock (`MICROPY_HW_CLK_SYS_KHZ`); safe flash-timing ordering |
-| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`; §32 adds the layer/off-screen targets `layer/create/write/copy/close` + core1 layer merge; §33 adds `hdmi.blit` with skip-colour) |
+| `ports/rp2/hdmi.c` | **new** HSTX DVI driver + `hdmi` module: dual-mode scanout, `init/deinit/fb/fill/scroll/putc/text/…` (§28 adds scaled 8×12 `hdmi.text`; §32 adds the layer/off-screen targets `layer/create/write/copy/close` + core1 layer merge; §33 adds `hdmi.blit` with skip-colour; §34 adds `hdmi.vsync`/`transparent` + `(buffer,w,h)` blit surfaces; §37 makes `hdmi.scroll` a directional pixel band) |
 | `ports/rp2/xmodem.c` | **new** `xmodem` module: XMODEM send/recv over the console UART, faithful port of MMBasic `misc/XModem.c` + trailing-pad trim on receive (§28) |
 | `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
 | `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard; `KeyDown[]` held-key state + `kbd_map_code` (§30); num-lock keypad remap |

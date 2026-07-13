@@ -902,33 +902,67 @@ static MP_DEFINE_CONST_FUN_OBJ_1(hdmi_fill_obj, hdmi_fill);
 // Fast vertical scroll: move the framebuffer up by `rows` pixel rows (content
 // moves up) and fill the exposed bottom `rows` rows with `colour`. A bulk
 // memmove/memset, ~1000x faster than framebuf.scroll()'s per-pixel loop.
-static mp_obj_t hdmi_scroll(size_t n_args, const mp_obj_t *args) {
-    int rows = mp_obj_get_int(args[0]);
-    mp_int_t colour = (n_args > 1) ? mp_obj_get_int(args[1]) : 0;
-    if (rows <= 0 || rows >= hdmi_h) {
-        return mp_const_none;
-    }
-    uint8_t *buf = hdmi_wbuf();
-    int stride = hdmi_rgb121 ? (hdmi_w / 2) : (hdmi_w * ((hdmi_native) ? 1 : 2));
-    int keep = hdmi_h - rows;
-    memmove(buf, buf + (size_t)rows * stride, (size_t)keep * stride);
-    uint8_t *bottom = buf + (size_t)keep * stride;
+//
+// hdmi.scroll(dy, colour=0, y0=0, height=None): scroll only the pixel band
+// [y0, y0+height) (default: the whole screen). dy > 0 moves the band's content
+// UP by dy pixels (blank at the band bottom); dy < 0 moves it DOWN (blank at
+// the top). The band form drives the on-screen console's scroll region, so
+// the editor (pye) can scroll its text area while leaving the status line put.
+
+// Fill `nrows` pixel rows at `dst` with `colour` in the current pixel format.
+static void hdmi_fill_rows(uint8_t *dst, int nrows, int stride, mp_int_t colour) {
     if (hdmi_rgb121) {
         uint8_t c = (uint8_t)(colour & 0x0f);
-        memset(bottom, (uint8_t)((c << 4) | c), (size_t)rows * stride);
+        memset(dst, (uint8_t)((c << 4) | c), (size_t)nrows * stride);
     } else if (hdmi_native) {
-        memset(bottom, (int)(colour & 0xFF), (size_t)rows * stride);
+        memset(dst, (int)(colour & 0xFF), (size_t)nrows * stride);
     } else {
-        uint16_t *p = (uint16_t *)bottom;
-        int count = rows * hdmi_w;
+        uint16_t *p = (uint16_t *)dst;
+        int count = nrows * hdmi_w;
         uint16_t c = (uint16_t)colour;
         for (int i = 0; i < count; i++) {
             p[i] = c;
         }
     }
+}
+
+static mp_obj_t hdmi_scroll(size_t n_args, const mp_obj_t *args) {
+    int dy = mp_obj_get_int(args[0]);
+    mp_int_t colour = (n_args > 1) ? mp_obj_get_int(args[1]) : 0;
+    int y0 = (n_args > 2) ? mp_obj_get_int(args[2]) : 0;
+    int band = (n_args > 3) ? mp_obj_get_int(args[3]) : (hdmi_h - y0);
+    // Clamp the band to the framebuffer.
+    if (y0 < 0) {
+        band += y0;
+        y0 = 0;
+    }
+    if (y0 + band > hdmi_h) {
+        band = hdmi_h - y0;
+    }
+    if (band <= 0 || dy == 0) {
+        return mp_const_none;
+    }
+    int mag = dy < 0 ? -dy : dy;
+    uint8_t *buf = hdmi_wbuf();
+    int stride = hdmi_rgb121 ? (hdmi_w / 2) : (hdmi_w * ((hdmi_native) ? 1 : 2));
+    uint8_t *base = buf + (size_t)y0 * stride;
+    if (mag >= band) {
+        hdmi_fill_rows(base, band, stride, colour); // whole band cleared
+        return mp_const_none;
+    }
+    int keep = band - mag;
+    if (dy > 0) {
+        // Content up: rows [mag..band) -> [0..keep); blank the bottom `mag`.
+        memmove(base, base + (size_t)mag * stride, (size_t)keep * stride);
+        hdmi_fill_rows(base + (size_t)keep * stride, mag, stride, colour);
+    } else {
+        // Content down: rows [0..keep) -> [mag..band); blank the top `mag`.
+        memmove(base + (size_t)mag * stride, base, (size_t)keep * stride);
+        hdmi_fill_rows(base, mag, stride, colour);
+    }
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_scroll_obj, 1, 2, hdmi_scroll);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_scroll_obj, 1, 4, hdmi_scroll);
 
 // Blit one 8x12 glyph opaquely at pixel (px,py): fg where the bit is set, bg
 // elsewhere (so it also clears the cell). Format-aware; writes hdmi_fb directly.

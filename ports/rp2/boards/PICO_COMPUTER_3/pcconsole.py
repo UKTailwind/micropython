@@ -42,6 +42,8 @@ class Console(io.IOBase):
         self.bg = self.d.colour(bg)
         self.x = 0  # cursor column
         self.y = 0  # cursor row
+        self.rtop = 0            # scroll-region top row (0-based, inclusive)
+        self.rbot = self.rows - 1  # scroll-region bottom row (0-based, inclusive)
         self.esc = 0  # escape-sequence state: 0 none, 1 saw ESC, 2 in CSI
         self._cur_on = False       # underline cursor currently drawn?
         self._cur_x = 0
@@ -54,14 +56,30 @@ class Console(io.IOBase):
         self._timer = machine.Timer(-1, mode=machine.Timer.PERIODIC, period=500,
                                     callback=self._blink)
 
+    def _scroll_region(self, direction):
+        # direction +1: region content moves up one text row (blank at the
+        # bottom of the region); -1: content moves down (blank at the top).
+        # Only the scroll region's pixel band moves, so pye's status line
+        # (below the region) is left untouched. Fast C band memmove.
+        y0 = self.rtop * _FH
+        band = (self.rbot - self.rtop + 1) * _FH
+        hdmi.scroll(direction * _FH, self.bg, y0, band)
+
     def _newline(self):
+        # CR+LF. At the bottom of the scroll region, scroll the region up;
+        # otherwise just move down (stopping at the last screen row).
         self.x = 0
-        self.y += 1
-        if self.y >= self.rows:
-            # Fast C bulk-memmove scroll (framebuf.scroll is per-pixel and far
-            # too slow); it also clears the exposed bottom line to bg.
-            hdmi.scroll(_FH, self.bg)
-            self.y = self.rows - 1
+        if self.y == self.rbot:
+            self._scroll_region(1)
+        elif self.y < self.rows - 1:
+            self.y += 1
+
+    def _reverse_index(self):
+        # ESC M: at the top of the region, scroll the region down; else up one.
+        if self.y == self.rtop:
+            self._scroll_region(-1)
+        elif self.y > 0:
+            self.y -= 1
 
     def _putc(self, c):
         if self.esc == 2:  # inside a CSI sequence, collecting parameters
@@ -86,7 +104,14 @@ class Console(io.IOBase):
                 self.pcur = 0
                 self.phas = False
             else:
-                self.esc = 0  # other ESC-x sequences: ignore
+                if c == 0x4D:  # 'M' reverse index (RI) -> scroll region down
+                    self._reverse_index()
+                elif c == 0x44:  # 'D' index (IND) -> like LF but keep column
+                    col = self.x
+                    self._newline()
+                    self.x = col
+                # other ESC-x sequences: ignore
+                self.esc = 0
             return
         if c == 0x1B:  # ESC
             self.esc = 1
@@ -126,6 +151,19 @@ class Console(io.IOBase):
             self._erase_line(p[0] if p else 0)
         elif final == 0x4A:  # 'J' erase in display
             self._erase_display(p[0] if p else 0)
+        elif final == 0x72:  # 'r' DECSTBM set scroll region (1-based rows)
+            if len(p) >= 2 and p[0] and p[1]:
+                top = min(max(0, p[0] - 1), self.rows - 1)
+                bot = min(max(0, p[1] - 1), self.rows - 1)
+                if top < bot:
+                    self.rtop = top
+                    self.rbot = bot
+            else:  # no params -> reset to the whole screen
+                self.rtop = 0
+                self.rbot = self.rows - 1
+            # DECSTBM homes the cursor to the screen's top-left (VT100).
+            self.x = 0
+            self.y = 0
         # 'm' (colours), 'n' (device queries), private '?...' etc: ignored
 
     def _erase_line(self, mode):
@@ -191,6 +229,8 @@ class Console(io.IOBase):
         self.bg = self.d.colour(self._bg888)
         self.x = 0
         self.y = 0
+        self.rtop = 0
+        self.rbot = self.rows - 1  # region invalid at the new geometry -> reset
         self.esc = 0
         self._cur_on = False  # old cursor was wiped by the clear
 

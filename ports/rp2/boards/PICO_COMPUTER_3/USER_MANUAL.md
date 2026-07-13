@@ -325,7 +325,7 @@ hdmi.text("BIG", 20, 20, d.colour(YELLOW), -1, 4)   # 4x-scaled 8x12 text
 | `hdmi.bpp()` | bits per framebuffer pixel: `4` (RGB1024), `8` (RGB640) or `16` (RGB320/RGB512) |
 | `hdmi.palette([i[, rgb]])` | RGB1024 16-colour palette: no args lists all 16 (RGB888); `palette(i)` reads entry `i` (0–15); `palette(i, 0xRRGGBB)` sets it (takes effect at once). Use `palette()` (below) to also persist. |
 | `hdmi.fill(colour)` | fast fill of the whole framebuffer with a **native-format** colour (e.g. `hdmi.fill(hdmi.fb().colour(BLUE))`) |
-| `hdmi.scroll(rows, colour=0)` | fast vertical scroll up by `rows` pixels, filling the exposed bottom with `colour` (native format) |
+| `hdmi.scroll(dy, colour=0, y0=0, height=None)` | fast vertical scroll of the pixel band `[y0, y0+height)` (default: whole screen) by `dy` pixels — positive moves content up (blank at the bottom), negative moves it down — filling the exposed edge with `colour` (native format) |
 | `hdmi.putc(x, y, ch, fg, bg)` | blit one 8×12 console glyph at pixel `x,y` (native-format `fg`/`bg`) |
 | `hdmi.text(s, x, y, fg, bg=-1, scale=1)` | draw a string in the 8×12 console font at pixel `x,y`; `bg=-1` is transparent, `scale` enlarges each glyph pixel into a `scale`×`scale` block. Returns the x just past the string |
 | `hdmi.test()` | draw an 8-bar colour test pattern |

@@ -77,7 +77,72 @@ KEY_PREV_PLACE = const(0xFFE2)
 KEY_UNDO_PREV = const(0xFFE1)
 KEY_UNDO_NEXT = const(0xFFE0)
 KEY_UNDO_YANK = const(0xFFDF)
+
+# local: lightweight Python syntax highlighter for the on-screen console (which
+# renders ANSI SGR colour). Colours the visible line slice by inserting
+# zero-width SGR codes around comments / strings / keywords / numbers, so the
+# visible characters (and therefore cursor columns) are unchanged. Tokenises the
+# slice standalone, so strings/comments that begin left of a horizontally
+# scrolled margin, or triple-quoted strings spanning lines, may mis-colour — a
+# cosmetic limit only. Enable/disable with Editor.syntax.
+_PY_KW = frozenset((
+    "False", "None", "True", "and", "as", "assert", "async", "await", "break",
+    "class", "continue", "def", "del", "elif", "else", "except", "finally",
+    "for", "from", "global", "if", "import", "in", "is", "lambda", "nonlocal",
+    "not", "or", "pass", "raise", "return", "try", "while", "with", "yield",
+))
+
+
+def _hl(s):
+    out = []
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+        if c == "#":  # comment runs to end of line -> yellow (MMBasic scheme)
+            out.append("\x1b[93m")
+            out.append(s[i:])
+            out.append("\x1b[0m")
+            break
+        elif c == '"' or c == "'":  # string literal -> magenta
+            j = i + 1
+            while j < n and s[j] != c:
+                if s[j] == "\\":
+                    j += 1
+                j += 1
+            j = min(j + 1, n)
+            out.append("\x1b[95m")
+            out.append(s[i:j])
+            out.append("\x1b[0m")
+            i = j
+        elif c.isalpha() or c == "_":  # identifier / keyword -> cyan
+            j = i
+            while j < n and (s[j].isalpha() or s[j].isdigit() or s[j] == "_"):
+                j += 1
+            w = s[i:j]
+            if w in _PY_KW:
+                out.append("\x1b[96m")
+                out.append(w)
+                out.append("\x1b[0m")
+            else:
+                out.append(w)
+            i = j
+        elif c.isdigit():  # number -> green
+            j = i
+            while j < n and (s[j].isdigit() or s[j] in ".xXoObBeE_abcdefABCDEF"):
+                j += 1
+            out.append("\x1b[92m")
+            out.append(s[i:j])
+            out.append("\x1b[0m")
+            i = j
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
 class Editor:
+    syntax = True  # local: colourise .py files (needs an ANSI-colour terminal)
     KEYMAP = {
         "\x1b[A": KEY_UP,
         "\x1b[1;2A": KEY_SHIFT_UP,
@@ -320,7 +385,11 @@ class Editor:
                 ]:
                     self.goto(c, 0)
                     if flag == 0:
-                        self.wr(l[1])
+                        # local: syntax-colour .py lines with no active selection
+                        if Editor.syntax and self.fname[-3:] == ".py":
+                            self.wr(_hl(l[1]))
+                        else:
+                            self.wr(l[1])
                     elif flag == 7:
                         self.wr(l[1][:start_col])
                         self.hilite(2)

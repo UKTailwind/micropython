@@ -124,6 +124,8 @@ inherits the same names. The most useful are:
 
 **Clock:** `settime`, `gettime`, `synctime`.
 
+**Network / time:** `wifi`, `ntpsync`, `tz`.
+
 **Images:** `draw_jpg`, `draw_bmp`, `draw_png`, `save_image`.
 
 **Input devices:** `touch`, `mouse`, `mouse_speed`, `keydown`.
@@ -159,7 +161,11 @@ buffer you can save to a name of your choice.
 
 It works both on the HDMI screen with a USB keyboard and over a serial terminal.
 Use the arrow / `Home` / `End` / `PgUp` / `PgDn` keys where you have them; the
-`Ctrl-` shortcuts below do the same job on a plain terminal.
+`Ctrl-` shortcuts below do the same job on a plain terminal. The editor
+**syntax-colours `.py` files** using MMBasic's colour scheme — keywords cyan,
+strings magenta, comments yellow, numbers green — and its status bar and
+selection are coloured too, on the HDMI screen and a colour serial terminal
+alike. Set `pye.Editor.syntax = False` to turn colouring off.
 
 **Files**
 
@@ -334,7 +340,16 @@ hdmi.text("BIG", 20, 20, d.colour(YELLOW), -1, 4)   # 4x-scaled 8x12 text
 Note that `hdmi.fill()`, `hdmi.scroll()` and `hdmi.putc()` take colours already
 in the framebuffer's native format — convert with `hdmi.fb().colour(...)` first.
 
-The on-screen text console uses an 8×12 font (80 columns × 40 rows at 640×480).
+The on-screen text console uses an 8×12 font (80 columns × 40 rows at 640×480)
+and understands **ANSI colour** escapes — the standard 16-colour SGR codes work
+on both the HDMI screen and a serial terminal:
+
+```python
+print("\x1b[91mred\x1b[0m and \x1b[1;97;44m white on blue \x1b[0m")
+```
+
+(Foreground `30`–`37`/`90`–`97`, background `40`–`47`/`100`–`107`, `1` bold,
+`7` reverse, `0` reset.)
 
 ### Overlay layer and off-screen buffer
 
@@ -739,6 +754,35 @@ clock is synchronised from it automatically.
 settime(2026, 7, 4, 14, 30, 0)
 print(gettime())
 ```
+
+### Setting the clock from the internet (NTP)
+
+If the board has Wi-Fi in range, it can set its clock from an internet time
+server and keep the DS3231 updated — no manual `settime()` needed.
+
+```python
+wifi("MySSID", "MyPassword")   # connect + remember the credentials
+tz(1)                          # timezone offset from UTC, in hours (e.g. +1)
+ntpsync()                      # fetch the time, apply tz, set the RTC + clock
+auto(True)                     # optional: sync automatically at every boot
+```
+
+- `wifi("SSID", "pw")` connects and saves the credentials; later `wifi()`
+  reconnects using the saved ones.
+- `tz(hours)` sets the timezone offset (may be fractional, e.g. `5.5`); NTP time
+  is UTC and this makes the clock show local time. `tz()` returns the setting.
+- `ntpsync()` connects (if needed), reads the time, applies `tz`, and writes
+  **local** time to both the system clock and the battery-backed DS3231 — so the
+  time stays correct even offline afterwards.
+- `auto(True)` runs `ntpsync()` at boot (adds a few seconds while it connects;
+  falls back silently to the DS3231 if Wi-Fi/NTP is unavailable). `auto(False)`
+  turns it off.
+
+> **Security note:** the Wi-Fi SSID and password are stored in **plaintext** in
+> `/settings.json` on the flash filesystem — this board has no secure storage,
+> so anyone with the board or a firmware/SD image can read them. If that matters,
+> don't save credentials: call `wifi("SSID", "pw")` and `ntpsync()` each session
+> and leave `auto` off. See also section 16 for general Wi-Fi use.
 
 ---
 

@@ -114,6 +114,15 @@ try:
 except Exception:
     pass  # no DS3231 / dead battery: leave the default clock
 
+# Wi-Fi + NTP time: wifi()/ntpsync()/tz()/auto(). The DS3231 sync above already
+# gave a valid time; the optional NTP refresh (boot_sync) runs at the very end,
+# after the console is up, so its connect messages are visible.
+import pcnet
+
+__main__.wifi = pcnet.wifi
+__main__.ntpsync = pcnet.ntpsync
+__main__.tz = pcnet.tz
+
 # Bring up the HDMI display (saved mode/clock, default 640x480x8 @ 252) and start
 # the on-screen console. A bad saved value falls back safely.
 try:
@@ -125,5 +134,10 @@ try:
 except Exception:
     pass
 pcconsole.console()
+
+# Optional NTP time sync (only if auto() is enabled and credentials are saved).
+# Last, so the display/console is already up and the connect messages show; all
+# failures are swallowed, so a missing network never blocks boot.
+pcnet.boot_sync()
 
 del _name

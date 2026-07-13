@@ -258,10 +258,11 @@ REPL (see §6). Files handled through MicroPython's VFS (flash + `/sd`).
   UART VT100 console now (and will keep working when HDMI+USB-keyboard become the
   console, since it only uses `sys.stdin`/`sys.stdout`). `edit("/sd/x.py")` opens
   or creates a file; **Ctrl-S** save, **Ctrl-Q**/Esc quit, **Ctrl-F** find.
-  - One **local patch** to `pye.py`: remapped `"\x08"` (Ctrl-H) from Replace to
-    Backspace, so terminals that send Ctrl-H for Backspace work (DEL `0x7F` was
-    already mapped; Replace stays on Ctrl-R). Marked with a `# local:` comment.
-    Provenance: sha256 `17867248…` of the upstream `master/pye.py`.
+  - **Local patches** to `pye.py` (each marked with a `# local:` comment;
+    provenance sha256 `17867248…` of the upstream `master/pye.py`): (1) remapped
+    `"\x08"` (Ctrl-H) from Replace to Backspace, so terminals that send Ctrl-H
+    for Backspace work (DEL `0x7F` was already mapped; Replace stays on Ctrl-R);
+    (2) a lightweight Python **syntax highlighter** for `.py` files (§38).
 
 ### 9. core1 dedicated to HDMI (threads disabled)
 
@@ -348,8 +349,8 @@ keyboard is the next step) — the console is output-only (`readinto` → `None`
   `\x1b[nD`/`\x1b[nC` (cursor back/forward, needed for **backspace** & arrows),
   `\x1b[K` (erase to EOL), plus `A/B` (up/down), `H`/`f` (position), `J` (erase
   display), `r` (DECSTBM scroll region) and `ESC M` (reverse index) — the last
-  two added in §37 so pye's full-screen scrolling renders correctly. SGR colour
-  (`m`), device queries (`n`), private (`?…`) are ignored.
+  two added in §37 so pye's full-screen scrolling renders correctly; `m` (SGR
+  colour) added in §38. Device queries (`n`), private (`?…`) are ignored.
 - **Blinking underline cursor** (like MMBasic) — `machine.Timer` toggles a
   bottom-row underline ~1 Hz. `write()` erases it before rendering and redraws
   after (and an `_in_write` guard), so it's never left behind or scrolled.
@@ -1325,6 +1326,75 @@ unchanged.
 
 ---
 
+### 38. On-screen console colour (ANSI SGR)
+
+The `pcconsole` terminal emulator now honours **SGR** escapes (`\x1b[…m`), so
+on-screen text can be coloured — most visibly, **pye's status bar** (bold white
+on blue) and its **marked/selected text** (yellow background) now render in
+colour instead of appearing as plain text (their SGR codes were previously
+dropped).
+
+- **16-colour ANSI/VGA palette** (`_ANSI`, RGB888): 0–7 normal, 8–15 bright.
+  Foreground 30–37/90–97, background 40–47/100–107, plus `0` reset, `1` bold
+  (brightens a 0–7 foreground), `7` reverse, and the `22`/`27`/`39`/`49` off
+  codes. Colours convert to the framebuffer's native format per mode via
+  `Display.colour()` (nearest-of-16 in RGB1024).
+- **State** (`_fgi`/`_bgi`/`_bold`/`_rev`) resolves to cached native
+  `cur_fg`/`cur_bg`, which `hdmi.putc` uses per glyph; each cell is drawn
+  opaquely so a background colour fills the cell. State persists across writes
+  (terminal semantics) and resets on `\x1b[0m` and on a mode change (native
+  colours differ per format).
+- 256-colour / truecolour (`38;5;n` / `38;2;r;g;b`) are not parsed — only the
+  16-colour set (which is what pye and typical TUIs use).
+- **pye syntax highlighting (second `local:` patch to the vendored editor):**
+  base pye only colours its status bar and selection, so a further local patch
+  adds a lightweight Python highlighter — `_hl()` inserts zero-width SGR codes
+  around comments/strings/keywords/numbers in each visible line slice
+  (**MMBasic's editor colour scheme**: keyword cyan, string magenta, comment
+  yellow, number green — all bright, from `VT100_C_*` in MMBasic's Editor.c),
+  applied
+  in the `flag == 0` (no-selection) render branch for `.py` files, gated by
+  `Editor.syntax`. It leaves the visible characters (and cursor columns)
+  unchanged and caches the plain text in `scrbuf` (so line diffing is
+  unaffected). It tokenises each slice standalone, so a horizontally-scrolled
+  margin or a triple-quoted string spanning lines can mis-colour — cosmetic
+  only. pye resets colour after its status bar, so per-line highlighting never
+  bleeds.
+
+---
+
+### 39. Wi-Fi credentials + NTP time (`pcnet`)
+
+MMBasic's `OPTION RTC AUTO` equivalent: set the clock from the internet. New
+frozen module `pcnet.py`, injected into the REPL as `wifi`/`ntpsync`/`tz`.
+
+- **`wifi(ssid, pw)`** connects (`network.WLAN(STA_IF)`, ~15 s timeout) and
+  persists the credentials via `pcconfig` (`wifi_ssid`/`wifi_pw`); `wifi()`
+  reconnects from the saved pair. An explicit SSID forces a fresh connect
+  (disconnects first) so changed credentials take effect.
+- **`ntpsync()`** — the clock chain **Wi-Fi → NTP (UTC) → local → DS3231**:
+  `ntptime.settime()` sets the system RTC to UTC, then `time.localtime(time()
+  + tz*3600)` gives local time, written to the DS3231 via `ds3231.settime()`
+  (which also re-sets the system clock). So after a sync both the system clock
+  and the battery-backed chip hold **local** time and `gettime()` is right
+  offline. `tz()` is the persisted UTC offset in hours (fractional allowed).
+- **`auto(True)`** persists `ntp_auto`; `_boot_board` calls `pcnet.boot_sync()`
+  **last** (after the display + console are up, so connect messages are
+  visible), wrapped so any Wi-Fi/NTP failure is swallowed — the DS3231 sync
+  earlier in boot always leaves a valid time first.
+- **Security (documented):** SSID + password are stored **plaintext** in
+  `/settings.json` (no secure element on this board — MMBasic stores Wi-Fi
+  creds the same way). The manual's RTC section states this and offers the
+  per-session alternative (don't persist; call `wifi()`/`ntpsync()` manually).
+- `ntptime` comes from `bundle-networking` (already required); the cyw43 gSPI
+  divider is correct at the default 252 MHz (§18), so NTP works out of the box.
+
+Verify: `wifi("ssid","pw")` connects; `tz(1); ntpsync()` sets local time;
+`gettime()` correct after a power cycle (DS3231 held it); `auto(True)` syncs at
+boot; no network / bad creds never blocks boot.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -1378,6 +1448,7 @@ unchanged.
 | `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1`; 12 MB flash FS; ulab via `USER_C_MODULES`; feature-gate vars `MICROPY_HW_ENABLE_HDMI`/`MICROPY_PY_MACHINE_SDCARD`/`MICROPY_HW_USB_HOST` (§27) |
 | `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `_boot_board`/`pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |
 | `boards/PICO_COMPUTER_3/pcsprite.py` | **new** sprite engine: MMBasic collision/layer/scroll semantics on a dirty-rect / overlay-layer compositor (§34) |
+| `boards/PICO_COMPUTER_3/pcnet.py` | **new** Wi-Fi + NTP time: `wifi`/`ntpsync`/`tz`/`auto`; credentials in `pcconfig` (§39) |
 | `boards/PICO_COMPUTER_3/pcshell.py` | **new** shell commands (`ls`/`run`/`edit`/file ops) + `COMMANDS` |
 | `boards/PICO_COMPUTER_3/pye.py` | **new** vendored pye editor (MIT, V2.79) with one local Backspace patch |
 

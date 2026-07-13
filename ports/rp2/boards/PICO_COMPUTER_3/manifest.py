@@ -47,3 +47,6 @@ freeze("$(BOARD_DIR)", "pcconfig.py")
 # Sprite engine: MMBasic sprite semantics (layers, AABB collisions, walls,
 # scroll) on a dirty-rectangle / overlay-layer compositor. `import pcsprite`.
 freeze("$(BOARD_DIR)", "pcsprite.py")
+
+# Wi-Fi + NTP time: wifi(), ntpsync(), tz(), auto() (credentials in settings).
+freeze("$(BOARD_DIR)", "pcnet.py")

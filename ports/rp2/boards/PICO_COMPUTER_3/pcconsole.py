@@ -19,6 +19,16 @@ import machine
 _FW = 8    # MMBasic 8x12 console font cell width
 _FH = 12   # ... and height -> 80x40 chars at 640x480
 
+# 16-colour ANSI palette (RGB888): 0-7 normal, 8-15 bright. SGR codes
+# 30-37/40-47 pick 0-7, 90-97/100-107 (or bold) pick 8-15. The bright half is
+# the pure primaries, so it matches MMBasic's editor colours and maps exactly
+# to the RGB1024 16-colour palette. Converted to the framebuffer's native
+# format per mode via Display.colour().
+_ANSI = (
+    0x000000, 0xAA0000, 0x00AA00, 0xAA5500, 0x0000AA, 0xAA00AA, 0x00AAAA, 0xAAAAAA,
+    0x555555, 0xFF0000, 0x00FF00, 0xFFFF00, 0x0000FF, 0xFF00FF, 0x00FFFF, 0xFFFFFF,
+)
+
 
 def sync_terminal():
     """Resize the attached serial terminal to match the screen's character grid
@@ -40,6 +50,7 @@ class Console(io.IOBase):
         self.rows = self.h // _FH
         self.fg = self.d.colour(fg)
         self.bg = self.d.colour(bg)
+        self._reset_sgr()  # current SGR fg/bg (start = default fg/bg)
         self.x = 0  # cursor column
         self.y = 0  # cursor row
         self.rtop = 0            # scroll-region top row (0-based, inclusive)
@@ -127,7 +138,7 @@ class Console(io.IOBase):
             if self.x >= self.cols:
                 self._newline()
         elif 0x20 <= c <= 0x7E:  # printable -> 8x12 glyph (opaque, clears the cell)
-            hdmi.putc(self.x * _FW, self.y * _FH, c, self.fg, self.bg)
+            hdmi.putc(self.x * _FW, self.y * _FH, c, self.cur_fg, self.cur_bg)
             self.x += 1
             if self.x >= self.cols:
                 self._newline()
@@ -151,6 +162,8 @@ class Console(io.IOBase):
             self._erase_line(p[0] if p else 0)
         elif final == 0x4A:  # 'J' erase in display
             self._erase_display(p[0] if p else 0)
+        elif final == 0x6D:  # 'm' SGR: colour / attributes
+            self._sgr(p)
         elif final == 0x72:  # 'r' DECSTBM set scroll region (1-based rows)
             if len(p) >= 2 and p[0] and p[1]:
                 top = min(max(0, p[0] - 1), self.rows - 1)
@@ -165,6 +178,52 @@ class Console(io.IOBase):
             self.x = 0
             self.y = 0
         # 'm' (colours), 'n' (device queries), private '?...' etc: ignored
+
+    def _reset_sgr(self):
+        # Colour state: fg/bg palette indices (-1 = the console default),
+        # plus bold (bright) and reverse-video flags. cur_fg/cur_bg are the
+        # resolved native-format colours used to render each glyph.
+        self._bold = False
+        self._rev = False
+        self._fgi = -1
+        self._bgi = -1
+        self.cur_fg = self.fg
+        self.cur_bg = self.bg
+
+    def _sgr(self, params):
+        # Interpret an SGR (Select Graphic Rendition) escape: fg 30-37/90-97,
+        # bg 40-47/100-107, 0 reset, 1 bold, 7 reverse (and their off codes).
+        for p in params or (0,):
+            if p == 0:
+                self._bold = self._rev = False
+                self._fgi = self._bgi = -1
+            elif p == 1:
+                self._bold = True
+            elif p == 22:
+                self._bold = False
+            elif p == 7:
+                self._rev = True
+            elif p == 27:
+                self._rev = False
+            elif 30 <= p <= 37:
+                self._fgi = p - 30
+            elif p == 39:
+                self._fgi = -1
+            elif 90 <= p <= 97:
+                self._fgi = p - 90 + 8
+            elif 40 <= p <= 47:
+                self._bgi = p - 40
+            elif p == 49:
+                self._bgi = -1
+            elif 100 <= p <= 107:
+                self._bgi = p - 100 + 8
+        # Resolve to native colours (bold brightens a normal 0-7 foreground).
+        fgi = self._fgi
+        if 0 <= fgi < 8 and self._bold:
+            fgi += 8
+        fg = self.fg if fgi < 0 else self.d.colour(_ANSI[fgi])
+        bg = self.bg if self._bgi < 0 else self.d.colour(_ANSI[self._bgi])
+        self.cur_fg, self.cur_bg = (bg, fg) if self._rev else (fg, bg)
 
     def _erase_line(self, mode):
         py = self.y * _FH
@@ -227,6 +286,7 @@ class Console(io.IOBase):
         self.rows = self.h // _FH
         self.fg = self.d.colour(self._fg888)
         self.bg = self.d.colour(self._bg888)
+        self._reset_sgr()  # native colours differ in the new format; recompute
         self.x = 0
         self.y = 0
         self.rtop = 0

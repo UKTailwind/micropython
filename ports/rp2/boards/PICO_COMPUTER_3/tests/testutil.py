@@ -94,4 +94,10 @@ def report():
     for f in failures:
         print("  FAIL:", f)
     print("======================================")
-    return failed == 0
+    ok = failed == 0
+    # Reset so a re-run in the same session starts clean. The counters live in
+    # module globals (shared across run() calls), and only test_all resets at
+    # start; without this, running a single test file twice — or a file and
+    # then test_all — would ACCUMULATE and double-report earlier results.
+    reset()
+    return ok

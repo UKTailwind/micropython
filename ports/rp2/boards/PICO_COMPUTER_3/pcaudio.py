@@ -17,8 +17,6 @@
 # stop() / is_playing()
 # deinit()           release the I2S peripheral
 
-import math
-import struct
 import time
 from machine import I2S, Pin
 
@@ -348,27 +346,9 @@ def system_sound(connect=True):
 
 
 def beep(freq=880, ms=150, rate=22050, wait=True):
-    """Play a short synthesised tone (blocks by default; wait=False to return)."""
-    stop()
-    n = max(1, round(rate / freq))
-    cyc = bytearray(n * 4)
-    for i in range(n):
-        v = int(18000 * math.sin(2 * math.pi * i / n)) * _gain >> 8
-        struct.pack_into("<hh", cyc, i * 4, v, v)
-    reps = max(1, round(freq * ms / 1000))
-    i2s = _new_i2s(rate, 2)
-    mv = memoryview(cyc)
-    cnt = [0]
-
-    def produce():
-        if cnt[0] >= reps:
-            return None
-        cnt[0] += 1
-        return mv
-
-    global _pb
-    _pb = {"produce": produce, "f": None, "i2s": i2s}
-    _feed(i2s)
-    if wait:
-        while _pb is not None:
-            time.sleep_ms(5)
+    """Play a short synthesised tone (blocks by default; wait=False to return).
+    A thin wrapper over the tone engine (phase accumulator, fixed-size buffers)
+    so it stays clean at any frequency. The old one-cycle-per-I2S-write beep
+    starved the feed chain above ~700 Hz, glitching the tone. rate is accepted
+    for backwards compatibility but ignored (the tone engine runs at 44100)."""
+    tone(freq, freq, ms, wait=wait)

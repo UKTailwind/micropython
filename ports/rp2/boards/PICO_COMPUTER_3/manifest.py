@@ -56,3 +56,6 @@ freeze("$(BOARD_DIR)", "pcturtle.py")
 
 # On-screen GUI toolkit (MMBasic GUI controls): `import pcgui`; pcgui.GUI().
 freeze("$(BOARD_DIR)", "pcgui.py")
+
+# Tile maps (MMBasic TILEMAP): TileMap class + fast C render via hdmi.tilemap().
+freeze("$(BOARD_DIR)", "pctilemap.py")

@@ -1612,6 +1612,38 @@ Enter-commit→blur; number-box filters non-numeric; gauge/bar clamp. On-device:
 
 Full MMBasic GUI control set is now present.
 
+### 45. Tile maps — `pctilemap` + `hdmi.tilemap` (MMBasic TILEMAP)
+
+Scrolling tile-map backgrounds. The render loop (the one performance-critical
+part) is C; everything else is Python.
+
+- **C (`hdmi.tilemap`)**: the existing `hdmi_blit` clip/copy core was factored
+  into `hdmi_do_blit(sf, df, x, y, w, h, x1, y1, skip)`; `hdmi.tilemap(map, cols,
+  rows, tileset, tpr, tw, th, vx, vy, sx, sy, vw, vh, skip, dst)` is then just
+  the MMBasic `TILEMAP DRAW` loop over it — walk the visible cell range, skip
+  tile 0, blit each tile's sheet sub-rect to the screen with a sub-tile scroll
+  offset, clipping edge tiles. `map` is a `uint16` buffer (an `array('H')`),
+  `tileset` any blit surface (a `(buf,w,h)` tuple such as `load_image().surface`).
+  ~10× a per-tile Python loop, so full-screen scroll stays smooth.
+- **Python (`pctilemap.TileMap`)**: holds the tileset, the map array, the
+  viewport and a tile→attribute dict. `set/get/fill`, `view/scroll/clamp`,
+  `draw()` (drives `hdmi.tilemap`), `blit_tile()` (one tile at a pixel),
+  `tile_at()`, `set_attr()/attr()`, `collide(wx,wy,w,h,mask)` (wall/water hit
+  test), and `TileMap.load()` for CSV/space map files. Frozen, injected as
+  `TileMap`.
+- **Game objects**: reuse `pcsprite` / `load_image` (the tileset doubles as a
+  sprite sheet) rather than MMBasic's separate tile-sprite subsystem — the
+  sprite engine here is already richer.
+- **Design note**: the tileset must be in the current screen's pixel format
+  (blit copies raw pixels); `load_image()` loads in the active format. For
+  flicker-free scroll, compose in the F buffer and `copy("F","N")`.
+
+Verify: `tests/test_tilemap.py` builds a 4×4 tileset in RAM (grass/water/wall/
+tree), fills a 48×36 map with a bordered world + pond + trees, and bounces the
+viewport around via the F buffer. C DRAW math and the Python layer (map access,
+`tile_at`, attributes, `collide` with/without mask, viewport clamp, `draw`/
+`blit_tile` argument marshalling) checked on host.
+
 ---
 
 ## Files touched

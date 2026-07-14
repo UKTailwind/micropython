@@ -388,6 +388,7 @@ and returns the x just past the string; `bg=-1` (default) is transparent.
 | `hdmi.fill(colour)` | fast fill of the whole framebuffer with a **native-format** colour (e.g. `hdmi.fill(hdmi.fb().colour(BLUE))`) |
 | `hdmi.scroll(dy, colour=0, y0=0, height=None)` | fast vertical scroll of the pixel band `[y0, y0+height)` (default: whole screen) by `dy` pixels — positive moves content up (blank at the bottom), negative moves it down — filling the exposed edge with `colour` (native format) |
 | `hdmi.flood(x, y, colour, border=-1)` | flood fill from `(x,y)` (C); `border<0` = replace the seed colour, else fill to the `border` colour. Prefer the `Display.flood()` wrapper |
+| `hdmi.tilemap(map, cols, rows, tileset, tpr, tw, th, vx, vy, sx, sy, vw, vh, skip=-1, dst=None)` | render a tile map viewport (C); prefer the `TileMap` wrapper (section 5) |
 | `hdmi.putc(x, y, ch, fg, bg)` | blit one 8×12 console glyph at pixel `x,y` (native-format `fg`/`bg`) |
 | `hdmi.text(s, x, y, fg, bg=-1, scale=1, font=1)` | draw a string in font `font` (1–9) at pixel `x,y`; `bg=-1` is transparent, `scale` enlarges each glyph pixel into a `scale`×`scale` block. Returns the x just past the string |
 | `hdmi.fonts()` | list the fonts as `(number, width, height, first_char, count)` tuples |
@@ -738,6 +739,51 @@ format differs). See `tests/test_gui.py` for a full control panel.
 > This is a cleaner reimagining of MMBasic's GUI, not a byte-exact clone: the
 > control **set and behaviour** match, but drawing uses rounded shapes and the
 > bitmap fonts.
+
+### Tile maps — `TileMap`
+
+`TileMap` (MMBasic `TILEMAP`) draws large scrolling backgrounds out of a
+**tileset** — one image holding a grid of equal-size tiles — and a grid of tile
+indices. The per-tile rendering is done in C (`hdmi.tilemap()`), so even a
+full-screen redraw every frame is fast enough to scroll smoothly. Tile index
+**0 is empty** (nothing drawn); 1..N pick tiles from the sheet left-to-right,
+top-to-bottom.
+
+```python
+from pcimage import load_image
+
+sheet = load_image("/sd/tiles.png")          # the tileset, into memory
+tm = TileMap(sheet, 16, 16, cols=64, rows=32) # 16x16 tiles; a 64x32 map
+tm.set(3, 5, 12)                              # cell (3,5) shows tile 12
+tm.view(0, 0)
+tm.draw()                                     # render the viewport to the screen
+```
+
+The tileset is any in-memory surface: a `load_image()` image (usual), or a
+`(buffer, w, h)` tuple you drew yourself. It must be in the **current screen's
+pixel format** (load it in the mode you'll draw in). `tiles_per_row` defaults to
+`sheet_width // tile_w`. Provide the map up front with `data=` (a list of rows,
+or a flat sequence), or build it with `set()`; `TileMap.load("map.csv")` reads a
+comma/space map file into rows for `data=`.
+
+| Method | Purpose |
+|---|---|
+| `tm.set(col, row, tile)` / `tm.get(col, row)` / `tm.fill(tile)` | edit map cells |
+| `tm.view(x, y)` / `tm.scroll(dx, dy)` | move the viewport (world pixels) |
+| `tm.clamp(vw, vh)` | stop the viewport scrolling past the map edges |
+| `tm.draw(sx=0, sy=0, vw=None, vh=None, skip=-1, dst=None)` | render the viewport (default: whole screen) to `dst` (default the current write target); `skip` is a transparent colour |
+| `tm.blit_tile(tile, x, y, skip=-1)` | draw one tile at a screen pixel (a player/object without a full sprite) |
+| `tm.tile_at(wx, wy)` | the tile index at a world pixel (0 if outside) |
+| `tm.set_attr(tile, value)` / `tm.attr(tile)` | tag a tile with an attribute (e.g. a "solid" bitmask) |
+| `tm.collide(wx, wy, w, h, mask=None)` | `True` if the world rectangle overlaps a non-empty tile (or `attr & mask` when `mask` is given) — for wall/water collision |
+
+For flicker-free scrolling, compose into the off-screen **F** buffer and flip it
+(section 5, "Overlay layer and off-screen buffer"): each frame `hdmi.write("F")`,
+`hdmi.fill(0)`, `tm.draw()`, then `hdmi.write("N"); hdmi.vsync(); hdmi.copy("F",
+"N")`. Game objects on the map are ordinary **sprites** (`pcsprite`) whose image
+is a tile of the same sheet, or a quick `tm.blit_tile()`. See
+`tests/test_tilemap.py` for a complete scrolling example (it builds its tileset
+in memory, so it needs no asset file).
 
 ---
 

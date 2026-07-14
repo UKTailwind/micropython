@@ -1410,30 +1410,13 @@ static inline void hdmi_px_set(uint8_t *b, int sw, int x, int y, mp_int_t v) {
     }
 }
 
-// hdmi.blit(x, y, w, h, x1, y1 [, src [, dst [, skip]]]) -- copy the w x h
-// rectangle at (x,y) of `src` to (x1,y1) of `dst`. src/dst are target letters
-// ("N"/"L"/"F"), (buffer, w, h) surfaces, or None/omitted for the current
-// write target — so it blits within one buffer, between buffers, or to/from
-// user buffers such as sprite images. `skip` is a native-format colour that
-// is NOT copied (source pixels of that colour leave the destination alone,
-// -1/default = copy everything). Clipping follows MMBasic's BLIT: a rectangle
-// partly off either surface is trimmed on both sides in step. Overlapping
-// same-buffer copies are safe in any direction (MMBasic BLIT semantics).
-static mp_obj_t hdmi_blit(size_t n_args, const mp_obj_t *args) {
-    if (!hdmi_running) {
-        mp_raise_ValueError(MP_ERROR_TEXT("display not initialised"));
-    }
-    int x = mp_obj_get_int(args[0]);
-    int y = mp_obj_get_int(args[1]);
-    int w = mp_obj_get_int(args[2]);
-    int h = mp_obj_get_int(args[3]);
-    int x1 = mp_obj_get_int(args[4]);
-    int y1 = mp_obj_get_int(args[5]);
-    hdmi_surf_t sf = hdmi_parse_surface((n_args > 6) ? args[6] : mp_const_none);
-    hdmi_surf_t df = hdmi_parse_surface((n_args > 7) ? args[7] : mp_const_none);
-    mp_int_t skip = (n_args > 8) ? mp_obj_get_int(args[8]) : -1;
+// Core blit: copy the (x,y,w,h) rect of source `sf` to (x1,y1) of dest `df`,
+// clipping both rectangles in step (MMBasic BLIT), with an optional skip colour.
+// Shared by hdmi.blit and hdmi.tilemap. Assumes the display is running.
+static void hdmi_do_blit(hdmi_surf_t sf, hdmi_surf_t df, int x, int y, int w, int h,
+                         int x1, int y1, mp_int_t skip) {
     if (w < 1 || h < 1) {
-        return mp_const_none;
+        return;
     }
     // Clip both rectangles in step (MMBasic cmd_blit, verbatim shape): a
     // negative source origin shifts the destination (and vice versa), then
@@ -1472,11 +1455,11 @@ static mp_obj_t hdmi_blit(size_t n_args, const mp_obj_t *args) {
     }
     if (w < 1 || h < 1 || x < 0 || x + w > sf.w || x1 < 0 || x1 + w > df.w
         || y < 0 || y + h > sf.h || y1 < 0 || y1 + h > df.h) {
-        return mp_const_none;
+        return;
     }
     bool overlap = (sf.ptr == df.ptr);
     if (overlap && x == x1 && y == y1) {
-        return mp_const_none;
+        return;
     }
 
     if (skip < 0 && !hdmi_rgb121) {
@@ -1498,7 +1481,7 @@ static mp_obj_t hdmi_blit(size_t n_args, const mp_obj_t *args) {
                     sf.ptr + (size_t)(y + j) * sstride + (size_t)x * bpp, nbytes);
             }
         }
-        return mp_const_none;
+        return;
     }
 
     // Per-pixel path: 4bpp packed buffers and/or a skip colour. Row and
@@ -1524,9 +1507,106 @@ static mp_obj_t hdmi_blit(size_t n_args, const mp_obj_t *args) {
             }
         }
     }
+}
+
+// hdmi.blit(x, y, w, h, x1, y1 [, src [, dst [, skip]]]) -- copy the w x h
+// rectangle at (x,y) of `src` to (x1,y1) of `dst`. src/dst are target letters
+// ("N"/"L"/"F"), (buffer, w, h) surfaces, or None/omitted for the current
+// write target — so it blits within one buffer, between buffers, or to/from
+// user buffers such as sprite images. `skip` is a native-format colour that
+// is NOT copied (source pixels of that colour leave the destination alone,
+// -1/default = copy everything). Clipping follows MMBasic's BLIT: a rectangle
+// partly off either surface is trimmed on both sides in step. Overlapping
+// same-buffer copies are safe in any direction (MMBasic BLIT semantics).
+static mp_obj_t hdmi_blit(size_t n_args, const mp_obj_t *args) {
+    if (!hdmi_running) {
+        mp_raise_ValueError(MP_ERROR_TEXT("display not initialised"));
+    }
+    int x = mp_obj_get_int(args[0]);
+    int y = mp_obj_get_int(args[1]);
+    int w = mp_obj_get_int(args[2]);
+    int h = mp_obj_get_int(args[3]);
+    int x1 = mp_obj_get_int(args[4]);
+    int y1 = mp_obj_get_int(args[5]);
+    hdmi_surf_t sf = hdmi_parse_surface((n_args > 6) ? args[6] : mp_const_none);
+    hdmi_surf_t df = hdmi_parse_surface((n_args > 7) ? args[7] : mp_const_none);
+    mp_int_t skip = (n_args > 8) ? mp_obj_get_int(args[8]) : -1;
+    hdmi_do_blit(sf, df, x, y, w, h, x1, y1, skip);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_blit_obj, 6, 9, hdmi_blit);
+
+// hdmi.tilemap(map, cols, rows, tileset, tiles_per_row, tw, th, vx, vy,
+//              sx, sy, vw, vh [, skip [, dst]]) -- render a tile map (MMBasic
+// TILEMAP DRAW). `map` is a buffer of cols*rows uint16 tile indices (1-based,
+// 0 = empty). `tileset` is the tile-sheet surface (a (buffer,w,h) tuple, e.g.
+// load_image().surface, or a target letter). The viewport at world pixel
+// (vx,vy), size vw x vh, is drawn to `dst` at (sx,sy) with a sub-tile offset
+// for smooth scrolling; partial edge tiles are clipped. `skip` is a transparent
+// colour (-1 = opaque). Just a fast per-tile hdmi_do_blit loop, in C.
+static mp_obj_t hdmi_tilemap(size_t n_args, const mp_obj_t *args) {
+    if (!hdmi_running) {
+        mp_raise_ValueError(MP_ERROR_TEXT("display not initialised"));
+    }
+    mp_buffer_info_t mi;
+    mp_get_buffer_raise(args[0], &mi, MP_BUFFER_READ);
+    const uint16_t *map = (const uint16_t *)mi.buf;
+    int cols = mp_obj_get_int(args[1]);
+    int rows = mp_obj_get_int(args[2]);
+    hdmi_surf_t ts = hdmi_parse_surface(args[3]);
+    int tpr = mp_obj_get_int(args[4]);
+    int tw = mp_obj_get_int(args[5]);
+    int th = mp_obj_get_int(args[6]);
+    int vx = mp_obj_get_int(args[7]);
+    int vy = mp_obj_get_int(args[8]);
+    int sx = mp_obj_get_int(args[9]);
+    int sy = mp_obj_get_int(args[10]);
+    int vw = mp_obj_get_int(args[11]);
+    int vh = mp_obj_get_int(args[12]);
+    mp_int_t skip = (n_args > 13) ? mp_obj_get_int(args[13]) : -1;
+    hdmi_surf_t df = hdmi_parse_surface((n_args > 14) ? args[14] : mp_const_none);
+    if (cols < 1 || rows < 1 || tw < 1 || th < 1 || tpr < 1) {
+        return mp_const_none;
+    }
+    if ((size_t)cols * rows * 2 > mi.len) {
+        mp_raise_ValueError(MP_ERROR_TEXT("map buffer too small"));
+    }
+    // Floor-divide the viewport origin to the first visible cell + sub-tile
+    // pixel offset (correct for negative viewports too).
+    int col_start = vx / tw, off_x = vx % tw;
+    if (off_x < 0) {
+        off_x += tw;
+        col_start -= 1;
+    }
+    int row_start = vy / th, off_y = vy % th;
+    if (off_y < 0) {
+        off_y += th;
+        row_start -= 1;
+    }
+    int col_end = (vx + vw - 1) / tw;
+    int row_end = (vy + vh - 1) / th;
+    for (int r = row_start; r <= row_end; r++) {
+        if (r < 0 || r >= rows) {
+            continue;
+        }
+        for (int c = col_start; c <= col_end; c++) {
+            if (c < 0 || c >= cols) {
+                continue;
+            }
+            int tile = map[c + r * cols];
+            if (tile == 0) {
+                continue;   // empty
+            }
+            int src_x = ((tile - 1) % tpr) * tw;
+            int src_y = ((tile - 1) / tpr) * th;
+            int dst_x = sx + (c - col_start) * tw - off_x;
+            int dst_y = sy + (r - row_start) * th - off_y;
+            hdmi_do_blit(ts, df, src_x, src_y, tw, th, dst_x, dst_y, skip);
+        }
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_tilemap_obj, 13, 15, hdmi_tilemap);
 
 // Push a seed point onto the flood stack, growing it if full. Returns the
 // (possibly moved) stack base.
@@ -1671,6 +1751,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_write), MP_ROM_PTR(&hdmi_write_obj) },
     { MP_ROM_QSTR(MP_QSTR_copy), MP_ROM_PTR(&hdmi_copy_obj) },
     { MP_ROM_QSTR(MP_QSTR_blit), MP_ROM_PTR(&hdmi_blit_obj) },
+    { MP_ROM_QSTR(MP_QSTR_tilemap), MP_ROM_PTR(&hdmi_tilemap_obj) },
     { MP_ROM_QSTR(MP_QSTR_flood), MP_ROM_PTR(&hdmi_flood_obj) },
     { MP_ROM_QSTR(MP_QSTR_vsync), MP_ROM_PTR(&hdmi_vsync_obj) },
     { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&hdmi_close_obj) },

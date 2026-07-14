@@ -120,6 +120,11 @@ import pcgui
 
 __main__.pcgui = pcgui
 
+# Tile maps (MMBasic TILEMAP): TileMap() drawn via the C hdmi.tilemap() helper.
+import pctilemap
+
+__main__.TileMap = pctilemap.TileMap
+
 try:
     ds3231.synctime()
 except Exception:

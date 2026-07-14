@@ -578,6 +578,233 @@ class NumberBox(TextBox):
             return 0.0
 
 
+class DisplayBox(Control):
+    """A read-only box that shows a value (like a text box you can't edit). Set
+    .value to update it; only the interior is repainted, so it never flickers."""
+
+    interactive = False
+
+    def __init__(self, g, x, y, w, h, fg, bg, font):
+        super().__init__(g, x, y, w, h, fg, bg if bg is not None else 0x303030, font)
+        self._value = ""
+
+    def _text(self):
+        d = self.g.d
+        fw, fh = self.g.metrics(self.font)
+        d.fill_rect(self.x + 1, self.y + 1, self.w - 2, self.h - 2, self._c(self.bg))
+        s = str(self._value)
+        maxc = max(0, (self.w - 8) // fw)
+        if len(s) > maxc:
+            s = s[:maxc]
+        d.text(s, self.x + 4, self.y + (self.h - fh) // 2, self._c(self.fg), font=self.font)
+
+    def draw(self):
+        self.g.d.rect(self.x, self.y, self.w, self.h, self.g.c(FRAME))
+        self._text()
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, v):
+        self._value = v
+        if not self.hidden:
+            self._text()
+
+
+class Spinner(Control):
+    """A number box with up/down arrows (MMBasic SPINBOX). Touch the arrow column
+    to step by `step`, clamped to [lo, hi]."""
+
+    def __init__(self, g, x, y, w, h, fg, bg, lo, hi, step, font):
+        super().__init__(g, x, y, w, h, fg, bg if bg is not None else 0x303030, font)
+        self.lo = lo
+        self.hi = hi
+        self.step = step
+        self._value = lo
+        self.aw = min(self.h, self.w // 3)   # width of the arrow column
+
+    def _text(self):
+        d = self.g.d
+        fw, fh = self.g.metrics(self.font)
+        d.fill_rect(self.x + 1, self.y + 1, self.w - self.aw - 1, self.h - 2, self._c(self.bg))
+        d.text(str(self._value), self.x + 4, self.y + (self.h - fh) // 2,
+               self._c(self.fg), font=self.font)
+
+    def _tri(self, cx, cy, up, col):
+        import array
+
+        s = 4
+        if up:
+            pts = array.array("h", (cx - s, cy + 2, cx + s, cy + 2, cx, cy - 3))
+        else:
+            pts = array.array("h", (cx - s, cy - 2, cx + s, cy - 2, cx, cy + 3))
+        self.g.d.poly(0, 0, pts, col, True)
+
+    def draw(self):
+        d = self.g.d
+        d.rect(self.x, self.y, self.w, self.h, self.g.c(FRAME))
+        self._text()
+        ax = self.x + self.w - self.aw
+        d.fill_rect(ax, self.y + 1, self.aw - 1, self.h - 2, self.g.c(_KEY))
+        d.line(ax, self.y, ax, self.y + self.h - 1, self.g.c(FRAME))
+        d.line(ax, self.y + self.h // 2, self.x + self.w - 1, self.y + self.h // 2,
+               self.g.c(FRAME))
+        cx = ax + self.aw // 2
+        col = self._c(self.fg)
+        self._tri(cx, self.y + self.h // 4, True, col)
+        self._tri(cx, self.y + 3 * self.h // 4, False, col)
+
+    def press(self, px, py):
+        if px >= self.x + self.w - self.aw:
+            if py < self.y + self.h // 2:
+                nv = min(self.hi, self._value + self.step)
+            else:
+                nv = max(self.lo, self._value - self.step)
+            if nv != self._value:
+                self._value = nv
+                self._text()
+                self._fire()
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, v):
+        self._value = max(self.lo, min(self.hi, v))
+        if not self.hidden:
+            self._text()
+
+
+class ListBox(Control):
+    """A scrolling list of strings (MMBasic LISTBOX). Tap a row to select it;
+    drag up/down to scroll. .value is the selected index, .text the string."""
+
+    def __init__(self, g, x, y, w, h, items, fg, bg, font):
+        super().__init__(g, x, y, w, h, fg, bg if bg is not None else 0x303030, font)
+        self.items = list(items)
+        self._value = 0
+        self.top = 0
+        fw, fh = g.metrics(font)
+        self.rowh = fh + 4
+        self.rows = max(1, (h - 2) // self.rowh)
+        self._downy = None
+        self._moved = 0
+
+    @property
+    def text(self):
+        return self.items[self._value] if 0 <= self._value < len(self.items) else ""
+
+    def _nvis(self):
+        return min(self.rows, len(self.items) - self.top)
+
+    def _maxtop(self):
+        return max(0, len(self.items) - self.rows)
+
+    def draw(self):
+        d = self.g.d
+        fw, fh = self.g.metrics(self.font)
+        d.fill_rect(self.x, self.y, self.w, self.h, self._c(self.bg))
+        d.rect(self.x, self.y, self.w, self.h, self.g.c(FRAME))
+        maxc = max(0, (self.w - 6) // fw)
+        for i in range(self._nvis()):
+            idx = self.top + i
+            ry = self.y + 1 + i * self.rowh
+            if idx == self._value:
+                d.fill_rect(self.x + 1, ry, self.w - 2, self.rowh, self.g.c(ACCENT))
+            s = self.items[idx]
+            if len(s) > maxc:
+                s = s[:maxc]
+            d.text(s, self.x + 3, ry + (self.rowh - fh) // 2, self._c(self.fg), font=self.font)
+
+    def press(self, px, py):
+        self._downy = py
+        self._moved = 0
+
+    def drag(self, px, py):
+        if self._downy is None:
+            return
+        step = (self._downy - py) // self.rowh
+        if step:
+            nt = max(0, min(self.top + step, self._maxtop()))
+            if nt != self.top:
+                self.top = nt
+                self._downy = py
+                self._moved += 1
+                self.draw()
+
+    def release(self, px, py):
+        if self._moved == 0:                     # a tap, not a scroll -> select
+            r = (py - (self.y + 1)) // self.rowh
+            if 0 <= r < self._nvis():
+                self._value = self.top + r
+                self.draw()
+                self._fire()
+        self._downy = None
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, v):
+        self._value = v
+        if v < self.top:
+            self.top = v
+        elif v >= self.top + self.rows:
+            self.top = v - self.rows + 1
+        self.top = max(0, min(self.top, self._maxtop()))
+        if not self.hidden:
+            self.draw()
+
+
+class FmtBox(NumberBox):
+    """A number box that displays its value through a format string (MMBasic
+    FMTBOX), e.g. fmt="%.2f". Editing enters the raw number; the display is
+    formatted. .number returns the float."""
+
+    def __init__(self, g, x, y, w, h, fg, bg, fmt, font):
+        super().__init__(g, x, y, w, h, fg, bg, font)
+        self.fmt = fmt
+        self._value = "0"
+
+    def draw(self):
+        d = self.g.d
+        d.fill_rect(self.x, self.y, self.w, self.h, self._c(self.bg))
+        d.rect(self.x, self.y, self.w, self.h, self.g.c(FRAME))
+        fw, fh = self.g.metrics(self.font)
+        try:
+            s = self.fmt % self.number
+        except (TypeError, ValueError):
+            s = str(self._value)
+        maxc = max(0, (self.w - 8) // fw)
+        if len(s) > maxc:
+            s = s[-maxc:]
+        d.text(s, self.x + 4, self.y + (self.h - fh) // 2, self._c(self.fg), font=self.font)
+
+
+class Area(Control):
+    """An invisible touch-sensitive rectangle (MMBasic AREA). The callback fires
+    on touch-down and on drag; .value is the (x, y) touch position relative to
+    the area's top-left. Useful as a custom hit region or drawing canvas."""
+
+    def __init__(self, g, x, y, w, h):
+        super().__init__(g, x, y, w, h, FG, None, 1)
+
+    def draw(self):
+        pass  # invisible -- the app draws whatever it wants inside
+
+    def press(self, px, py):
+        self._value = (px - self.x, py - self.y)
+        self._fire()
+
+    def drag(self, px, py):
+        self._value = (px - self.x, py - self.y)
+        self._fire()
+
+
 # --- on-screen keyboard / keypad (for touch text entry) ---------------------
 # A modal, docked to the bottom of the screen. Alpha layout for text boxes, a
 # numeric keypad for number boxes. It also accepts a real USB keyboard while
@@ -738,6 +965,11 @@ class GUI:
         self._py = 0
         self._keys = []
         self._started = False
+        # global touch hooks (MMBasic GUI INTERRUPT TouchDown/TouchUp), each
+        # called with the screen (x, y); set via on_touch() or assign directly.
+        self.on_down = None
+        self.on_up = None
+        self.on_move = None
         # cache font metrics: {font_number: (w, h)}
         self._fm = {}
         for entry in hdmi.fonts():
@@ -749,6 +981,24 @@ class GUI:
 
     def metrics(self, font):
         return self._fm.get(font or 1, (8, 12))
+
+    def on_touch(self, down=None, up=None, move=None):
+        """Register global touch hooks (MMBasic's GUI INTERRUPT), each called
+        with the screen (x, y): `down` on touch/press, `move` while dragging,
+        `up` on release. These fire in addition to any per-control callbacks."""
+        self.on_down = down
+        self.on_up = up
+        self.on_move = move
+
+    @staticmethod
+    def _call(fn, x, y):
+        if fn:
+            try:
+                fn(x, y)
+            except Exception as e:
+                import sys
+
+                sys.print_exception(e)
 
     # --- lifecycle ---
     def start(self):
@@ -841,11 +1091,13 @@ class GUI:
             self._px, self._py = x, y
         if down and not self._down:            # press edge
             self._down = True
+            self._call(self.on_down, x, y)     # global TouchDown
             c = self._at(x, y)
             self._active = c
             if c is not None:
                 c.press(x, y)
         elif down and self._down:              # drag
+            self._call(self.on_move, x, y)
             if self._active is not None:
                 self._active.drag(x, y)
         elif (not down) and self._down:        # release edge
@@ -859,6 +1111,7 @@ class GUI:
                         self._edit(c)
                 else:
                     c.release(self._px, self._py)
+            self._call(self.on_up, self._px, self._py)  # global TouchUp
 
     # --- control factories (create, register, draw, return) ---
     def _add(self, ctrl):
@@ -929,3 +1182,32 @@ class GUI:
         t.callback = callback
         t._value = str(value)
         return self._add(t)
+
+    def displaybox(self, x, y, w, h, text="", fg=None, bg=None, font=1):
+        c = DisplayBox(self, x, y, w, h, fg, bg, font)
+        c._value = text
+        return self._add(c)
+
+    def spinner(self, x, y, w, h, value=0, lo=0, hi=100, step=1, fg=None, bg=None,
+                font=1, callback=None):
+        c = Spinner(self, x, y, w, h, fg, bg, lo, hi, step, font)
+        c.callback = callback
+        c._value = max(lo, min(hi, value))
+        return self._add(c)
+
+    def listbox(self, x, y, w, h, items, selected=0, fg=None, bg=None, font=1, callback=None):
+        c = ListBox(self, x, y, w, h, items, fg, bg, font)
+        c.callback = callback
+        c.value = selected  # via setter: clamps the view to show the selection
+        return self._add(c)
+
+    def fmtbox(self, x, y, w, h, value=0, fmt="%.2f", fg=None, bg=None, font=1, callback=None):
+        c = FmtBox(self, x, y, w, h, fg, bg, fmt, font)
+        c.callback = callback
+        c._value = str(value)
+        return self._add(c)
+
+    def area(self, x, y, w, h, callback=None):
+        c = Area(self, x, y, w, h)
+        c.callback = callback
+        return self._add(c)

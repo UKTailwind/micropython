@@ -636,11 +636,70 @@ while running:
     g.poll()                        # read the pointer + keyboard, fire callbacks
 ```
 
-Each control is an object. Read or set its state through **`.value`** (setting
-it redraws): `led.value = 1`, `if sw.value:`, `name = tb.value`. A control's
-**`callback(control)`** fires when the user changes it (button click, switch or
-check-box toggle, radio select, slider move, Enter in a text box). Controls also
-have `.enabled` / `.hidden` (via `disable()` / `hide()`).
+#### Building an application
+
+A GUI program has four parts: set the screen mode, create the `GUI`, add controls
+(each with an optional callback), then loop on `poll()`. `poll()` is
+non-blocking, so the same loop can do other work — read sensors, update gauges,
+talk to the network. A complete skeleton:
+
+```python
+import time
+import hdmi
+import pcgui
+from pcgfx import GREEN, RED, YELLOW
+
+screen(hdmi.RGB320)                 # set the mode first (persisted)
+time.sleep(3)                       # let the monitor lock before drawing
+console("serial")                   # keep REPL prints off the GUI screen
+hdmi.fill(0)                        # clear to black
+
+g = pcgui.GUI()                     # draws on the current screen (hdmi.fb())
+g.start()                           # capture the USB keyboard (for text boxes)
+done = [False]
+
+g.caption(120, 4, "Pump Control", fg=YELLOW, font=2)
+level = g.gauge(80, 100, 40, lo=0, hi=100, fg=GREEN, font=2)
+g.slider(20, 170, 200, 20, lo=0, hi=100,
+         callback=lambda s: setattr(level, "value", s.value))
+g.button(120, 205, 90, 28, "QUIT", fg=YELLOW, bg=RED,
+         callback=lambda b: done.__setitem__(0, True))
+
+try:
+    while not done[0]:
+        g.poll()                    # dispatch touches/clicks + typing
+        # ... your own periodic work here ...
+        time.sleep_ms(10)
+finally:
+    g.stop()                        # release the keyboard
+    console("both")
+```
+
+Build the GUI **after** setting the mode, and make a fresh `GUI` if you change
+mode later (the pixel format differs). `g.cls()` clears the screen and redraws
+every control; `g.redraw()` redraws them without clearing; `g.remove(c)` deletes
+one. Route the console to serial while a GUI owns the screen so stray prints
+don't land on it.
+
+#### Responding to input
+
+Two mechanisms, usable together:
+
+- **Per-control callbacks** — give a control `callback=fn`, and `fn(control)` is
+  called when the user changes it (button click, switch/check-box toggle,
+  radio/list select, slider/spinner move, Enter in a box). Read the new state
+  from the control passed in: `def on(sw): led.value = sw.value`. This is the
+  usual way to react.
+- **Global touch hooks** — the equivalent of MMBasic's `GUI INTERRUPT TouchDown,
+  TouchUp`. `g.on_touch(down=fn, up=fn, move=fn)` registers callbacks called with
+  the screen `(x, y)` on every touch-down, drag and release, **regardless of**
+  which control (if any) was hit, and *in addition* to per-control callbacks.
+  Handy for custom gestures or a drawing surface (see also the `area` control).
+
+Read or set any control's state through **`.value`** (assigning it redraws):
+`led.value = 1`, `if sw.value:`, `n = nb.number`, `sel = lb.text`. Turn a control
+off/on with `.disable()` / `.disable(False)`, or hide/show it with `.hide()` /
+`.hide(False)`.
 
 The controls (all coordinates in screen pixels; colours are RGB such as the
 `pcgfx` palette constants; `font=` selects a bitmap font, default 1):
@@ -659,6 +718,11 @@ The controls (all coordinates in screen pixels; colours are RGB such as the
 | `g.slider(x, y, w, h, value, lo, hi, ..., callback)` | a draggable slider |
 | `g.textbox(x, y, w, h, text, ..., callback)` | an editable text box; tapping it opens an on-screen keyboard |
 | `g.numberbox(x, y, w, h, value, ..., callback)` | a number box (tapping opens a numeric keypad; `.number` returns a float) |
+| `g.displaybox(x, y, w, h, text, ...)` | a read-only box that shows a value (set `.value`) |
+| `g.spinner(x, y, w, h, value, lo, hi, step, ..., callback)` | a number box with up/down arrows; tap them to step by `step` |
+| `g.listbox(x, y, w, h, items, selected, ..., callback)` | a scrolling list; tap a row to select, drag to scroll (`.value` = index, `.text` = string) |
+| `g.fmtbox(x, y, w, h, value, fmt, ..., callback)` | a number box shown through a format string, e.g. `fmt="%.2f"` (`.number` = float) |
+| `g.area(x, y, w, h, callback)` | an invisible touch region; the callback fires on touch/drag with `.value` = `(x, y)` relative to it |
 
 Tapping a **text box** or **number box** pops up an on-screen keyboard (alpha) or
 keypad (numeric) docked at the bottom of the screen, so the GUI is fully usable
@@ -672,10 +736,8 @@ setting the screen mode (make a fresh `GUI` if you change mode — the pixel
 format differs). See `tests/test_gui.py` for a full control panel.
 
 > This is a cleaner reimagining of MMBasic's GUI, not a byte-exact clone: the
-> control **set and behaviour** match (frame, caption, button, switch, checkbox,
-> radio, LED, gauge, bar gauge, slider, text/number box), but drawing uses
-> rounded shapes and the bitmap fonts. Listbox, spinner, display box and area
-> are planned.
+> control **set and behaviour** match, but drawing uses rounded shapes and the
+> bitmap fonts.
 
 ---
 

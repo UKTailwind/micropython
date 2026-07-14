@@ -1567,7 +1567,10 @@ behaviour** match MMBasic; the rendering is cleaner (rounded shapes via §40
   edge-detects press/drag/release and routes to the control under the pointer.
   Keyboard for text boxes via `keyboard.on_key(cb)` — the scheduled callback
   buffers key codes, drained to the focused box in `poll()` (ENTER=10 commits +
-  blurs, BKSP=8, ESC=27, printable filtered for number boxes).
+  blurs, BKSP=8, ESC=27, printable filtered for number boxes). Global touch
+  hooks `g.on_touch(down/up/move)` (MMBasic's `GUI INTERRUPT TouchDown/TouchUp`)
+  fire from `poll()` at the press/drag/release edges with the screen `(x,y)`, in
+  addition to per-control callbacks (`up` carries the last live position).
 - **Controls (core set)**: caption, frame, button, switch, checkbox, radio
   (mutually exclusive by `group`), LED, gauge (circular, 270° open-bottom arc),
   bar gauge (h/v), slider (draggable), text box, number box (`.number` float).
@@ -1600,7 +1603,14 @@ exclusivity; slider drag sets value + fires; text-box focus→type→backspace�
 Enter-commit→blur; number-box filters non-numeric; gauge/bar clamp. On-device:
 `tests/test_gui.py` is an interactive control panel (mouse/touch + keyboard).
 
-**Not yet ported (next):** list box, spin box, display box, format box, area.
+- **Phase-2 controls**: display box (read-only, interior-only repaint), spinner
+  (number + touch up/down arrows, `step`/`lo`/`hi`), list box (scrolling; tap a
+  row to select, drag to scroll; `.value` index / `.text` string), format box
+  (a number box whose display runs through a `%`-format, `.number` float), and
+  area (an invisible touch region firing on touch/drag with `.value` = the
+  relative `(x, y)` — a hit region / scribble canvas). `tests/test_gui2.py`.
+
+Full MMBasic GUI control set is now present.
 
 ---
 

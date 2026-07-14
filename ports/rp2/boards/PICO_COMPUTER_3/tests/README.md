@@ -44,6 +44,7 @@ and headless.
 | `test_console.py` | interactive | `console("both"/"serial"/"screen")` output routing |
 | `turtle_test.py` | visual demo | `Turtle` graphics — a port of MMBasic's `turtletest.bas` (run standalone) |
 | `test_gui.py` | interactive | `pcgui` control panel — needs a USB mouse/touch + keyboard; drive the switch/slider/radios/boxes and watch the LED/gauges |
+| `test_gui2.py` | interactive | `pcgui` phase-2 controls — display box, spinner, list box, format box and a scribble area |
 | `demo_asteroids.py` | visual demo | `load_image()` sprite sheet + Python double-buffering (needs `/sd/asteroid-sprite-440x464.png`) |
 
 The visual demos (`turtle_test.py`, `demo_asteroids.py`) are **not** part of

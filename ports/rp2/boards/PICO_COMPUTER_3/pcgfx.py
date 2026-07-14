@@ -210,6 +210,20 @@ class Display(framebuf.FrameBuffer):
 
         hdmi.flood(x, y, colour, -1 if border is None else border)
 
+    def text(self, s, x, y, c, font=None, scale=1, bg=-1):
+        """Draw a string. Called the framebuf way -- text(s, x, y, c) -- this is
+        framebuf's built-in 8x8 font (unchanged). Pass font=1..9 (see
+        hdmi.fonts()) and/or scale>1 to use the larger MMBasic bitmap fonts;
+        bg<0 (default) is a transparent background, otherwise the cell is filled
+        with bg. The font path draws to the current HDMI write target (the live
+        screen unless you hdmi.write() elsewhere) and returns the x past the
+        string; the built-in path returns None."""
+        if font is None and scale == 1 and bg < 0:
+            return super().text(s, x, y, c)
+        import hdmi
+
+        return hdmi.text(s, x, y, c, bg, scale, font or 1)
+
     def colour(self, r, g=None, b=None):
         """Return an RGB888 colour packed for this display's format.
         colour(0xRRGGBB) or colour(r, g, b). In RGB1024 mode (GS4_HMSB / RGB121

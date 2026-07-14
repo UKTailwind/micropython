@@ -115,6 +115,11 @@ import pcturtle
 
 __main__.Turtle = pcturtle.Turtle
 
+# On-screen GUI toolkit (MMBasic GUI controls): pcgui.GUI() + control factories.
+import pcgui
+
+__main__.pcgui = pcgui
+
 try:
     ds3231.synctime()
 except Exception:

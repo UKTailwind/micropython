@@ -53,3 +53,6 @@ freeze("$(BOARD_DIR)", "pcnet.py")
 
 # Turtle graphics (MMBasic TURTLE, on the pcgfx primitives): `Turtle` class.
 freeze("$(BOARD_DIR)", "pcturtle.py")
+
+# On-screen GUI toolkit (MMBasic GUI controls): `import pcgui`; pcgui.GUI().
+freeze("$(BOARD_DIR)", "pcgui.py")

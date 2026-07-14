@@ -1518,6 +1518,90 @@ Verify: a square (`forward`/`right` ×4); a filled star (`begin_fill`/`end_fill`
 `arc`/`circle`/`wedge`; `pencolor`/`pensize`; `push`/`pop`; all in
 RGB320/640/1024.
 
+### 43. MMBasic bitmap fonts — the full font table (`fonts.h`)
+
+The 8×12 console font (`font1`) was the only glyph set; this adds MMBasic's
+other eight, so `hdmi.text()`/`Display.text()` can render in nine fonts.
+
+- **Data**: the PicoMite font headers are vendored under `ports/rp2/fonts/`
+  (Misc_12x20, Hom_16x24, Fnt_10x16, Inconsola 24×32, ArialNumFontPlus 32×50
+  digits-only, F_6x8, TinyFont 4×6, font8x10), aggregated by `ports/rp2/fonts.h`
+  into `hdmi_fonts[]` (1-based numbers match MMBasic). `#included` only by
+  `hdmi.c` (gated on `MICROPY_HW_ENABLE_HDMI`), so ~130 KB of glyphs never reach
+  other rp2 boards. The `int[]`/`uint32_t[]` fonts are cast to `uint8_t*` — the
+  little-endian RP2350 yields the byte order MMBasic uses.
+- **Glyph format** (matches PicoMite `Draw.c`): 4-byte header
+  `{w, h, first, count}`, then each glyph is `w*h` bits as **one continuous
+  MSB-first bitstream** (NOT byte-aligned rows), so pixel `(x,y)` is bit
+  `n = y*w + x`: `on = (glyph[n>>3] >> (7 - (n&7))) & 1`. `w*h` is a multiple of
+  8 for every font, which makes that exact.
+- **API**: `hdmi_blit_glyph()` is now font-parameterised;
+  `hdmi.text(s,x,y,fg,bg=-1,scale=1,font=1)` resolves the font once and blits.
+  `hdmi.fonts()` lists `(number,w,h,first,count)`. `pcgfx.Display.text()` gained
+  `font=`/`scale=`/`bg=` kwargs — called the framebuf way (`text(s,x,y,c)`) it
+  is still the built-in 8×8; with `font=`/`scale`/`bg` it delegates to
+  `hdmi.text()` (drawing to the current write target). `hdmi.putc()` and the
+  console are unchanged (still font 1).
+
+Verify (`tests/test_fonts.py`, automatic): `hdmi.fonts()` metrics for all nine;
+a glyph renders (set-pixel count > 0) and advances by its width in each font;
+`scale=2` advance; space/transparent draws nothing; out-of-range char / bad font
+number / off-screen don't crash. `WATCH=True` shows every font at scale 1 and 2.
+
+### 44. On-screen GUI toolkit — `pcgui` (MMBasic GUI, core set)
+
+Frozen `pcgui.py`: MMBasic's GUI controls (Micromite Plus) reimagined as a small
+object-oriented widget toolkit rather than a byte-exact port of the 4900-line
+`GUI.c` (which is welded to the BASIC interpreter). The **control set and
+behaviour** match MMBasic; the rendering is cleaner (rounded shapes via §40
+`pcgfx.rbox`/`arc`, text via the §43 bitmap fonts).
+
+- **Model**: a `GUI` manager owns a control list, resolves RGB→native via
+  `Display.colour()`, caches font metrics from `hdmi.fonts()`, and dispatches
+  events in `poll()`. Each control is a `Control` subclass with `.value`
+  (property; setter redraws), `.enabled`/`.hidden`, a `callback(control)`, and
+  `draw()`/`hit()`/`press()`/`drag()`/`release()`/`key()` hooks. Factories on
+  `GUI` create+register+draw and return the object.
+- **Input**: pointer from `mouse("X"/"Y"/"L")` or `touch("X"/"Y"/"DOWN")`
+  (touch preferred while a contact is down, else the mouse cursor); `poll()`
+  edge-detects press/drag/release and routes to the control under the pointer.
+  Keyboard for text boxes via `keyboard.on_key(cb)` — the scheduled callback
+  buffers key codes, drained to the focused box in `poll()` (ENTER=10 commits +
+  blurs, BKSP=8, ESC=27, printable filtered for number boxes).
+- **Controls (core set)**: caption, frame, button, switch, checkbox, radio
+  (mutually exclusive by `group`), LED, gauge (circular, 270° open-bottom arc),
+  bar gauge (h/v), slider (draggable), text box, number box (`.number` float).
+- **Flicker-free gauge**: the gauge updates *incrementally* — a value change
+  repaints only the wedge between the old and new value (fg when growing, track
+  when shrinking) and the centred number only when its integer changes, never a
+  full clear. Both the value and track arcs are built from one **fixed grid of
+  boundary vertices** (≈2px chords), so any sub-range's edges land on exactly the
+  same pixels as the arc it overpaints — no fill-colour outline remnant (the bug
+  from redrawing arcs whose chord counts depended on their own sweep) and, since
+  each contiguous colour run is a single poly fill, no radial seams. The **bar
+  gauge** updates the same way — it repaints only the strip between the old and
+  new fill level (fg when growing, track when shrinking), never the whole bar, so
+  it doesn't flash. The slider thumb is likewise sized to sit inside the control
+  box so erasing the box on redraw leaves no trail.
+- **Touch text entry**: tapping a text/number box opens `_OnScreenKeyboard`, a
+  modal docked at the bottom — alpha (QWERTY + Shift) for text, a numeric keypad
+  for numbers, with Del/OK/Esc. It runs its own touch+key loop (also accepting a
+  real USB keyboard), waits for the release before returning, then repaints the
+  region it covered (`_redraw_region`). So the GUI is fully usable on a bare
+  touch panel. Release events use the last live pointer position (a lifted touch
+  reports −1), which is what made non-slider controls appear dead on touch.
+- **Injection**: `import pcgui` pre-imported into `__main__` by `_boot_board`.
+  Build the GUI after the screen mode is set; a mode change needs a fresh `GUI`
+  (pixel format differs).
+
+Verify (CPython, stubbed `hdmi`/`mouse`/`touch`/`keyboard`/`pcgfx`): button
+click fires / release-outside doesn't; switch & checkbox toggle; radio-group
+exclusivity; slider drag sets value + fires; text-box focus→type→backspace→
+Enter-commit→blur; number-box filters non-numeric; gauge/bar clamp. On-device:
+`tests/test_gui.py` is an interactive control panel (mouse/touch + keyboard).
+
+**Not yet ported (next):** list box, spin box, display box, format box, area.
+
 ---
 
 ## Files touched

@@ -37,11 +37,13 @@ and headless.
 | `test_buffers.py` | automatic | layer + F buffer: `layer/create/write/copy/close/transparent`, lifecycle errors, mode-change teardown |
 | `test_sprites.py` | automatic | `pcsprite`: draw/erase/z-order (pixel-verified), collisions (sprite/edge/wall/layers, edge-triggered), `scroll` incl. wrap, both compositor modes |
 | `test_images.py` | automatic | `save_image`/`draw_bmp` pixel round-trip in 3 modes; optional `test.jpg`/`test.png` decode |
+| `test_fonts.py` | automatic | MMBasic bitmap fonts: `hdmi.fonts()` metrics, glyph rendering, scale/advance, transparency (set `WATCH=True` to see them) |
 | `test_misc.py` | automatic | RTC, settings, shell helpers, keydown/mouse/touch queries, audio state machine, SD info |
 | `test_keydown.py` | interactive | `keydown()` codes/modifiers/multi-key, `keyboard.on_key` |
 | `test_audio.py` | interactive | tone (incl. click-free retune), 4-voice synth, pause/resume; optional `test.mod`/`test.mp3` |
 | `test_console.py` | interactive | `console("both"/"serial"/"screen")` output routing |
 | `turtle_test.py` | visual demo | `Turtle` graphics — a port of MMBasic's `turtletest.bas` (run standalone) |
+| `test_gui.py` | interactive | `pcgui` control panel — needs a USB mouse/touch + keyboard; drive the switch/slider/radios/boxes and watch the LED/gauges |
 | `demo_asteroids.py` | visual demo | `load_image()` sprite sheet + Python double-buffering (needs `/sd/asteroid-sprite-440x464.png`) |
 
 The visual demos (`turtle_test.py`, `demo_asteroids.py`) are **not** part of

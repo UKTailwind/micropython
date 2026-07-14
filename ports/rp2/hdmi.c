@@ -68,9 +68,9 @@ typedef struct {
 } hdmi_cyw43_bus_t;
 #endif
 
-// MMBasic 8x12 console font (font1): header {w=8,h=12,first=0x20,count=224},
-// then 12 bytes/glyph, one row each, MSB = leftmost pixel.
-#include "console_font.h"
+// MMBasic font set. Font 1 (8x12) is the console font; hdmi_fonts[] holds all
+// nine (see fonts.h for the packed-bitstream glyph format).
+#include "fonts.h"
 #define FONT_W     (8)
 #define FONT_H     (12)
 #define FONT_FIRST (0x20)
@@ -1015,26 +1015,46 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_putc_obj, 5, 5, hdmi_putc);
 
-// Blit one 8x12 glyph at pixel (px,py) scaled by `scale` (each font pixel -> a
-// scale x scale block). fg/bg are native-format colours; a negative `bg` means
-// a transparent background (only the set pixels are drawn). Format-aware, writes
-// hdmi_fb directly, clipped to the framebuffer.
-static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, int scale) {
-    if (ch < FONT_FIRST || ch > 0xFF) {
-        ch = FONT_FIRST;
+// Resolve a 1-based MMBasic font number (1..HDMI_NFONTS) to its glyph data and
+// metrics. Out-of-range falls back to font 1. Returns a pointer to the glyphs
+// (past the 4-byte header).
+static const uint8_t *hdmi_font_lookup(int fontno, int *w, int *h, int *first, int *count) {
+    if (fontno < 1 || fontno > HDMI_NFONTS) {
+        fontno = 1;
     }
-    const uint8_t *glyph = &font1[4 + (ch - FONT_FIRST) * FONT_H];
+    const uint8_t *fp = hdmi_fonts[fontno - 1];
+    *w = fp[0];
+    *h = fp[1];
+    *first = fp[2];
+    *count = fp[3];
+    return fp + 4;
+}
+
+// Blit one glyph at pixel (px,py) scaled by `scale` (each font pixel -> a
+// scale x scale block), from a resolved font (gdata/fw/fh/first/count). Glyphs
+// are a continuous MSB-first bitstream (bit N = row*fw + col). fg/bg are
+// native-format colours; a negative `bg` means a transparent background (only
+// the set pixels are drawn). Characters outside the font clear their cell to bg
+// (opaque) or draw nothing (transparent). Format-aware; writes hdmi_fb directly,
+// clipped to the framebuffer.
+static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, int scale,
+                            const uint8_t *gdata, int fw, int fh, int first, int count) {
+    const uint8_t *glyph =
+        (ch >= first && ch < first + count) ? gdata + (ch - first) * ((fw * fh) / 8) : NULL;
     bool transparent = (bg < 0);
     uint8_t *buf = hdmi_wbuf();
-    for (int row = 0; row < FONT_H; row++) {
-        uint8_t bits = glyph[row];
+    for (int row = 0; row < fh; row++) {
         for (int sy = 0; sy < scale; sy++) {
             int y = py + row * scale + sy;
             if (y < 0 || y >= hdmi_h) {
                 continue;
             }
-            for (int col = 0; col < FONT_W; col++) {
-                bool on = bits & (0x80 >> col);
+            for (int col = 0; col < fw; col++) {
+                bool on = false;
+                if (glyph) {
+                    int n = row * fw + col;
+                    on = (glyph[n >> 3] >> (7 - (n & 7))) & 1;
+                }
                 if (!on && transparent) {
                     continue;
                 }
@@ -1060,9 +1080,10 @@ static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, in
     }
 }
 
-// hdmi.text(s, x, y, fg[, bg=-1[, scale=1]]) -- draw a string in the 8x12 console
-// font at pixel (x,y). bg<0 (default) is transparent; scale enlarges the glyphs.
-// Returns the x pixel just past the string (so calls can be chained).
+// hdmi.text(s, x, y, fg[, bg=-1[, scale=1[, font=1]]]) -- draw a string in an
+// MMBasic font at pixel (x,y). bg<0 (default) is transparent; scale enlarges the
+// glyphs; font is a 1-based font number (1..9, see hdmi.fonts()). Returns the x
+// pixel just past the string (so calls can be chained).
 static mp_obj_t hdmi_text(size_t n_args, const mp_obj_t *args) {
     size_t len;
     const char *s = mp_obj_str_get_data(args[0], &len);
@@ -1071,17 +1092,37 @@ static mp_obj_t hdmi_text(size_t n_args, const mp_obj_t *args) {
     mp_int_t fg = mp_obj_get_int(args[3]);
     mp_int_t bg = (n_args > 4) ? mp_obj_get_int(args[4]) : -1;
     int scale = (n_args > 5) ? mp_obj_get_int(args[5]) : 1;
+    int fontno = (n_args > 6) ? mp_obj_get_int(args[6]) : 1;
     if (scale < 1) {
         scale = 1;
     }
-    int adv = FONT_W * scale;
+    int fw, fh, first, count;
+    const uint8_t *gdata = hdmi_font_lookup(fontno, &fw, &fh, &first, &count);
+    int adv = fw * scale;
     for (size_t i = 0; i < len; i++) {
-        hdmi_blit_glyph(x, y, (uint8_t)s[i], fg, bg, scale);
+        hdmi_blit_glyph(x, y, (uint8_t)s[i], fg, bg, scale, gdata, fw, fh, first, count);
         x += adv;
     }
     return mp_obj_new_int(x);
 }
-static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_text_obj, 4, 6, hdmi_text);
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_text_obj, 4, 7, hdmi_text);
+
+// hdmi.fonts() -- list the available fonts as (number, width, height, first,
+// count) tuples, 1-based numbers matching the `font` argument of hdmi.text().
+static mp_obj_t hdmi_fonts_fn(void) {
+    mp_obj_t list = mp_obj_new_list(0, NULL);
+    for (int i = 0; i < HDMI_NFONTS; i++) {
+        const uint8_t *fp = hdmi_fonts[i];
+        mp_obj_t item[5] = {
+            MP_OBJ_NEW_SMALL_INT(i + 1), MP_OBJ_NEW_SMALL_INT(fp[0]),
+            MP_OBJ_NEW_SMALL_INT(fp[1]), MP_OBJ_NEW_SMALL_INT(fp[2]),
+            MP_OBJ_NEW_SMALL_INT(fp[3]),
+        };
+        mp_obj_list_append(list, mp_obj_new_tuple(5, item));
+    }
+    return list;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_fonts_obj, hdmi_fonts_fn);
 
 // Monotonic init counter — the console watches this to detect a mode/clock
 // switch (which clears the screen) and resync/home itself.
@@ -1614,6 +1655,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_scroll), MP_ROM_PTR(&hdmi_scroll_obj) },
     { MP_ROM_QSTR(MP_QSTR_putc), MP_ROM_PTR(&hdmi_putc_obj) },
     { MP_ROM_QSTR(MP_QSTR_text), MP_ROM_PTR(&hdmi_text_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fonts), MP_ROM_PTR(&hdmi_fonts_obj) },
     { MP_ROM_QSTR(MP_QSTR_stack_ok), MP_ROM_PTR(&hdmi_stack_ok_obj) },
     { MP_ROM_QSTR(MP_QSTR_width), MP_ROM_PTR(&hdmi_width_obj) },
     { MP_ROM_QSTR(MP_QSTR_height), MP_ROM_PTR(&hdmi_height_obj) },

@@ -339,16 +339,38 @@ RGB value (including the named palette constants `RED`, `WHITE`, …) to the cur
 format. Passing a raw 24-bit value straight to `rect`/`text`/etc. gives the wrong
 colour. (`d.color(...)` is an accepted US-spelling alias.)
 
-`d.text()` uses framebuf's built-in **8×8** font at a fixed size. For larger or
-crisper text, use **`hdmi.text(s, x, y, fg, bg=-1, scale=1)`**, which draws the
-**8×12** console font and can scale it up (`scale=2` doubles it, etc.). Its
-`fg`/`bg` are already-converted native-format colours, and `bg=-1` draws with a
-transparent background:
+Called the framebuf way — `d.text(s, x, y, c)` — `d.text()` uses framebuf's
+built-in **8×8** font at a fixed size. For larger, crisper or differently-shaped
+text there are **nine MMBasic bitmap fonts**; pass `font=` (and optionally
+`scale=`/`bg=`) to `d.text()`, or call `hdmi.text()` directly:
 
 ```python
 d = hdmi.fb()
-hdmi.text("BIG", 20, 20, d.colour(YELLOW), -1, 4)   # 4x-scaled 8x12 text
+d.text("Hello", 20, 20, d.colour(WHITE), font=3)          # 16x24 font
+d.text("BIG", 20, 60, d.colour(YELLOW), font=1, scale=4)  # 4x-scaled 8x12
+hdmi.text("100", 20, 120, d.colour(GREEN), -1, 2, 6)      # font 6 = big digits
 ```
+
+The fonts (1-based numbers, matching MMBasic's font numbers):
+
+| # | Size | Notes |
+|---|---|---|
+| 1 | 8×12 | the console/default font |
+| 2 | 12×20 | |
+| 3 | 16×24 | large, good for headings |
+| 4 | 10×16 | |
+| 5 | 24×32 | very large |
+| 6 | 32×50 | **digits `0`–`9` and `:` only** (clocks, scores) |
+| 7 | 6×8 | small |
+| 8 | 4×6 | tiny |
+| 9 | 8×10 | |
+
+`hdmi.fonts()` returns the table as `(number, width, height, first_char, count)`
+tuples so code can lay text out. Every font is fixed-width, so a string of `n`
+chars in font *f* at `scale` is `n × width × scale` pixels wide. Characters
+outside a font's range (e.g. a letter in the digits-only font 6) draw nothing.
+The font path (`font=` or `scale>1`) draws to the current HDMI **write target**
+and returns the x just past the string; `bg=-1` (default) is transparent.
 
 ### `hdmi` module reference
 
@@ -367,7 +389,8 @@ hdmi.text("BIG", 20, 20, d.colour(YELLOW), -1, 4)   # 4x-scaled 8x12 text
 | `hdmi.scroll(dy, colour=0, y0=0, height=None)` | fast vertical scroll of the pixel band `[y0, y0+height)` (default: whole screen) by `dy` pixels — positive moves content up (blank at the bottom), negative moves it down — filling the exposed edge with `colour` (native format) |
 | `hdmi.flood(x, y, colour, border=-1)` | flood fill from `(x,y)` (C); `border<0` = replace the seed colour, else fill to the `border` colour. Prefer the `Display.flood()` wrapper |
 | `hdmi.putc(x, y, ch, fg, bg)` | blit one 8×12 console glyph at pixel `x,y` (native-format `fg`/`bg`) |
-| `hdmi.text(s, x, y, fg, bg=-1, scale=1)` | draw a string in the 8×12 console font at pixel `x,y`; `bg=-1` is transparent, `scale` enlarges each glyph pixel into a `scale`×`scale` block. Returns the x just past the string |
+| `hdmi.text(s, x, y, fg, bg=-1, scale=1, font=1)` | draw a string in font `font` (1–9) at pixel `x,y`; `bg=-1` is transparent, `scale` enlarges each glyph pixel into a `scale`×`scale` block. Returns the x just past the string |
+| `hdmi.fonts()` | list the fonts as `(number, width, height, first_char, count)` tuples |
 | `hdmi.test()` | draw an 8-bar colour test pattern |
 | `hdmi.gen()` | mode-change counter (used internally by the console) |
 
@@ -584,6 +607,75 @@ t.end_fill()
 Make a new `Turtle` after a `screen()` mode change (the pixel format differs
 per mode). A turtle draws on the current write target, so `hdmi.write("F")` +
 a `Turtle()` draws off-screen.
+
+### On-screen GUI — `pcgui`
+
+`pcgui` is a small widget toolkit — MMBasic's GUI controls (Micromite Plus) as
+Python objects. A `GUI` manager owns the controls, draws them, and dispatches
+input: a **USB mouse** or **touch panel** (section 7/8) for clicking/dragging,
+and the **USB keyboard** (section 6) for typing into text boxes. You create
+controls, then call `poll()` from your loop:
+
+```python
+import pcgui
+from pcgfx import GREEN, RED, YELLOW
+
+g = pcgui.GUI()                     # draws on hdmi.fb()
+g.start()                           # start capturing the keyboard (for text boxes)
+
+g.frame(8, 26, 150, 74, "Pump", font=2)
+led = g.led(18, 48, 8, "Run", GREEN)
+g.switch(18, 66, 80, 26, "ON|OFF", callback=lambda sw: setattr(led, "value", sw.value))
+
+bar = g.bargauge(255, 44, 20, 70, lo=0, hi=100)
+g.slider(168, 110, 130, 18, lo=0, hi=100, callback=lambda s: setattr(bar, "value", s.value))
+
+g.button(8, 208, 90, 26, "QUIT", fg=YELLOW, bg=RED, callback=my_quit)
+
+while running:
+    g.poll()                        # read the pointer + keyboard, fire callbacks
+```
+
+Each control is an object. Read or set its state through **`.value`** (setting
+it redraws): `led.value = 1`, `if sw.value:`, `name = tb.value`. A control's
+**`callback(control)`** fires when the user changes it (button click, switch or
+check-box toggle, radio select, slider move, Enter in a text box). Controls also
+have `.enabled` / `.hidden` (via `disable()` / `hide()`).
+
+The controls (all coordinates in screen pixels; colours are RGB such as the
+`pcgfx` palette constants; `font=` selects a bitmap font, default 1):
+
+| Factory | Control |
+|---|---|
+| `g.caption(x, y, text, fg, bg, font, just)` | a text label; `just` is `"LT"`/`"CT"`/`"RB"`… (left/centre/right + top/middle/bottom) |
+| `g.frame(x, y, w, h, title, fg, font)` | a titled box to group controls |
+| `g.button(x, y, w, h, text, ..., callback)` | a push button (`callback` on click) |
+| `g.switch(x, y, w, h, "ON\|OFF", value, ..., callback)` | a two-state toggle showing the on/off label |
+| `g.checkbox(x, y, size, label, value, ..., callback)` | a check box + label |
+| `g.radio(x, y, r, label, group, value, ..., callback)` | a radio button; radios sharing a `group` are mutually exclusive |
+| `g.led(x, y, r, label, colour, value)` | an indicator lamp (bright when `value`) |
+| `g.gauge(x, y, r, value, lo, hi, fg, font)` | a circular gauge (centre `x,y`, radius `r`) |
+| `g.bargauge(x, y, w, h, value, lo, hi, fg)` | a bar gauge (horizontal if `w≥h`, else vertical) |
+| `g.slider(x, y, w, h, value, lo, hi, ..., callback)` | a draggable slider |
+| `g.textbox(x, y, w, h, text, ..., callback)` | an editable text box; tapping it opens an on-screen keyboard |
+| `g.numberbox(x, y, w, h, value, ..., callback)` | a number box (tapping opens a numeric keypad; `.number` returns a float) |
+
+Tapping a **text box** or **number box** pops up an on-screen keyboard (alpha) or
+keypad (numeric) docked at the bottom of the screen, so the GUI is fully usable
+from a touch panel with no physical keyboard — tap keys, then **OK** commits (and
+fires the callback) or **Esc** cancels. A USB keyboard also works while the
+pop-up is open (type, Enter/Esc). `callback` fires on commit.
+
+`g.cls()` clears the screen and redraws every control; `g.remove(ctrl)` deletes
+one; `g.stop()` releases the keyboard when you're done. Build the GUI **after**
+setting the screen mode (make a fresh `GUI` if you change mode — the pixel
+format differs). See `tests/test_gui.py` for a full control panel.
+
+> This is a cleaner reimagining of MMBasic's GUI, not a byte-exact clone: the
+> control **set and behaviour** match (frame, caption, button, switch, checkbox,
+> radio, LED, gauge, bar gauge, slider, text/number box), but drawing uses
+> rounded shapes and the bitmap fonts. Listbox, spinner, display box and area
+> are planned.
 
 ---
 

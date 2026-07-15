@@ -131,6 +131,16 @@ import pcmath
 
 __main__.pcmath = pcmath
 
+# Game-loop timing (MMBasic SYNC): pcgame.Clock(fps) for drift-free frame timing.
+import pcgame
+
+__main__.pcgame = pcgame
+
+# Simple plotting for education: plot(data) / plot(function, range).
+import pcplot
+
+__main__.plot = pcplot.plot
+
 try:
     ds3231.synctime()
 except Exception:

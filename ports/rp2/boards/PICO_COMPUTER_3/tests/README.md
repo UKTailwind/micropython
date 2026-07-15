@@ -49,6 +49,7 @@ and headless.
 | `demo_asteroids.py` | visual demo | `load_image()` sprite sheet + Python double-buffering (needs `/sd/asteroid-sprite-440x464.png`) |
 | `test_tilemap.py` | visual demo | `TileMap` — builds a tileset in memory and scrolls a map via `hdmi.tilemap()` + the F buffer |
 | `breakout.py` | game | tile-map brick breaker (port of MMBasic `breakout.bas`): `TileMap` brick field + attributes/collision, `blit_tile` ball/paddle. Arrows move, Space launches, Q quits |
+| `test_plot.py` | visual demo | `plot()` (line/function/bar/multi-series) + an animated scrolling sine driven by `pcgame.Clock` (fixed fps) |
 
 The visual demos (`turtle_test.py`, `demo_asteroids.py`) are **not** part of
 `test_all.py`; run them standalone and watch the HDMI screen.

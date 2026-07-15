@@ -1686,6 +1686,30 @@ line break (so CR / LF / CRLF pastes all look right), then normalises endings to
 `\n` and writes. Works over serial or the USB keyboard. Host-tested: mixed
 endings normalise, Ctrl-D terminates, Ctrl-C writes nothing, no doubled newlines.
 
+### 48. Game-loop timing + plotting — `pcgame` / `pcplot`
+
+Two small frozen helpers aimed at the games/education objective.
+
+- **`pcgame.Clock(fps, vsync=False)`** — a drift-free fixed-cadence frame clock
+  (MMBasic `SYNC`). `tick()` holds an absolute `_end` deadline, waits until it
+  (sleeps the bulk via `sleep_us`, spins the last ~1 ms for µs accuracy), then
+  advances `_end += period` — so a slow frame isn't paid back with drift; the
+  cadence stays anchored. Overrun by more than a period re-anchors to now (no
+  runaway catch-up). Returns `dt` (seconds since the last tick) for frame-rate-
+  independent motion, and tracks a rolling `.fps`. `vsync=True` waits on
+  `hdmi.vsync()` instead (locks to the display refresh). Injected as `pcgame`.
+- **`pcplot.plot(...)`** — one-call plotting on the HDMI screen for maths/science
+  education. Accepts a sequence, a list of sequences (multi-series), or a
+  callable sampled over `x=(a,b[,n])`; `style` line/scatter/bar; autoscales,
+  draws an axis box, zero lines and range labels (font 7). Draws on `hdmi.fb()`
+  with the `pcgfx` primitives. Injected as `plot`.
+
+No firmware change (frozen Python). Verify: `Clock` host-tested for cadence
+(10 frames @50 fps = 0.200 s) and re-anchoring after a slow frame; `plot`
+host-tested for series parsing (list / function / multi-series), bounds/flat-
+data padding, and per-style draw counts. `tests/test_plot.py` is a visual demo
+(static plots + a `Clock`-driven scrolling sine showing fps).
+
 ---
 
 ## Files touched

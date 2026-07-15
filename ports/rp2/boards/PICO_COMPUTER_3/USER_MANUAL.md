@@ -1442,6 +1442,44 @@ pid = pcmath.PID(2.0, 0.5, 0.1, setpoint=100, out_min=0, out_max=255)
 drive = pid.update(temperature, dt)
 ```
 
+### Plotting — `plot()`
+
+`plot()` (injected) draws data or a function on the HDMI screen, autoscaled with
+axes and range labels — handy for maths/science:
+
+```python
+plot([1, 4, 9, 16, 25])                 # a list of values
+plot(math.sin, (0, 2 * math.pi))        # a function over a range (a, b[, n])
+plot([series_a, series_b])              # several series (different colours)
+plot(readings, style="bar")             # "line" (default), "scatter" or "bar"
+```
+
+Options: `x=` (x values, or the `(a, b[, n])` range for a function), `style=`,
+`colour=` (one RGB or a list per series), `box=(x, y, w, h)` (plot area),
+`clear=False` (draw over what's there), `axes=False`. It draws on `hdmi.fb()`.
+
+### Game-loop timing — `pcgame.Clock`
+
+For smooth, steady animation and games, `pcgame.Clock` gives a **drift-free**
+fixed frame rate (MMBasic's `SYNC`): `tick()` waits until the next frame is due
+and returns the elapsed time so movement can be frame-rate-independent.
+
+```python
+import pcgame
+clock = pcgame.Clock(60)                # target 60 fps
+while playing:
+    dt = clock.tick()                   # wait for the frame; dt = seconds elapsed
+    x += speed * dt                     # move by dt, so speed is per-second
+    draw()
+    # clock.fps is the measured rate
+```
+
+Because it waits until an absolute deadline (advanced by exactly one period each
+tick), a slow frame doesn't accumulate drift — the cadence stays anchored to the
+clock. Pass `Clock(vsync=True)` to lock to the HDMI refresh instead (tear-free,
+at the display's own rate); combine with the F-buffer flip (section 5) for
+flicker-free scrolling. `clock.reset()` re-anchors after a pause.
+
 ### Board-specific extension modules
 
 These low-level C modules back the friendly commands above and can also be used

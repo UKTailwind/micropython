@@ -62,3 +62,9 @@ freeze("$(BOARD_DIR)", "pctilemap.py")
 
 # Maths helpers over ulab (MMBasic MATH gaps): quaternions, vectors, DSP, PID.
 freeze("$(BOARD_DIR)", "pcmath.py")
+
+# Game-loop timing (MMBasic SYNC): `import pcgame`; pcgame.Clock(fps).
+freeze("$(BOARD_DIR)", "pcgame.py")
+
+# Simple plotting for education: plot(data) / plot(function, range).
+freeze("$(BOARD_DIR)", "pcplot.py")

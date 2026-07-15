@@ -68,3 +68,6 @@ freeze("$(BOARD_DIR)", "pcgame.py")
 
 # Simple plotting for education: plot(data) / plot(function, range).
 freeze("$(BOARD_DIR)", "pcplot.py")
+
+# Full-screen file manager (MMBasic FM): fm() -- browse/run/play/view/edit.
+freeze("$(BOARD_DIR)", "pcfm.py")

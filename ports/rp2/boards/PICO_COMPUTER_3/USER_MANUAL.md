@@ -152,6 +152,7 @@ on the flash (`/…`) or the SD card (`/sd/…`).
 | `run(path)` | Run a `.py` program (fresh namespace, inherits the REPL helpers) |
 | `edit(path)` | Open the full-screen **pye** editor (see below) |
 | `autosave(path)` | Capture what you paste/type at the console into a file (see below) |
+| `fm(path)` | Full-screen file manager — browse, run, play, view, edit (see below) |
 
 ### Getting a program onto the board by pasting — `autosave`
 
@@ -170,6 +171,41 @@ run("hello.py")
 It reads from whichever console you're on (a serial terminal or the USB keyboard
 on the HDMI screen). If pasted text appears doubled, turn *off* local echo in
 your terminal (the board echoes what it receives).
+
+### File manager — `fm`
+
+`fm()` (MMBasic's `FM`) is a **dual-panel** file manager that makes the board feel
+like a computer: two directory panes side by side, so you can copy and move
+between folders, and **open a file just by selecting it** — the manager runs,
+plays, shows or views it according to type.
+
+```python
+fm()          # both panes start in the current directory
+fm("/sd")     # both panes start on the SD card
+```
+
+- **Two panes:** **Tab** toggles the active pane, or **←/→** select the left/
+  right pane directly (its path bar highlights). Each pane browses independently
+  — point one at the source folder and the other at the destination.
+- **Navigate:** **↑/↓** (and PgUp/PgDn, Home/End) move the highlight; **Enter**
+  opens — a directory is entered, a file is acted on by type; **Backspace** goes
+  up a directory. Cursor moves are instant (only the changed rows repaint).
+- **Open by type on Enter:** `.py` → **run** it (fm restores its screen mode
+  afterwards, even if the program changed it); `.wav/.mp3/.flac/.mod` → **play**
+  (in the background); `.bmp/.jpg/.png` → **show** the image (any key returns);
+  text files (`.txt/.csv/.json/.md/.bas`…) → **view**, a page at a time. So a
+  single key does the right thing per file — there's no separate view/play key.
+- **Copy / move between panes:** **C** copies the selected file to the *other*
+  pane's directory; **M** moves it.
+- **Manage:** **E** edit (opens `pye`), **D** delete (confirms), **R** rename,
+  **N** new directory. **S** stops audio, **+/-** adjust volume.
+- **Q** exits.
+
+The bottom **status line shows the selected file's full name** (so a name too
+long to fit its pane is still readable), and the **key legend** just above wraps
+to fit the screen width, keeping every command visible even at 40 columns. It
+works the same on the HDMI screen (USB keyboard) and over a serial terminal; the
+default 80-column screen gives each pane a comfortable 40 columns.
 
 ### Editing files with `pye`
 

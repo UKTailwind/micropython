@@ -141,6 +141,11 @@ import pcplot
 
 __main__.plot = pcplot.plot
 
+# Full-screen file manager (MMBasic FM): fm() browses/runs/plays/views files.
+import pcfm
+
+__main__.fm = pcfm.fm
+
 try:
     ds3231.synctime()
 except Exception:

@@ -1710,6 +1710,52 @@ host-tested for series parsing (list / function / multi-series), bounds/flat-
 data padding, and per-style draw counts. `tests/test_plot.py` is a visual demo
 (static plots + a `Clock`-driven scrolling sine showing fps).
 
+### 49. File manager — `pcfm` (MMBasic FM, dual-panel)
+
+`fm(path)` (frozen, injected as `fm`): a **dual-panel** file manager that opens
+files by type — the "this is a computer" front end. Pure Python over the console
+and the existing helpers.
+
+- **Two panes** (`_Panel`: path/sel/top/entries + geometry), split at the console
+  midpoint; **Tab** switches the active pane; **C/M** copy/move the selected file
+  to the *other* pane's directory (via `pcshell._copy_file` / `os.rename`),
+  reloading the affected pane(s). Single-panel had no copy destination — this
+  fixes that.
+- **Rendering**: an ANSI UI (`ESC[2J`, cursor-position, reverse-video selection)
+  to `sys.stdout` — identical on serial and the on-screen console (CUP/SGR/erase,
+  §37/§38). **Incremental redraw**: a cursor move within the window repaints only
+  the two changed rows (old + new selection); only a scroll or directory change
+  redraws a whole pane — so navigation is snappy (the original full-screen redraw
+  per keystroke was slow). Listing via `os.ilistdir` (parent, dirs, files, case-
+  insensitive). **Enter is type-sensitive** (run/play/show/view — no separate
+  view/play key). The **key legend** greedy-wraps to the screen width across as
+  many lines as needed (1–2 normally, 3 at 40 cols) so every command stays
+  visible; the **status line shows the selected file's full name** (readable when
+  truncated in its pane). `←/→` select the left/right pane, Tab toggles.
+- **Keys**: a **blocking** stdin reader decodes ANSI escapes to logical keys
+  (arrows/PgUp/PgDn/Home/End/Del) — both the serial terminal and the USB keyboard
+  deliver these as `ESC[…` sequences to stdin (mp_usbh translates HID→VT100), and
+  an arrow's bytes arrive together so the follow-up reads return at once.
+  (`select.poll()` was tried first but **doesn't see the USB-keyboard ring
+  buffer** on this board, so every arrow timed out and looked like a lone Esc,
+  dropping out of FM — hence blocking reads.) A lone Esc can't be distinguished
+  from the start of a sequence, so **Q** is the exit key; `fm()` disables
+  `kbd_intr` so Ctrl-C also quits cleanly.
+- **Open by type**: `.py` → `pcshell.run`; audio → `pcaudio.play` (background,
+  with S=stop, ±=volume); image → `pcimage.draw_*`; text → `pcshell.cat` (paged);
+  E → `pcshell.edit` (pye). Plus delete (confirm), rename, mkdir. All reuse
+  existing modules — no new C, no new capability, just a front end.
+- **Display restore** (MMBasic FM does the same): a launched program may switch
+  video mode (a game → RGB320) and leave it, which would garble FM's console.
+  `run()` snapshots `(width, height, bpp)` before and, if it changed, restores
+  FM's mode via `hdmi.deinit`/`init(pcconfig hdmi_mode/clock)` + `pcconsole.
+  console()` (and recomputes the console size); otherwise it just re-attaches
+  the console (programs often re-route it to serial).
+
+Host-tested: path normalisation (`..`/`.`/relative), listing sort order, type/
+extension detection, directory navigation, and the full ANSI key decoder
+(every arrow/nav key, Enter/Back/letter, lone-Esc, Ctrl-C).
+
 ---
 
 ## Files touched

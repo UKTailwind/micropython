@@ -293,5 +293,67 @@ def mv(src, dst):
             os.remove(s)
 
 
+def autosave(path):
+    """Capture what you type or paste at the console straight into a file, with
+    no transfer protocol (MMBasic AUTOSAVE). Everything you send is written to
+    `path`; end with Ctrl-Z (or Ctrl-D) to save, or Ctrl-C to cancel. Ideal for
+    dropping a small program onto the board by pasting it into the terminal:
+
+        autosave("hello.py")      # paste your code, press Ctrl-Z
+        run("hello.py")
+    """
+    try:
+        from micropython import kbd_intr
+    except ImportError:
+        kbd_intr = None
+    rd = sys.stdin.buffer.read if hasattr(sys.stdin, "buffer") else sys.stdin.read
+    wr = sys.stdout.write
+    print("autosave to '%s' -- paste or type your program." % path)
+    print("End with Ctrl-Z (or Ctrl-D) to save, Ctrl-C to cancel.")
+    data = bytearray()
+    aborted = False
+    prev_cr = False
+    if kbd_intr:
+        kbd_intr(-1)  # deliver Ctrl-C/Ctrl-Z as raw bytes, not an interrupt
+    try:
+        while True:
+            c = rd(1)
+            if not c:
+                continue
+            b = c[0] if isinstance(c, (bytes, bytearray)) else ord(c)
+            if b == 0x1A or b == 0x04:          # Ctrl-Z / Ctrl-D -> save
+                break
+            if b == 0x03:                       # Ctrl-C -> abort
+                aborted = True
+                break
+            data.append(b)
+            # Echo so a paste is visible, emitting exactly one CR/LF per line
+            # break regardless of whether the source used CR, LF or CRLF.
+            if b == 0x0D:
+                wr("\r\n")
+                prev_cr = True
+            elif b == 0x0A:
+                if not prev_cr:
+                    wr("\r\n")
+                prev_cr = False
+            else:
+                wr(chr(b))
+                prev_cr = False
+    finally:
+        if kbd_intr:
+            kbd_intr(3)  # restore the normal Ctrl-C interrupt
+    if aborted:
+        print("\nautosave cancelled -- nothing written.")
+        return
+    text = bytes(data).decode()
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    with open(path, "w") as f:
+        f.write(text)
+    lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
+    print("\nsaved %d bytes, %d line%s to %s" % (
+        len(text), lines, "" if lines == 1 else "s", path))
+
+
 # Commands injected into the REPL (__main__) namespace by _boot.py.
-COMMANDS = ("ls", "run", "edit", "pwd", "cd", "mkdir", "rmdir", "rm", "cat", "cp", "mv")
+COMMANDS = ("ls", "run", "edit", "pwd", "cd", "mkdir", "rmdir", "rm", "cat", "cp",
+            "mv", "autosave")

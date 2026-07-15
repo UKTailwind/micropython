@@ -125,6 +125,12 @@ import pctilemap
 
 __main__.TileMap = pctilemap.TileMap
 
+# Maths helpers over ulab (quaternions, vectors, DSP, correl/chi, PID). ulab
+# itself (import ulab.numpy as np) covers stats/linalg/FFT/complex.
+import pcmath
+
+__main__.pcmath = pcmath
+
 try:
     ds3231.synctime()
 except Exception:

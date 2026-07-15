@@ -151,6 +151,25 @@ on the flash (`/…`) or the SD card (`/sd/…`).
 | `mkdir(path)` / `rmdir(path)` | Create / remove a directory |
 | `run(path)` | Run a `.py` program (fresh namespace, inherits the REPL helpers) |
 | `edit(path)` | Open the full-screen **pye** editor (see below) |
+| `autosave(path)` | Capture what you paste/type at the console into a file (see below) |
+
+### Getting a program onto the board by pasting — `autosave`
+
+`autosave("prog.py")` (MMBasic's `AUTOSAVE`) is the quickest way to drop a small
+program onto the board with **no file transfer at all** — no XMODEM, no SD-card
+shuffling. Run it, then **paste** (or type) your program into the terminal;
+everything you send is written straight to the file. End with **Ctrl-Z** (or
+Ctrl-D) to save, or **Ctrl-C** to cancel. Line endings are normalised, so a
+paste from any editor works:
+
+```python
+autosave("hello.py")     # then paste your code and press Ctrl-Z
+run("hello.py")
+```
+
+It reads from whichever console you're on (a serial terminal or the USB keyboard
+on the HDMI screen). If pasted text appears doubled, turn *off* local echo in
+your terminal (the board echoes what it receives).
 
 ### Editing files with `pye`
 
@@ -1392,6 +1411,36 @@ is `help('modules')`. Notable ones:
 
 For the API of every standard module, refer to the MicroPython documentation:
 **https://docs.micropython.org/en/latest/library/index.html**
+
+### Maths — `ulab` + `pcmath`
+
+Heavy numerical work is covered by **`ulab`**, a NumPy/SciPy-compatible array
+library built into this firmware. `import ulab.numpy as np` gives you `ndarray`,
+element-wise math, **statistics** (`sum/mean/std/median/min/max/sort`), **linear
+algebra** (`np.linalg.inv/det/eig/cholesky/qr/norm`, `np.dot`, `.T`), the **FFT**
+(`np.fft.fft/ifft`), interpolation (`np.interp`), `np.cross`, and **complex**
+arrays — plus `ulab.scipy` (optimise/signal/special) and the core `complex` +
+`cmath` types for scalar complex math. (Arrays are up to 2-D; FFT lengths must be
+a power of two.) See the ulab docs: https://micropython-ulab.readthedocs.io/.
+
+**`pcmath`** (`import pcmath`) adds the handful of MMBasic `MATH` verbs that ulab
+doesn't have, on top of it:
+
+| Area | API |
+|---|---|
+| Quaternions | `pcmath.Quat(w,x,y,z)`, `.from_axis(axis,angle)`, `.from_euler(r,p,y)`, `q1*q2`, `.rotate(v)`, `.inverse()`, `.to_euler()`, `.to_matrix()` |
+| 3-D vectors | `vcross`, `vdot`, `vmag`, `vunit`, `vrotate(v, axis, angle)` |
+| DSP | `window(n, kind)` (hann/hamming/blackman/bartlett/rect), `sinc(x)`, `crossings(a, level)`, `power_spectrum(a)` |
+| Statistics | `correl(a, b)` (Pearson r), `chi_square(obs, exp)` → `(chi2, p)` |
+| Control | `PID(kp, ki, kd, setpoint, out_min, out_max)` → `.update(measured, dt)` |
+
+```python
+import math, pcmath
+q = pcmath.Quat.from_euler(0, 0, math.radians(90))
+print(q.rotate((1, 0, 0)))                 # ~ (0, 1, 0)
+pid = pcmath.PID(2.0, 0.5, 0.1, setpoint=100, out_min=0, out_max=255)
+drive = pid.update(temperature, dt)
+```
 
 ### Board-specific extension modules
 

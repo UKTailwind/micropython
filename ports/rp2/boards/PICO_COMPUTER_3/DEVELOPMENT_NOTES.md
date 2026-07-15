@@ -1644,6 +1644,48 @@ viewport around via the F buffer. C DRAW math and the Python layer (map access,
 `tile_at`, attributes, `collide` with/without mask, viewport clamp, `draw`/
 `blit_tile` argument marshalling) checked on host.
 
+### 46. Maths helpers — `pcmath` (the MMBasic MATH gaps over ulab)
+
+MMBasic's `MATHS.c` is a grab-bag; most of it (statistics, linear algebra, FFT,
+element-wise math, **complex** scalar+array) is already covered — and exceeded —
+by the **ulab** module compiled into this board (`ULAB_SUPPORTS_COMPLEX=1`,
+scipy on, FFT numpy-compatible, linalg inv/det/eig/cholesky/qr/norm) plus core
+`complex`/`cmath`. So `pcmath.py` (frozen, injected as `pcmath`) only adds the
+verbs ulab lacks, in clean Python:
+
+- **Quaternions** (`Q_*`): a `Quat` class (pure-Python floats) — `from_axis`,
+  `from_euler` (aerospace ZYX), `*`, `conjugate/inverse/normalise`, `rotate(v)`
+  via the sandwich product, `to_euler`, `to_matrix` (ndarray).
+- **3-D vectors** (`V_*`): `vcross/vdot/vmag/vunit`, `vrotate` (Rodrigues).
+- **DSP** (`WINDOW/SINC/CROSSING`, FFT power): `window` (hann/hamming/blackman/
+  bartlett/rect), `sinc`, `crossings` (level sign-changes), `power_spectrum`
+  (|FFT|², one-sided; power-of-two length per ulab).
+- **Statistics** (`CORREL/CHI`): `correl` (Pearson r), `chi_square` → `(chi2, p)`
+  with the p-value from a self-contained regularised upper-incomplete-gamma
+  (Lanczos `lgamma` + NR series/continued-fraction) — no scipy dependency.
+- **Control** (`PID`): a `PID` class with output clamping + integral anti-windup.
+
+Deliberately **not** wrapped: stats/linalg/FFT/complex (use ulab directly) and
+the heavier/niche `SENSORFUSION` (AHRS) — can add later. No firmware change (ulab
+was already built in); pure frozen Python.
+
+Verify (`tests/test_math.py`, automatic; also host-tested vs NumPy): quaternion
+rotate/compose/inverse, euler round-trip, `to_matrix` vs `rotate`; vector ops;
+window ends/symmetry; `sinc`; 4 zero-crossings of two sine periods; power-spectrum
+peak bin; `correl` ±1; `chi_square` = 5.8 with p matching the 4-dof closed form
+`e^-2.9·3.9`; PID P-term and anti-windup clamp.
+
+### 47. `autosave()` — paste a program onto the board (MMBasic AUTOSAVE)
+
+`pcshell.autosave(path)` (injected into the REPL) captures everything sent at the
+console straight into a file — the frictionless way to get a small program on
+without XMODEM or an SD card: run it, paste, press Ctrl-Z. It disables
+`micropython.kbd_intr` so Ctrl-Z/Ctrl-D (finish) and Ctrl-C (abort) arrive as raw
+bytes, reads `sys.stdin.buffer` byte-by-byte, echoes with exactly one CR/LF per
+line break (so CR / LF / CRLF pastes all look right), then normalises endings to
+`\n` and writes. Works over serial or the USB keyboard. Host-tested: mixed
+endings normalise, Ctrl-D terminates, Ctrl-C writes nothing, no doubled newlines.
+
 ---
 
 ## Files touched

@@ -59,3 +59,6 @@ freeze("$(BOARD_DIR)", "pcgui.py")
 
 # Tile maps (MMBasic TILEMAP): TileMap class + fast C render via hdmi.tilemap().
 freeze("$(BOARD_DIR)", "pctilemap.py")
+
+# Maths helpers over ulab (MMBasic MATH gaps): quaternions, vectors, DSP, PID.
+freeze("$(BOARD_DIR)", "pcmath.py")

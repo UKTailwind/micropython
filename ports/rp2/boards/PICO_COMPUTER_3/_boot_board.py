@@ -120,6 +120,12 @@ import pcgui
 
 __main__.pcgui = pcgui
 
+# Mouse pointer overlay (MMBasic GUI CURSOR): pccursor.on()/refresh()/off().
+# (Already imported by pcgui; exposing it costs nothing extra.)
+import pccursor
+
+__main__.pccursor = pccursor
+
 # Tile maps (MMBasic TILEMAP): TileMap() drawn via the C hdmi.tilemap() helper.
 import pctilemap
 

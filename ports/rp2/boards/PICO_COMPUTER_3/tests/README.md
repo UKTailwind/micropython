@@ -38,6 +38,7 @@ and headless.
 | `test_sprites.py` | automatic | `pcsprite`: draw/erase/z-order (pixel-verified), collisions (sprite/edge/wall/layers, edge-triggered), `scroll` incl. wrap, both compositor modes |
 | `test_images.py` | automatic | `save_image`/`draw_bmp` pixel round-trip in 3 modes; optional `test.jpg`/`test.png` decode |
 | `test_fonts.py` | automatic | MMBasic bitmap fonts: `hdmi.fonts()` metrics, glyph rendering, scale/advance, transparency (set `WATCH=True` to see them) |
+| `test_cursor.py` | automatic | `pccursor` mouse pointer: hot-point placement, save/restore on move, hide/show/erase/off, shape/colour swap, corner clipping, all 4 modes (pixel-verified via `move()`, no mouse needed) |
 | `test_math.py` | automatic | `pcmath`: quaternions, 3-D vectors, DSP (window/sinc/crossing/power), correl/chi-square, PID |
 | `test_misc.py` | automatic | RTC, settings, shell helpers, keydown/mouse/touch queries, audio state machine, SD info |
 | `test_keydown.py` | interactive | `keydown()` codes/modifiers/multi-key, `keyboard.on_key` |

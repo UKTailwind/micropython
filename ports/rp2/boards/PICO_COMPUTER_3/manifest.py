@@ -54,6 +54,10 @@ freeze("$(BOARD_DIR)", "pcnet.py")
 # Turtle graphics (MMBasic TURTLE, on the pcgfx primitives): `Turtle` class.
 freeze("$(BOARD_DIR)", "pcturtle.py")
 
+# Mouse pointer overlay (MMBasic GUI CURSOR): save-under arrow/cross sprite
+# that tracks the USB mouse; auto-shown by pcgui. `import pccursor`.
+freeze("$(BOARD_DIR)", "pccursor.py")
+
 # On-screen GUI toolkit (MMBasic GUI controls): `import pcgui`; pcgui.GUI().
 freeze("$(BOARD_DIR)", "pcgui.py")
 

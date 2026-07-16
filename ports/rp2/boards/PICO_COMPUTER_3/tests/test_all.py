@@ -10,7 +10,8 @@ import sys
 import testutil as T
 
 AUTO = ["test_blit.py", "test_buffers.py", "test_sprites.py",
-        "test_images.py", "test_fonts.py", "test_math.py", "test_misc.py"]
+        "test_images.py", "test_fonts.py", "test_cursor.py",
+        "test_math.py", "test_misc.py"]
 INTERACTIVE = ["test_keydown.py", "test_audio.py", "test_console.py"]
 
 T.reset()

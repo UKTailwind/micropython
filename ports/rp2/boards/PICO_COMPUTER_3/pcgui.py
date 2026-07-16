@@ -21,12 +21,15 @@
 #
 # Pointer input comes from a USB mouse (mouse("X"/"Y"/"L")) or a USB touch panel
 # (touch("X"/"Y"/"DOWN")); text entry from the USB keyboard (keyboard.on_key).
+# When a mouse is present, start() shows the pccursor pointer (MMBasic's GUI
+# CURSOR) and poll() keeps it tracking the mouse.
 
 import time
 
 import hdmi
 import keyboard
 
+import pccursor
 import pcgfx
 
 # --- style ------------------------------------------------------------------
@@ -83,6 +86,7 @@ class Control:
 
     def redraw(self):
         if not self.hidden:
+            pccursor.erase()  # lift the pointer so it never saves stale pixels
             self.draw()
 
     def disable(self, off=True):
@@ -94,7 +98,7 @@ class Control:
         if on:
             self.g._erase(self)
         else:
-            self.draw()
+            self.redraw()
 
     def hit(self, px, py):
         return self.x <= px < self.x + self.w and self.y <= py < self.y + self.h
@@ -847,12 +851,14 @@ class _OnScreenKeyboard:
         self.y = sh - self.h
 
     def _draw_title(self):
+        pccursor.erase()
         d = self.d
         d.fill_rect(self.x, self.y, self.w, self.title_h, self.g.c(_PANEL))
         d.text(self.text + "_", self.x + 6, self.y + (self.title_h - 12) // 2,
                self.g.c(FG), font=1)
 
     def draw(self):
+        pccursor.erase()
         d = self.d
         d.fill_rect(self.x, self.y, self.w, self.h, self.g.c(_PANEL))
         d.rect(self.x, self.y, self.w, self.h, self.g.c(FRAME))
@@ -919,6 +925,7 @@ class _OnScreenKeyboard:
 
     def _wait_release(self):
         while self.g._pointer()[2]:
+            pccursor.refresh()
             time.sleep_ms(10)
 
     def run(self):
@@ -944,6 +951,7 @@ class _OnScreenKeyboard:
                             return self.text if act == "ok" else None
                         self._draw_title()
                 prev_down = down
+                pccursor.refresh()  # the modal loop replaces poll() here
                 time.sleep_ms(15)
         finally:
             self.g.focus = None
@@ -965,6 +973,7 @@ class GUI:
         self._py = 0
         self._keys = []
         self._started = False
+        self._cursor = False  # True while the mouse pointer is ours to stop()
         # global touch hooks (MMBasic GUI INTERRUPT TouchDown/TouchUp), each
         # called with the screen (x, y); set via on_touch() or assign directly.
         self.on_down = None
@@ -1001,27 +1010,40 @@ class GUI:
                 sys.print_exception(e)
 
     # --- lifecycle ---
-    def start(self):
-        """Begin capturing the USB keyboard for text boxes."""
+    def start(self, cursor=True):
+        """Begin capturing the USB keyboard for text boxes. If a mouse is
+        connected (and `cursor` isn't False), show the mouse pointer too."""
         keyboard.on_key(self._on_key)
         self._started = True
+        if cursor and not pccursor.active():
+            import mouse
+
+            if mouse.query("PRESENT"):
+                pccursor.on()
+                self._cursor = True  # ours to turn off in stop()
 
     def stop(self):
+        if self._cursor:
+            pccursor.off()
+            self._cursor = False
         if self._started:
             keyboard.on_key()
             self._started = False
 
     def cls(self):
         """Clear the screen to the face colour and redraw every control."""
+        pccursor.erase()
         hdmi.fill(self.c(self.face))
         self.redraw()
 
     def redraw(self):
+        pccursor.erase()
         for ctrl in self.controls:
             if not ctrl.hidden:
                 ctrl.draw()
 
     def _erase(self, ctrl):
+        pccursor.erase()
         self.d.fill_rect(ctrl.x, ctrl.y, ctrl.w, ctrl.h, self.c(self.face))
 
     def remove(self, ctrl):
@@ -1042,6 +1064,7 @@ class GUI:
     def _redraw_region(self, x, y, w, h):
         """Repaint a rectangle to the face colour and redraw every control that
         overlaps it (used to restore the screen after a modal keyboard closes)."""
+        pccursor.erase()
         self.d.fill_rect(x, y, w, h, self.c(self.face))
         for ctrl in self.controls:
             if ctrl.hidden:
@@ -1084,6 +1107,11 @@ class GUI:
     def poll(self):
         """Read the pointer once and dispatch events. Call often."""
         x, y, down = self._pointer()
+        if down or self._down:
+            # A press/drag/release may redraw controls under the pointer --
+            # lift it first so its save-under patch never captures a control
+            # mid-change; the refresh below repaints it.
+            pccursor.erase()
         if down:
             # Remember where the pointer is while it's down: on release the
             # source reports "not down" and its coordinates go stale (a lifted
@@ -1112,12 +1140,12 @@ class GUI:
                 else:
                     c.release(self._px, self._py)
             self._call(self.on_up, self._px, self._py)  # global TouchUp
+        pccursor.refresh()  # repaint the mouse pointer (tracks the mouse)
 
     # --- control factories (create, register, draw, return) ---
     def _add(self, ctrl):
         self.controls.append(ctrl)
-        if not ctrl.hidden:
-            ctrl.draw()
+        ctrl.redraw()  # (skips hidden controls; lifts the pointer first)
         return ctrl
 
     def caption(self, x, y, text, fg=None, bg=None, font=1, just="LT"):

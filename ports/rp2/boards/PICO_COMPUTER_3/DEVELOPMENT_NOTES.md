@@ -244,6 +244,9 @@ REPL (see §6). Files handled through MicroPython's VFS (flash + `/sd`).
 - **Directory / files:** `pwd()`, `cd(path="/")`, `ls(path=None)` (dirs first,
   then files A–Z, with size and mtime), `mkdir`, `rmdir`, `rm` (file), `cat`
   (print a text file), `cp(src,dst)`, `mv(src,dst)`.
+- **`cls()`** — clear the console screen (ANSI home + clear, `\x1b[H\x1b[2J`,
+  same sequence `cat`'s pager uses; MMBasic's `CLS`). Works on whichever
+  console(s) output is routed to.
   - `cp`/`mv`: if dst is an existing directory the file lands inside it.
   - `mv` across filesystems (SD ↔ flash) falls back to copy+remove, since
     `os.rename` only works within one filesystem.
@@ -251,7 +254,10 @@ REPL (see §6). Files handled through MicroPython's VFS (flash + `/sd`).
   - Extend by writing the function and adding its name to `pcshell.COMMANDS`.
 - **`run(path)`** — launch a `.py` from anywhere in a *fresh* namespace
   (`__name__ == "__main__"`, cwd temporarily set to the program's folder and
-  restored after). Program can't clobber REPL globals.
+  restored after). Program can't clobber REPL globals. Source is compiled
+  with `compile(src, path, "exec")` so tracebacks name the actual file
+  (`File "prog.py", line N`) rather than `<string>` — essential for the
+  edit/run/fix loop.
 - **`edit(*args)`** — full-screen editor. Lazily imports **pye**
   (robert-hh/Micropython-Editor, **MIT**, `V2.79`) which is vendored verbatim as
   `boards/PICO_COMPUTER_3/pye.py` and frozen via `manifest.py`. Works over the
@@ -362,7 +368,11 @@ keyboard is the next step) — the console is output-only (`readinto` → `None`
   the screen's 80×40 grid (as MMBasic does entering its editor).
 - **API:** `console(on=True, fg=0xFFFFFF, bg=0)` (RGB888), injected into `__main__`.
   `console(False)` detaches and stops the blink timer. After a resolution swap,
-  re-run `console()` to rebind.
+  re-run `console()` to rebind. Targets: `"both"`/`"screen"`/`"serial"`/
+  `"none"` — `"none"` (added for full-screen graphics: kills the blinking
+  cursor over animations) tears down the screen console *and* mutes
+  `_sercon`, output nowhere, input unaffected; not persisted, so RESET
+  recovers. Full-screen programs pair it with `finally: console()`.
 
 ### 13. USB host (TinyUSB) — enumeration + HID reports WORKING
 
@@ -496,6 +506,16 @@ a clock switch. (The C-side clock switch already re-times UART/PSRAM/cyw43 in
 A user's own `machine.I2C`/`SPI`/`PWM` created before a live clock change has
 the same limitation and would need re-creating — inherent to live clock
 switching.)
+
+- **Daily alarm (Alarm 1) on INT/GP32** (added for the book, v0.8):
+  `set_alarm(h, m, s=0)` writes regs 0x07–0x0A BCD with `A1M4=1`
+  (day-masked → daily), then read-modify-writes control 0x0E to set
+  `INTCN|A1IE` (RS bits preserved); `alarm_fired()`/`clear_alarm()` read/
+  clear `A1F` in status 0x0F (A2F preserved); `alarm_off()` clears `A1IE`;
+  `alarm_pin()` returns `Pin(32, IN, PULL_UP)` (INT is open-drain active
+  low). Because the alarm lives in the battery-backed chip it survives
+  resets — poll the flag or `.irq()` the pin. Host-tested against a fake
+  I2C at register level (BCD encoding, mask bits, flag preservation).
 
 ### 18. cyw43 Wi-Fi — gSPI PIO clock divider must scale with clk_sys
 
@@ -1752,9 +1772,63 @@ and the existing helpers.
   console()` (and recomputes the console size); otherwise it just re-attaches
   the console (programs often re-route it to serial).
 
+- **Multi-select** (MMBasic FM parity): **Space** toggles selection of the
+  highlighted file and steps down a row (repeated presses sweep a range);
+  selected rows render **yellow** (`SGR 33`, combined with the cursor's
+  reverse/blue) and the status line appends `[N selected]`. `_Panel.marked` is
+  a per-pane set of names — cleared on `set_path`, pruned against the listing
+  on every `load()` so vanished files can't be acted on. **C/M/D** operate on
+  the whole selection when one exists (sorted case-insensitively), confirm
+  once with the count for delete, report `copied/moved/deleted N files`, and
+  clear the selection; errors are reported but don't abort the batch.
+  Directories (and `..`) are not selectable. Also added while here: C/M now
+  refuse when both panes show the **same directory** (a copy onto itself via
+  `_copy_file` would truncate the source file).
+
 Host-tested: path normalisation (`..`/`.`/relative), listing sort order, type/
-extension detection, directory navigation, and the full ANSI key decoder
-(every arrow/nav key, Enter/Back/letter, lone-Esc, Ctrl-C).
+extension detection, directory navigation, the full ANSI key decoder
+(every arrow/nav key, Enter/Back/letter, lone-Esc, Ctrl-C), and multi-select
+(sweep/toggle, status count, group copy/move/delete, delete refusal keeping
+the selection, same-dir guard, mark pruning after external deletion).
+
+---
+
+### 50. Mouse pointer overlay — `pccursor` (MMBasic GUI CURSOR)
+
+Frozen `pccursor.py`: a visible mouse pointer, so mouse-driven GUIs aren't
+clicking at coordinates the user can't see. MMBasic's `GUI CURSOR` (the CMM2
+command set) as a module: a **save-under sprite** — the pixels beneath the
+pointer are read into a buffer before the sprite is drawn and blitted back
+when it moves, so it floats over any screen content without disturbing it.
+
+- **Sprites**: MMBasic's two built-in cursors, verbatim from PicoMite
+  `Pointer.c` — `ARROW` (13×19, hot point at the tip) and `CROSS` (15×15, hot
+  point centred). One int per row, bit *n* = opaque pixel in column *n*,
+  drawn in a configurable colour (default white); clear bits transparent.
+- **Rendering**: three `hdmi.blit` calls per move (save-under → draw with
+  skip-colour → restore), so all pixel work is C; Python bookkeeps one
+  rectangle. Buffers are built in the mode's native format (16/8/4 bpp;
+  width padded even for RGB1024's packed nibbles) with a transparent value
+  chosen to differ from the pointer colour. `hdmi.blit`'s clip-in-step
+  semantics make partial off-screen positions save/draw/erase symmetrically,
+  so no Python-side clipping is needed. A mode change (`hdmi.gen()` bump)
+  voids the saved patch and rebuilds the buffers.
+- **API**: `on(shape, colour, x, y)` / `off()` / `hide()` / `show()` /
+  `refresh()` (track the mouse; call from the loop) / `erase()` (lift before
+  drawing underneath; next refresh repaints) / `move(x, y)` (steer without a
+  mouse — tests, keyboard/joystick) / `pos()` / `active()`.
+- **pcgui integration** (mirrors MMBasic GUI.c's `CursorHide()` discipline):
+  `GUI.start()` turns the pointer on when `mouse("PRESENT")` (opt out with
+  `start(cursor=False)`), `stop()` turns it off, `poll()` refreshes it each
+  call and lifts it before dispatching a press/drag/release. Every control
+  draw path (`Control.redraw`, `GUI._erase`/`_redraw_region`/`redraw`/`cls`)
+  erases first so the save-under patch never captures a control mid-change;
+  the modal on-screen keyboard erases before its draws and refreshes inside
+  its own loop (it replaces `poll()` while open).
+- **Tests**: `tests/test_cursor.py` (automatic, in `test_all.py`) — steers
+  the pointer with `move()` (no mouse needed) and pixel-verifies hot-point
+  placement, save/restore on move, hide/show/erase/off, shape + colour
+  changes and corner clipping, in all four video modes.
 
 ---
 

@@ -1,10 +1,10 @@
 # Pico Computer 3 — MicroPython User Manual
 
-**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.7** (test release).
+**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.8** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.7 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.8 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -37,11 +37,17 @@ console("both")     # HDMI screen + serial port (the power-up default)
 console("serial")   # serial only: nothing prints on the HDMI screen —
                     #   ideal while testing graphics/sprites
 console("screen")   # HDMI screen only: the serial port stays silent
+console("none")     # no console output anywhere — also removes the
+                    #   blinking cursor from full-screen graphics
 console(fg=0x00FF00, bg=0)   # both, with green-on-black screen text
 ```
 
 `console(False)` is shorthand for `"serial"`, `console()` for `"both"`. The
-setting is not persisted — every power-up starts as `"both"`. XMODEM
+setting is not persisted — every power-up starts as `"both"`, and RESET
+recovers from an invisible `"none"`/`"serial"` state (or type `console()`
+blind — input always works). Full-screen programs typically switch to
+`"serial"` or `"none"` while running (the on-screen console's cursor blinks
+over the artwork otherwise) and restore `console()` in a `finally:`. XMODEM
 transfers use the serial port directly and work in any mode.
 
 The USB device port is disabled (there is no USB-CDC prompt); the USB port is a
@@ -53,6 +59,21 @@ At the prompt you can type Python directly, or use the shell-style helpers
 ```python
 run("/sd/myprog.py")
 ```
+
+**Auto-run at boot:** standard MicroPython behaviour applies — if `/boot.py`
+and/or `/main.py` exist on the flash they run automatically at every start-up
+(after the display, keyboard and SD card are ready). Install a program with
+`cp("prog.py", "/main.py")`, stop a running one with **Ctrl-C**, uninstall
+with `rm("/main.py")`.
+
+**Import search path:** `sys.path` is `['', '.frozen', '/lib']` — the current
+directory (`run()` sets this to the program's own folder, so a module next to
+the program is always found, on flash or SD), the frozen firmware modules,
+and `/lib` on the flash. `import` takes a module name, never a file path; to
+search additional folders (e.g. on the SD card) use
+`sys.path.append("/sd/mylibs")` — put it in `/boot.py` to apply at every
+start-up. Note that modules are cached per session: after editing one, press
+Ctrl-D (soft reset) so the next `import` re-reads it.
 
 ---
 
@@ -115,7 +136,7 @@ inherits the same names. The most useful are:
 palette (`RED`, `GREEN`, `BLUE`, `WHITE`, `BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, …).
 
 **Shell commands:** `ls`, `run`, `edit`, `pwd`, `cd`, `mkdir`, `rmdir`, `rm`,
-`cat`, `cp`, `mv`.
+`cat`, `cp`, `mv`, `cls`.
 
 **Display / settings:** `screen`, `palette`, `keymap`, `keymaps`, `console`.
 
@@ -128,7 +149,8 @@ palette (`RED`, `GREEN`, `BLUE`, `WHITE`, `BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, 
 
 **Images:** `draw_jpg`, `draw_bmp`, `draw_png`, `save_image`, `load_image`.
 
-**Input devices:** `touch`, `mouse`, `mouse_speed`, `keydown`.
+**Input devices:** `touch`, `mouse`, `mouse_speed`, `keydown`, `pccursor`
+(the visible mouse pointer — section 7).
 
 **File transfer:** `xrecv`, `xsend` (XMODEM over the serial console).
 
@@ -143,6 +165,7 @@ on the flash (`/…`) or the SD card (`/sd/…`).
 
 | Command | Description |
 |---|---|
+| `cls()` | Clear the console screen (MMBasic's `CLS`) |
 | `ls([path])` | List a directory. Accepts glob patterns: `ls("/sd/*.mp3")` |
 | `cd(path)` / `pwd()` | Change / show the working directory |
 | `cat(path)` | Print a text file, a page at a time (any key = next page, `q` = stop; `cat(path, False)` dumps it all) |
@@ -195,10 +218,16 @@ fm("/sd")     # both panes start on the SD card
   (in the background); `.bmp/.jpg/.png` → **show** the image (any key returns);
   text files (`.txt/.csv/.json/.md/.bas`…) → **view**, a page at a time. So a
   single key does the right thing per file — there's no separate view/play key.
-- **Copy / move between panes:** **C** copies the selected file to the *other*
-  pane's directory; **M** moves it.
-- **Manage:** **E** edit (opens `pye`), **D** delete (confirms), **R** rename,
-  **N** new directory. **S** stops audio, **+/-** adjust volume.
+- **Select several files:** **Space** selects/deselects the highlighted file
+  (shown in yellow; the status line counts the selection) and steps down a row,
+  so holding Space sweeps a range. **C**, **M** and **D** then act on the whole
+  selection in one go. The selection belongs to its pane and clears when that
+  pane changes directory. Only files can be selected, not directories.
+- **Copy / move between panes:** **C** copies the selected file(s) to the
+  *other* pane's directory; **M** moves them.
+- **Manage:** **E** edit (opens `pye`), **D** delete (confirms; a multi-file
+  delete confirms once with the count), **R** rename, **N** new directory.
+  **S** stops audio, **+/-** adjust volume.
 - **Q** exits.
 
 The bottom **status line shows the selected file's full name** (so a name too
@@ -669,8 +698,10 @@ a `Turtle()` draws off-screen.
 `pcgui` is a small widget toolkit — MMBasic's GUI controls (Micromite Plus) as
 Python objects. A `GUI` manager owns the controls, draws them, and dispatches
 input: a **USB mouse** or **touch panel** (section 7/8) for clicking/dragging,
-and the **USB keyboard** (section 6) for typing into text boxes. You create
-controls, then call `poll()` from your loop:
+and the **USB keyboard** (section 6) for typing into text boxes. When a mouse
+is connected, `start()` shows a visible **mouse pointer** and `poll()` keeps
+it tracking the mouse (`pccursor`, section 7; pass `start(cursor=False)` to
+opt out). You create controls, then call `poll()` from your loop:
 
 ```python
 import pcgui
@@ -714,12 +745,15 @@ g = pcgui.GUI()                     # draws on the current screen (hdmi.fb())
 g.start()                           # capture the USB keyboard (for text boxes)
 done = [False]
 
+def quit_app(b):
+    done[0] = True                  # (note: lists have no .__setitem__
+                                    #  attribute on MicroPython)
+
 g.caption(120, 4, "Pump Control", fg=YELLOW, font=2)
 level = g.gauge(80, 100, 40, lo=0, hi=100, fg=GREEN, font=2)
 g.slider(20, 170, 200, 20, lo=0, hi=100,
          callback=lambda s: setattr(level, "value", s.value))
-g.button(120, 205, 90, 28, "QUIT", fg=YELLOW, bg=RED,
-         callback=lambda b: done.__setitem__(0, True))
+g.button(120, 205, 90, 28, "QUIT", fg=YELLOW, bg=RED, callback=quit_app)
 
 try:
     while not done[0]:
@@ -929,6 +963,39 @@ while True:
     print(mouse("X"), mouse("Y"), mouse("L"))
     time.sleep_ms(100)
 ```
+
+### The visible pointer — `pccursor`
+
+`mouse("X"/"Y")` tells your *program* where the cursor is; **`pccursor`**
+shows the *user* — MMBasic's `GUI CURSOR`, as a module. It is a save-under
+sprite: the pixels beneath the pointer are saved before it is drawn and
+restored when it moves, so it floats over whatever is on screen without
+disturbing it. Shapes are MMBasic's built-in cursors: `pccursor.ARROW`
+(hot point at the tip) and `pccursor.CROSS` (hot point at the centre).
+
+| Call | Effect |
+|---|---|
+| `pccursor.on(shape=ARROW, colour=WHITE)` | show the pointer; call again to change shape/colour |
+| `pccursor.refresh()` | follow the mouse — call it from your loop |
+| `pccursor.hide()` / `pccursor.show()` | take it off the screen / put it back |
+| `pccursor.erase()` | lift it before drawing underneath; the next `refresh()` repaints |
+| `pccursor.move(x, y)` | steer it without a mouse (a live mouse overrides on refresh) |
+| `pccursor.pos()` | the hot-point position `(x, y)` |
+| `pccursor.off()` | remove it and restore the screen |
+
+```python
+import time
+import pccursor
+
+pccursor.on(pccursor.CROSS, colour=CYAN)
+while True:
+    pccursor.refresh()                  # erase + repaint if the mouse moved
+    time.sleep_ms(10)
+```
+
+**`pcgui` does all of this for you** (section 5): `GUI.start()` turns the
+pointer on when a mouse is connected, `GUI.poll()` keeps it refreshed, and
+control redraws lift it automatically. Pass `start(cursor=False)` to opt out.
 
 ---
 
@@ -1142,6 +1209,34 @@ clock is synchronised from it automatically.
 settime(2026, 7, 4, 14, 30, 0)
 print(gettime())
 ```
+
+### The hardware alarm (INT on GP32)
+
+The DS3231 has a daily alarm of its own, independent of any running
+program: at the set time it raises a flag and pulls its **INT pin — wired
+to GP32** — low until acknowledged. The `ds3231` module drives it:
+
+| Command | Description |
+|---|---|
+| `ds3231.set_alarm(hour, minute, second=0)` | Arm the daily alarm (fires at that time **every day**) |
+| `ds3231.alarm_fired()` | Has it gone off since the last clear? |
+| `ds3231.clear_alarm()` | Acknowledge: clear the flag, release INT |
+| `ds3231.alarm_off()` | Disarm entirely |
+| `ds3231.alarm_pin()` | GP32 as a `Pin` (input, pull-up enabled — INT is open-drain, active low: reads 0 while asserted) |
+
+```python
+import ds3231
+ds3231.set_alarm(7, 0)                    # 07:00 daily
+# poll it...
+if ds3231.alarm_fired():
+    play_tune(); ds3231.clear_alarm()
+# ...or take an interrupt (section 14):
+ds3231.alarm_pin().irq(lambda p: schedule_wake(), machine.Pin.IRQ_FALLING)
+```
+
+Because the alarm lives in the battery-backed chip, it survives resets and
+program restarts — whatever is polling (or waiting on the pin) when the
+time comes gets the flag.
 
 ### Setting the clock from the internet (NTP)
 
@@ -1543,6 +1638,7 @@ hdmi.layer(); hdmi.write("L")   # overlay layer (RGB320): sprites over scenery
 hdmi.create(); hdmi.copy("F", "N")   # off-screen buffer -> screen (see section 5)
 hdmi.blit(0, 0, 16, 16, x, y, "F", "N", d.colour(MAGENTA))  # sprite w/ cut-out
 hdmi.vsync()                    # wait for vertical blank (tear-free / pacing)
+console("none")                 # no console output/cursor during full-screen graphics
 console("serial")               # keep prints off the screen while testing graphics
 
 # Sprites (see section 5)
@@ -1568,7 +1664,8 @@ play("/sd/game.mod", loop=True); mod_sample(3)   # tracker music + effects
 tone(440, 880, 500)                              # sine tones (L, R, ms)
 sound(1, "B", "Q", 110)                          # 4-voice synth (see section 9)
 
-# Files
+# Files / console
+cls()                                      # clear the console screen
 ls("/sd/*.jpg"); run("/sd/app.py"); edit("/sd/app.py")
 xrecv("/sd/app.py"); xsend("/sd/app.py")   # XMODEM over the serial console
 
@@ -1577,5 +1674,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.5 — based on MicroPython. See
+*Pico Computer 3 firmware v0.8 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

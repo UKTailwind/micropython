@@ -1,0 +1,7 @@
+n = 10
+while n > 0:
+    print(n)
+    n -= 1
+
+print("LIFT OFF!")
+beep(220, 400)

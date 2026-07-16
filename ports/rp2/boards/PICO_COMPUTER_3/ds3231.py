@@ -6,6 +6,14 @@
 #   settime()                    copy the current system clock to the DS3231
 #   gettime()                    read the DS3231 -> (y, mo, d, h, mi, s)
 #   synctime()                   read the DS3231 -> set the system clock
+#
+# Daily alarm on the chip's INT pin (wired to GP32 on this board):
+#   set_alarm(h, mi, s=0)        arm a daily alarm; INT goes low at h:mi:s
+#   alarm_fired()                has it gone off since the last clear?
+#   clear_alarm()                acknowledge: clear the flag, release INT
+#   alarm_off()                  disarm the alarm entirely
+#   alarm_pin()                  GP32 as a pulled-up input Pin (INT is
+#                                open-drain: reads 0 while asserted)
 
 import machine
 import time
@@ -92,3 +100,63 @@ def synctime():
     wday = _weekday(year, month, day)
     machine.RTC().datetime((year, month, day, wday, hour, minute, second, 0))
     return (year, month, day, hour, minute, second)
+
+
+# --- Daily alarm (Alarm 1) on the INT pin -----------------------------------
+# The chip's INT/SQW output is wired to GP32 on this board. It is open-drain
+# and active LOW: enable the internal pull-up (alarm_pin() does) and the line
+# sits at 1, dropping to 0 when the alarm fires, until clear_alarm().
+
+INT_PIN = 32
+
+_CONTROL = 0x0E
+_STATUS = 0x0F
+_A1IE = 0x01      # alarm-1 interrupt enable (control)
+_INTCN = 0x04     # INT pin carries alarms, not the square wave (control)
+_A1F = 0x01       # alarm-1 fired flag (status)
+
+
+def set_alarm(hour, minute, second=0):
+    """Arm the daily alarm: at hour:minute:second EVERY day the fired flag
+    sets and the INT pin (GP32) goes low. Acknowledge with clear_alarm()."""
+    buf = bytes(
+        (
+            _dec2bcd(second),      # A1M1 = 0: match seconds
+            _dec2bcd(minute),      # A1M2 = 0: match minutes
+            _dec2bcd(hour),        # A1M3 = 0: match hours (24-hour)
+            0x80,                  # A1M4 = 1: ignore the day -> daily
+        )
+    )
+    bus = _bus()
+    bus.writeto_mem(_ADDR, 0x07, buf)
+    clear_alarm()                  # start with the flag down, INT released
+    ctrl = bus.readfrom_mem(_ADDR, _CONTROL, 1)[0]
+    bus.writeto_mem(_ADDR, _CONTROL, bytes((ctrl | _INTCN | _A1IE,)))
+
+
+def alarm_off():
+    """Disarm the daily alarm (and release INT if it was asserted)."""
+    bus = _bus()
+    ctrl = bus.readfrom_mem(_ADDR, _CONTROL, 1)[0]
+    bus.writeto_mem(_ADDR, _CONTROL, bytes((ctrl & ~_A1IE & 0xFF,)))
+    clear_alarm()
+
+
+def alarm_fired():
+    """True if the alarm has gone off since the last clear_alarm()."""
+    return bool(_bus().readfrom_mem(_ADDR, _STATUS, 1)[0] & _A1F)
+
+
+def clear_alarm():
+    """Acknowledge the alarm: clear the fired flag and release the INT pin.
+    (It will assert again at the next daily match.)"""
+    bus = _bus()
+    st = bus.readfrom_mem(_ADDR, _STATUS, 1)[0]
+    bus.writeto_mem(_ADDR, _STATUS, bytes((st & ~_A1F & 0xFF,)))
+
+
+def alarm_pin():
+    """GP32 (the DS3231's INT line) as a ready-made input: pull-up enabled,
+    reads 0 while the alarm is asserted. Use .irq() on it for interrupt
+    wake-ups (User Manual, section 14)."""
+    return machine.Pin(INT_PIN, machine.Pin.IN, machine.Pin.PULL_UP)

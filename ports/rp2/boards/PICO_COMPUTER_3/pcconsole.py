@@ -319,26 +319,30 @@ def console(target=True, fg=0xFFFFFF, bg=0x000000):
       "screen" - HDMI screen only (serial output muted; input still works)
       "serial" - serial port only (nothing printed on the HDMI screen --
                  handy while testing graphics)
+      "none"   - no console output at all: nothing on the screen (and no
+                 blinking cursor over full-screen graphics), serial muted.
+                 Input still works everywhere; restore with console().
     True/False are accepted as shorthand for "both"/"serial". Keyboard input
     (USB and serial) is never affected. Returns the on-screen Console (or
-    None for "serial")."""
+    None for "serial"/"none")."""
     global _con
     if target is True:
         target = "both"
     elif target is False:
         target = "serial"
-    if target not in ("both", "screen", "serial"):
-        raise ValueError("console target must be 'both', 'screen' or 'serial'")
+    if target not in ("both", "screen", "serial", "none"):
+        raise ValueError(
+            "console target must be 'both', 'screen', 'serial' or 'none'")
     try:
         import _sercon
 
-        _sercon.mute(target == "screen")
+        _sercon.mute(target in ("screen", "none"))
     except ImportError:
         pass  # no serial console in this build: screen behaves like both
     if _con is not None:  # tear down any existing console (stops its blink timer)
         _con.deinit()
         _con = None
-    if target != "serial":
+    if target in ("both", "screen"):
         _con = Console(fg, bg)
         sync_terminal()
         os.dupterm(_con)

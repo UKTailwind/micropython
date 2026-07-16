@@ -16,13 +16,18 @@ time.sleep(2)
 pcconsole.console("screen")
 print(">>> SCREEN-ONLY marker <<<")
 time.sleep(2)
+pcconsole.console("none")
+print(">>> NONE marker (should appear NOWHERE) <<<")
+time.sleep(2)
 pcconsole.console("both")
 print(">>> BOTH marker <<<")
 
 T.check(T.ask("Serial terminal: SERIAL-ONLY and BOTH markers, but NOT the "
-              "SCREEN-ONLY one?"), "serial routing")
+              "SCREEN-ONLY or NONE ones?"), "serial routing")
 T.check(T.ask("HDMI screen: SCREEN-ONLY and BOTH markers, but NOT the "
-              "SERIAL-ONLY one?"), "screen routing")
+              "SERIAL-ONLY or NONE ones?"), "screen routing")
+T.check(T.ask("While 'none' was active (2 s), no cursor blinked on the HDMI "
+              "screen?"), "none: no cursor")
 T.check_raises(ValueError, pcconsole.console, "bad target rejected", "nope")
 
 if __name__ == "__main__":

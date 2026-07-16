@@ -12,6 +12,13 @@ OUT = BOOK / "examples"
 
 NAME_RE = re.compile(r"\b([A-Za-z0-9_]+\.py)\b")
 
+# The reader's toolkit (chapter 34's list): modules later programs import.
+# Copied into examples/lib/ under their real names so imports resolve.
+LIBS = [("shapes.py", "ch11"), ("scorelib.py", "ch12"),
+        ("handy.py", "ch13"), ("sfx.py", "ch20"),
+        ("initials.py", "ch26"), ("gpad.py", "ch31"),
+        ("bench.py", "ch33")]
+
 
 def extract(md_path):
     lines = md_path.read_text(encoding="utf-8").splitlines()
@@ -110,6 +117,36 @@ def main():
             total += 1
         index.append("")
     index.append("Total: %d programs." % total)
+    index.append("")
+
+    # -- the importable toolkit, under its real names ------------------
+    libdir = OUT / "lib"
+    libdir.mkdir()
+    index.append("## lib -- the reader's toolkit, under its real names")
+    index.append("")
+    index.append("Copy the contents of `lib/` into `/lib` on the flash drive")
+    index.append("(or the directory you run from) so programs that import")
+    index.append("`shapes`, `handy`, `bench` etc. find them. `handy.py` is the")
+    index.append("chapter 13 module with chapter 18's `held()` added, as the")
+    index.append("book instructs.")
+    index.append("")
+    for libname, ch in LIBS:
+        src = sorted((OUT / ch).glob("*-" + libname))
+        if not src:
+            raise SystemExit("toolkit module %s not found in %s" % (libname, ch))
+        body = src[0].read_text(encoding="utf-8")
+        if libname == "handy.py":
+            held = sorted((OUT / "ch18").glob("*-handy.py"))[0]
+            body = (body.rstrip() + "\n\n\n"
+                    + "# held() -- chapter 18's keyboard helper, given its\n"
+                    + "# permanent home here as chapter 21 instructs.\n"
+                    + held.read_text(encoding="utf-8"))
+            note = " (chapter 13 + chapter 18's held())"
+        else:
+            note = " (from %s)" % ch
+        with open(libdir / libname, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body)
+        index.append("- `%s`%s" % (libname, note))
     index.append("")
     with open(OUT / "README.md", "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(index))

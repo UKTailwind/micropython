@@ -259,3 +259,19 @@ Regenerate after editing chapters with:
 - `03-listing.py` (2 lines)
 
 Total: 157 programs.
+
+## lib -- the reader's toolkit, under its real names
+
+Copy the contents of `lib/` into `/lib` on the flash drive
+(or the directory you run from) so programs that import
+`shapes`, `handy`, `bench` etc. find them. `handy.py` is the
+chapter 13 module with chapter 18's `held()` added, as the
+book instructs.
+
+- `shapes.py` (from ch11)
+- `scorelib.py` (from ch12)
+- `handy.py` (chapter 13 + chapter 18's held())
+- `sfx.py` (from ch20)
+- `initials.py` (from ch26)
+- `gpad.py` (from ch31)
+- `bench.py` (from ch33)

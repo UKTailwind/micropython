@@ -88,7 +88,9 @@ def run(path):
     slash = path.rfind("/")
     folder = path[:slash] if slash > 0 else ("/" if slash == 0 else None)
     with open(path) as f:
-        source = f.read()
+        # compile with the real filename so tracebacks say `File "prog.py",
+        # line N` instead of `File "<string>"` -- run/edit/fix needs the name
+        code = compile(f.read(), path, "exec")
     g = {k: v for k, v in __main__.__dict__.items() if not k.startswith("__")}
     g["__name__"] = "__main__"
     g["__file__"] = path
@@ -96,7 +98,7 @@ def run(path):
     try:
         if folder is not None:
             os.chdir(folder)
-        exec(source, g)
+        exec(code, g)
     finally:
         os.chdir(cwd)
 
@@ -108,6 +110,11 @@ def edit(*args, **kwargs):
     import pye
 
     return pye.pye(*args, **kwargs)
+
+
+def cls():
+    """Clear the console screen and home the cursor (MMBasic's CLS)."""
+    sys.stdout.write("\x1b[H\x1b[2J")
 
 
 def pwd():
@@ -356,4 +363,4 @@ def autosave(path):
 
 # Commands injected into the REPL (__main__) namespace by _boot.py.
 COMMANDS = ("ls", "run", "edit", "pwd", "cd", "mkdir", "rmdir", "rm", "cat", "cp",
-            "mv", "autosave")
+            "mv", "autosave", "cls")

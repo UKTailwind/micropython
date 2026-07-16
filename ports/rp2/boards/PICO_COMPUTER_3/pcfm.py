@@ -8,9 +8,11 @@
 #
 # Keys: Tab toggles the active pane, Left/Right select the left/right pane;
 # Up/Down/PgUp/PgDn/Home/End move; Enter opens (dir = enter, file =
-# run/play/show/view by type); Backspace = up a directory. C copy, M move (to the
-# OTHER pane), E edit, V view, D delete, R rename, N new dir, P play / S stop
-# audio, +/- volume, Q quits. Cursor moves repaint only the two changed rows.
+# run/play/show/view by type); Backspace = up a directory. Space selects/deselects
+# the highlighted file (MMBasic FM) so C/M/D act on the whole selection. C copy,
+# M move (to the OTHER pane), E edit, V view, D delete, R rename, N new dir,
+# P play / S stop audio, +/- volume, Q quits. Cursor moves repaint only the two
+# changed rows.
 
 import os
 import sys
@@ -21,8 +23,9 @@ _TEXT = (".py", ".txt", ".csv", ".json", ".md", ".cfg", ".ini", ".log", ".bas",
          ".html", ".xml", ".sh")
 _ANSI = {"A": "UP", "B": "DOWN", "C": "RIGHT", "D": "LEFT", "H": "HOME",
          "F": "END", "5~": "PGUP", "6~": "PGDN", "3~": "DEL"}
-_LEGEND = ("Tab/<> pane", "Enter open", "Bksp up", "C copy", "M move", "E edit",
-           "D del", "R rename", "N mkdir", "S stop", "+- vol", "Q quit")
+_LEGEND = ("Tab/<> pane", "Enter open", "Bksp up", "Space select", "C copy",
+           "M move", "E edit", "D del", "R rename", "N mkdir", "S stop",
+           "+- vol", "Q quit")
 
 
 def _rd():
@@ -103,12 +106,14 @@ class _Panel:
         self.listrows = listrows
         self.sel = 0
         self.top = 0
+        self.marked = set()          # Space-selected file names (this dir only)
         self.set_path(path)
 
     def set_path(self, path):
         self.path = _abspath(path)
         self.sel = 0
         self.top = 0
+        self.marked.clear()
         self.load()
 
     def load(self):
@@ -125,6 +130,8 @@ class _Panel:
         files.sort(key=lambda x: x[0].lower())
         parent = [] if self.path == "/" else [("..", True, 0)]
         self.entries = parent + dirs + files
+        # drop marks on files that no longer exist (moved/deleted/renamed)
+        self.marked &= {e[0] for e in self.entries if not e[1]}
         if self.sel >= len(self.entries):
             self.sel = max(0, len(self.entries) - 1)
 
@@ -168,8 +175,12 @@ class _Panel:
             _w(" " * self.w)
             return
         s = self._row_str(idx)
+        marked = self.entries[idx][0] in self.marked
         if idx == self.sel:
-            _w(("\x1b[7m" if active else "\x1b[44m") + s + "\x1b[0m")
+            attr = "\x1b[7m" if active else "\x1b[44m"
+            _w(attr + ("\x1b[33m" if marked else "") + s + "\x1b[0m")
+        elif marked:
+            _w("\x1b[33m" + s + "\x1b[0m")
         else:
             _w(s)
 
@@ -219,10 +230,13 @@ class _FM:
         """Put the selected entry's full name in the status line (so a name too
         long for the pane is still readable) -- MMBasic FM does this."""
         name, isdir, size = self.act.cur()
+        s = ""
         if name:
-            self.set_status(name + ("  <dir>" if isdir else "  " + _hsize(size)))
-        else:
-            self.set_status("")
+            s = name + ("  <dir>" if isdir else "  " + _hsize(size))
+        n = len(self.act.marked)
+        if n:
+            s += "  [%d selected]" % n
+        self.set_status(s)
 
     # --- rendering ---
     def redraw(self):
@@ -323,6 +337,22 @@ class _FM:
         self.act.draw(True)
         self._show_name()
 
+    def toggle_mark(self):
+        """Space -- select/deselect the highlighted file (MMBasic FM), then step
+        down a row so repeated presses sweep a range. C/M/D act on the whole
+        selection; entering another directory clears it."""
+        a = self.act
+        name, isdir, _ = a.cur()
+        if not name or isdir:
+            self.set_status("only files can be selected")
+            return
+        if name in a.marked:
+            a.marked.discard(name)
+        else:
+            a.marked.add(name)
+        a.draw_sel(True)         # recolour in place (cursor may be on last row)
+        self._cursor(1)
+
     def run(self, full):
         import pcshell
         import hdmi
@@ -416,31 +446,69 @@ class _FM:
         import pcshell
 
         a = self.act
-        name, isdir, _ = a.cur()
-        if not name or isdir:
-            self.set_status("select a file to " + ("move" if move else "copy"))
-            return
         dst = self.other()
-        dstfull = dst.full(name)
-        try:
-            if move:
-                try:
-                    os.rename(a.full(name), dstfull)
-                except OSError:
+        verb = "move" if move else "copy"
+        if a.marked:
+            names = sorted(a.marked, key=lambda n: n.lower())
+        else:
+            name, isdir, _ = a.cur()
+            if not name or isdir:
+                self.set_status("select a file to " + verb)
+                return
+            names = [name]
+        if dst.path == a.path:
+            self.set_status("both panes show the same directory")
+            return
+        done = 0
+        err = None
+        for name in names:
+            dstfull = dst.full(name)
+            try:
+                if move:
+                    try:
+                        os.rename(a.full(name), dstfull)
+                    except OSError:
+                        pcshell._copy_file(a.full(name), dstfull)
+                        os.remove(a.full(name))
+                else:
                     pcshell._copy_file(a.full(name), dstfull)
-                    os.remove(a.full(name))
-                a.load()
-                a.draw(self.act is a)
-            else:
-                pcshell._copy_file(a.full(name), dstfull)
-            dst.load()
-            dst.draw(self.act is dst)
-            self.set_status(("moved " if move else "copied ") + name + " -> " + dst.path)
-        except OSError as e:
-            self.set_status("failed: " + str(e))
+                done += 1
+            except OSError as e:
+                err = e
+        a.marked.clear()
+        a.load()
+        a.draw(True)
+        dst.load()
+        dst.draw(False)
+        what = names[0] if len(names) == 1 else "%d files" % done
+        s = ("moved " if move else "copied ") + what + " -> " + dst.path
+        if err is not None:
+            s = "%s failed: %s" % (verb, err) if done == 0 else s + "  (1+ failed: %s)" % err
+        self.set_status(s)
 
     def delete(self):
         a = self.act
+        if a.marked:
+            names = sorted(a.marked, key=lambda n: n.lower())
+            if not self._confirm("Delete %d selected files? (y/N) " % len(names)):
+                self._show_name()
+                return
+            done = 0
+            err = None
+            for name in names:
+                try:
+                    os.remove(a.full(name))
+                    done += 1
+                except OSError as e:
+                    err = e
+            a.marked.clear()
+            s = "deleted %d file%s" % (done, "" if done == 1 else "s")
+            if err is not None:
+                s += "  (1+ failed: %s)" % err
+            self.set_status(s)
+            a.load()
+            a.draw(True)
+            return
         name, isdir, _ = a.cur()
         if not name or name == "..":
             return
@@ -515,6 +583,8 @@ class _FM:
                 self._cursor(len(a.entries) - 1 - a.sel)
             elif k == "BACK":
                 self.up()
+            elif k == " ":
+                self.toggle_mark()
             elif k == "ENTER":
                 self.open_sel()
             elif k in ("C", "c"):
@@ -542,7 +612,8 @@ class _FM:
 
 def fm(path=None):
     """Open the dual-panel file manager (MMBasic FM). `path` is the starting
-    directory (default: the current directory). Tab switches panes; Q exits."""
+    directory (default: the current directory). Tab switches panes; Space
+    selects several files for one C/M/D copy/move/delete; Q exits."""
     try:
         from micropython import kbd_intr
     except ImportError:

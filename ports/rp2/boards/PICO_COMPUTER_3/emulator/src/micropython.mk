@@ -6,6 +6,7 @@ PC3EMU_DIR := $(USERMOD_DIR)
 PC3_RP2_DIR := $(PC3EMU_DIR)/../../../..
 
 SRC_USERMOD_C += $(PC3_RP2_DIR)/hdmi.c
+SRC_USERMOD_C += $(PC3_RP2_DIR)/draw3d.c
 SRC_USERMOD_C += $(PC3EMU_DIR)/hdmi_sdl.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/usb_keyboard.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/kbd_decode.c

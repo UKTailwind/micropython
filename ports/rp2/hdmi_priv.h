@@ -105,4 +105,13 @@ void hdmi_backend_set_clock(uint32_t khz);
 bool hdmi_backend_in_blanking(void);
 bool hdmi_backend_stack_ok(void);
 
+// --- Drawing helpers on the current write target (defined in hdmi.c) --------
+// For C-side renderers (draw3d.c): mode-aware colour conversion and clipped
+// primitives operating on hdmi.write()'s target buffer.
+int32_t hdmi_colour_native(uint32_t rgb888);
+void hdmi_draw_line_raw(int x1, int y1, int x2, int y2, int32_t colour);
+void hdmi_fill_rect_raw(int x1, int y1, int x2, int y2, int32_t colour);
+void hdmi_polyfill_raw(const int16_t *pts, int count, int32_t colour, int pattern);
+int hdmi_nearest_index(int r, int g, int b); // RGB121 palette lookup
+
 #endif // MICROPY_INCLUDED_RP2_HDMI_PRIV_H

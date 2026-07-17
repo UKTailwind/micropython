@@ -190,6 +190,7 @@ if(MICROPY_HW_ENABLE_HDMI)
     list(APPEND MICROPY_SOURCE_PORT
         hdmi.c
         hdmi_rp2.c
+        draw3d.c
         audio.c
         dr_wav.c
         dr_mp3.c
@@ -258,6 +259,7 @@ if(MICROPY_HW_ENABLE_HDMI)
         ${MICROPY_PORT_DIR}/bmp.c
         ${MICROPY_PORT_DIR}/png.c
         ${MICROPY_PORT_DIR}/hdmi.c
+        ${MICROPY_PORT_DIR}/draw3d.c
         ${MICROPY_PORT_DIR}/sercon.c
     )
 endif()

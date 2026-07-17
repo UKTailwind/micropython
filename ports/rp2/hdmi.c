@@ -1192,24 +1192,91 @@ static const uint8_t hdmi_fill_patterns[32][8] = {
     {0x7E, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7E}, // 31: Circle filled
 };
 
-// hdmi.polyfill(points, colour, pattern=0) -- fill a polygon on the current
-// write target: the MMBasic turtle's scanline fill (fill_polygon_scanline /
-// fill_polygon_pattern from PicoMite Turtle.c, ported verbatim: even-odd
-// spans, up to 256 edge crossings per scanline). `points` is a flat buffer
-// of int16 x,y pairs (as framebuf.poly takes). pattern 0 = solid, 1..31 =
-// the MMBasic pattern set; a pattern's unset bits leave the background.
-static mp_obj_t hdmi_polyfill_fn(size_t n_args, const mp_obj_t *args) {
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(args[0], &bufinfo, MP_BUFFER_READ);
-    const int16_t *pts = (const int16_t *)bufinfo.buf;
-    int count = (int)(bufinfo.len / 4); // int16 x,y pairs
-    mp_int_t colour = mp_obj_get_int(args[1]);
-    int pattern = (n_args > 2) ? mp_obj_get_int(args[2]) : 0;
+// Mode-aware RGB888 -> native colour (RGB332 / RGB565 / RGB121 palette
+// index), for C renderers that carry MMBasic's 24-bit colours (draw3d).
+int32_t hdmi_colour_native(uint32_t rgb888) {
+    int r = (rgb888 >> 16) & 0xFF, g = (rgb888 >> 8) & 0xFF, b = rgb888 & 0xFF;
+    if (hdmi_rgb121) {
+        return hdmi_nearest_index(r, g, b);
+    }
+    if (hdmi_native) {
+        return (r & 0xE0) | ((g & 0xE0) >> 3) | ((b & 0xC0) >> 6);
+    }
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+// Clipped 1-px Bresenham line on the current write target (MMBasic DrawLine
+// width 1, as the 3D engine uses it).
+void hdmi_draw_line_raw(int x1, int y1, int x2, int y2, int32_t colour) {
+    uint8_t *buf = hdmi_wbuf();
+    int dx = x2 - x1, sx = dx < 0 ? -1 : 1;
+    int dy = y2 - y1, sy = dy < 0 ? -1 : 1;
+    if (dx < 0) {
+        dx = -dx;
+    }
+    if (dy < 0) {
+        dy = -dy;
+    }
+    int err = (dx > dy ? dx : -dy) / 2;
+    for (;;) {
+        if (x1 >= 0 && x1 < hdmi_w && y1 >= 0 && y1 < hdmi_h) {
+            hdmi_px_set(buf, hdmi_w, x1, y1, colour);
+        }
+        if (x1 == x2 && y1 == y2) {
+            break;
+        }
+        int e2 = err;
+        if (e2 > -dx) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dy) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+}
+
+// Clipped filled rectangle on the current write target (MMBasic
+// DrawRectangle, as the 3D engine's hide/clear uses it).
+void hdmi_fill_rect_raw(int x1, int y1, int x2, int y2, int32_t colour) {
+    uint8_t *buf = hdmi_wbuf();
+    if (x1 > x2) {
+        int t = x1;
+        x1 = x2;
+        x2 = t;
+    }
+    if (y1 > y2) {
+        int t = y1;
+        y1 = y2;
+        y2 = t;
+    }
+    if (x1 < 0) {
+        x1 = 0;
+    }
+    if (y1 < 0) {
+        y1 = 0;
+    }
+    if (x2 > hdmi_w - 1) {
+        x2 = hdmi_w - 1;
+    }
+    if (y2 > hdmi_h - 1) {
+        y2 = hdmi_h - 1;
+    }
+    for (int y = y1; y <= y2; y++) {
+        for (int x = x1; x <= x2; x++) {
+            hdmi_px_set(buf, hdmi_w, x, y, colour);
+        }
+    }
+}
+
+// The MMBasic turtle polygon fill (see hdmi.polyfill below), callable from C.
+void hdmi_polyfill_raw(const int16_t *pts, int count, int32_t colour, int pattern) {
     if (pattern < 0 || pattern > 31) {
         pattern = 0;
     }
     if (count < 3) {
-        return mp_const_none;
+        return;
     }
     uint8_t *buf = hdmi_wbuf();
     const int W = hdmi_w, H = hdmi_h;
@@ -1269,6 +1336,20 @@ static mp_obj_t hdmi_polyfill_fn(size_t n_args, const mp_obj_t *args) {
             }
         }
     }
+}
+
+// hdmi.polyfill(points, colour, pattern=0) -- fill a polygon on the current
+// write target: the MMBasic turtle's scanline fill (fill_polygon_scanline /
+// fill_polygon_pattern from PicoMite Turtle.c, ported verbatim: even-odd
+// spans, up to 256 edge crossings per scanline). `points` is a flat buffer
+// of int16 x,y pairs (as framebuf.poly takes). pattern 0 = solid, 1..31 =
+// the MMBasic pattern set; a pattern's unset bits leave the background.
+static mp_obj_t hdmi_polyfill_fn(size_t n_args, const mp_obj_t *args) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(args[0], &bufinfo, MP_BUFFER_READ);
+    int pattern = (n_args > 2) ? mp_obj_get_int(args[2]) : 0;
+    hdmi_polyfill_raw((const int16_t *)bufinfo.buf, (int)(bufinfo.len / 4),
+        (int32_t)mp_obj_get_int(args[1]), pattern);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_polyfill_obj, 2, 3, hdmi_polyfill_fn);

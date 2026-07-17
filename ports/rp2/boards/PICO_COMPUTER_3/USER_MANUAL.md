@@ -1545,6 +1545,30 @@ is `help('modules')`. Notable ones:
 For the API of every standard module, refer to the MicroPython documentation:
 **https://docs.micropython.org/en/latest/library/index.html**
 
+### 3D engine — `draw3d`
+
+MMBasic's `DRAW3D` (the PicoMite 3D engine), as a module. Objects are
+polyhedra drawn on the current HDMI write target: backface-culled by surface
+normals, painter-depth-sorted, edges and fills in RGB888 colours (converted
+per screen mode). See `demos/football.py` — a tumbling truncated icosahedron.
+
+| Call | MMBasic | Notes |
+|---|---|---|
+| `draw3d.camera(c, viewplane, x=0, y=0, panx=0, pany=0)` | `DRAW3D CAMERA` | cameras 1..3 |
+| `draw3d.create(n, nv, nf, cam, vertices, fc, faces, colours, edge=None, fill=None)` | `DRAW3D CREATE` | `vertices` = flat x,y,z per vertex; `faces` = flat vertex-index list in `fc` order; `edge`/`fill` = per-face **index** into `colours` (omit `fill` for wireframe) |
+| `draw3d.show(n, x, y, z, nonormals=0, depthmode=0)` | `DRAW3D SHOW` | erases the previous position first; `depthmode` 1 sorts by deepest vertex |
+| `draw3d.write(n, x, y, z, ...)` | `DRAW3D WRITE` | as `show` without the erase |
+| `draw3d.rotate(q, n, ...)` | `DRAW3D ROTATE` | `q` = `(w, x, y, z, m)`; rotates from the *original* orientation |
+| `draw3d.reset(n, ...)` | `DRAW3D RESET` | rotated becomes the new original (cumulative spins) |
+| `draw3d.hide(n, ...)` / `hide_all()` / `restore(n, ...)` | `HIDE` / `RESTORE` | erase / redraw as last shown |
+| `draw3d.close(n, ...)` / `close_all()` | `CLOSE` | free the object(s) |
+| `draw3d.set_flags(n, flag, face, nbr)` | `SET FLAGS` | per-face: 1 hide, 2 red, 4 invert normal, 8 lighting |
+| `draw3d.light(n, x, y, z, ambient)` | `DRAW3D LIGHT` | with flag 8; ambient 0..100 |
+| `draw3d.q_create(theta, x, y, z)` | `MATH Q_CREATE` | rotation quaternion tuple; theta in radians |
+| `draw3d.query(n, "xmin"/"ymax"/"x"/"z"/"distance"/...)` | `DRAW3D()` | last-drawn bounding box / position / mean camera distance |
+
+Not yet ported: `depthmode=2` (the z-buffer hidden-line mode).
+
 ### Maths — `ulab` + `pcmath`
 
 Heavy numerical work is covered by **`ulab`**, a NumPy/SciPy-compatible array

@@ -1873,6 +1873,32 @@ when it moves, so it floats over any screen content without disturbing it.
   returns both to 0; the 9-axis path settles yaw to magnetic north; the
   Ki integral path holds; the divergence reset restores identity.
 
+### 53. 3D engine — `draw3d` (MMBasic DRAW3D)
+
+- **What**: PicoMite's `graphics/Draw3D.c` ported to a C module
+  (`draw3d.c`, shared firmware + emulator like hdmi.c). Vertices as
+  MMBasic's unit-vector+magnitude quaternions; `rotate()` with 5-element
+  rotation quaternions (`T_Mult`/`q_rotate` verbatim); per-face surface
+  normals from the (v1,v2,v0) vertex order; backface culling by the
+  camera-ray dot; MMBasic's descending bubble depthsort (centroid or
+  max-vertex depth); per-face flags (hide / debug-red / invert normal /
+  lighting with ambient) and `LIGHT`; hide/restore/close with the erased
+  bounding box; `q_create` (MATH Q_CREATE) and the `DRAW3D()` queries.
+  Colours are RGB888 converted per mode at draw time.
+- **Drawing**: through new shared helpers in hdmi.c (`hdmi_colour_native`,
+  `hdmi_draw_line_raw`, `hdmi_fill_rect_raw`, and `hdmi_polyfill_raw`
+  refactored out of hdmi.polyfill), all operating on the current write
+  target — so the double-buffered idiom (compose on F, copy to N) works
+  exactly as MMBasic's FRAMEBUFFER flow.
+- **Not ported yet**: `depthmode=2` (the rp2350 z-buffer hidden-line
+  rasteriser); faces are limited to 32 vertices.
+- **Verified** (emulator): Peter's bouncing-football test
+  (`demos/football.py`, converted from his MMBasic original — 60 vertices,
+  32 faces): red-pentagon/white-hexagon pixel census correct with zero
+  stray colours, culling shows ~half the faces, the ball moves and
+  bounces, hide/restore/set_flags/close guards behave. 300 frames in
+  15 ms on the emulator (the engine is C; pace with hdmi.vsync()).
+
 ---
 
 ## Files touched

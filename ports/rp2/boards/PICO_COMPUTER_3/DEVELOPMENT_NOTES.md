@@ -1925,6 +1925,27 @@ when it moves, so it floats over any screen content without disturbing it.
   nibble — a latent nibble-swap for Display-based drawing in the 4bpp
   modes (pre-existing in RGB1024, untouched here).
 
+### 55. screen() lockup at 315/378 MHz — boot2 flash divider (PICO_FLASH_SPI_CLKDIV)
+
+- **Symptom** (Peter's bench): `screen(RGB640/RGB320, 315 or 378)` hard-hangs;
+  a direct `hdmi.deinit(); hdmi.init(mode, clock)` works at every clock.
+  Difference: `screen()` also SAVES the settings — two flash writes.
+- **Root cause** (latent since v0.8, first exercised now): after every
+  erase/program, pico-sdk's `flash_range_*` re-enters XIP **via boot2**,
+  which times the flash at `clk_sys / PICO_FLASH_SPI_CLKDIV`. The Pimoroni
+  board header defaults that divider to **2**: fine at 252 MHz (126 MHz
+  reads), fatal at 315/378 (157/189 MHz) — the first post-write fetch of
+  flash-resident code returns garbage before `end_critical_flash_section`
+  can re-apply our dynamic timing. Exactly the failure MMBasic guards with
+  its `PICO_FLASH_SPI_CLKDIV=4`.
+- **Fix**: the board cmake now defines `PICO_FLASH_SPI_CLKDIV=4`
+  (378/4 = 94.5 MHz in the boot2 window — within the W25Q's fast-read
+  spec). Steady-state XIP speed is unchanged: the dynamic timing is capped
+  separately by `MICROPY_HW_FLASH_MAX_FREQ` (63 MHz) in mpconfigboard.h.
+  Verified the define reaches the bs2_default stage2 build.
+- **Needs hardware confirmation**: `screen(hdmi.RGB640, 315)` (and 378, and
+  RGB320 variants) after flashing a CLEAN build.
+
 ---
 
 ## Files touched

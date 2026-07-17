@@ -13,6 +13,15 @@ add_compile_definitions(
     PICO_DEFAULT_UART=1
     PICO_DEFAULT_UART_TX_PIN=8
     PICO_DEFAULT_UART_RX_PIN=9
+    # After every flash erase/program the pico-sdk re-enters XIP VIA BOOT2,
+    # which times the flash at clk_sys/PICO_FLASH_SPI_CLKDIV. The Pimoroni
+    # board header's default of 2 is only safe up to ~266 MHz -- at 315/378
+    # (screen(..., 315/378)) the first post-write flash fetch runs the chip
+    # at 157/189 MHz and the machine hangs before our re-timing code runs.
+    # 4 keeps that window safe at every supported clock (378/4 = 94.5 MHz),
+    # exactly MMBasic's setting; steady-state XIP speed is unaffected (see
+    # MICROPY_HW_FLASH_MAX_FREQ in mpconfigboard.h).
+    PICO_FLASH_SPI_CLKDIV=4
 )
 
 # Let the cyw43 gSPI PIO clock divider be set at runtime (main.c scales it with

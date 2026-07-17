@@ -5,8 +5,9 @@
 # Draws each test on the HDMI screen (320x240) and prints the test name to the
 # serial console; press any (USB) key to advance, or each step auto-advances
 # after ~1.5 s. MMBasic features we don't implement are noted and skipped:
-# fill PATTERNS (our fills are solid), the animated cursor (SHOW/HIDE TURTLE --
-# use stamp()), and ARECT (rotated rectangle; only axis-aligned rectangle()).
+# the animated cursor (SHOW/HIDE TURTLE -- use stamp()) and ARECT (rotated
+# rectangle; only axis-aligned rectangle()). Fill PATTERNS (MMBasic TURTLE
+# FILL PATTERN -> fillpattern()) are implemented and tested below.
 
 import random
 import time
@@ -336,6 +337,25 @@ def test_polygon_fill():
         t.arc(40, 90)
     t.end_fill()
 
+    case("Pattern fills (MMBasic textures)")
+    t.reset()
+    x = 25
+    for p in (1, 4, 6, 13, 18, 28):
+        t.penup()
+        t.goto(x, 100)
+        t.pendown()
+        t.right(90)
+        t.fillcolor(YELLOW)
+        t.fillpattern(p)
+        t.begin_fill()
+        for _ in range(4):
+            t.forward(45)
+            t.right(90)
+        t.end_fill()
+        t.setheading(0)
+        x += 50
+    t.fillpattern(0)
+
 
 # --- 9: Stack (push/pop) ----------------------------------------------------
 def _branch(length):
@@ -527,7 +547,7 @@ def run():
         test_stress()
         _hold()  # view the final drawing
         print()
-        print("=== not ported: fill patterns, animated cursor, ARECT ===")
+        print("=== not ported: animated cursor, ARECT ===")
         print("ALL TESTS COMPLETE")
     finally:
         pcconsole.console("both")

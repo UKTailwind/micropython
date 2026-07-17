@@ -11,6 +11,10 @@ SRC_USERMOD_C += $(PC3_RP2_DIR)/usb_keyboard.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/kbd_decode.c
 SRC_USERMOD_C += $(PC3EMU_DIR)/kbd_sdl.c
 
+# Mouse: the firmware's `mouse` module over SDL window-mouse state.
+SRC_USERMOD_C += $(PC3_RP2_DIR)/usb_mouse_mod.c
+SRC_USERMOD_C += $(PC3EMU_DIR)/mouse_sdl.c
+
 # Audio: the firmware's renderer (synth/tones/MOD/WAV/MP3/FLAC -- pure pull
 # code) + the SDL-backed machine.I2S lookalike it plays through.
 # The unix CWARN (-Werror -Wdouble-promotion -Wfloat-conversion) lands after
@@ -21,12 +25,21 @@ $(BUILD)/src/../../../../dr_wav.o: CWARN += $(PC3_AUDIO_WNO)
 $(BUILD)/src/../../../../dr_mp3.o: CWARN += $(PC3_AUDIO_WNO)
 $(BUILD)/src/../../../../dr_flac.o: CWARN += $(PC3_AUDIO_WNO)
 $(BUILD)/src/../../../../hxcmod.o: CWARN += $(PC3_AUDIO_WNO)
+$(BUILD)/src/../../../../usb_mouse_mod.o: CWARN += $(PC3_AUDIO_WNO)
 SRC_USERMOD_C += $(PC3_RP2_DIR)/audio.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_wav.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_mp3.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_flac.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/hxcmod.c
 SRC_USERMOD_C += $(PC3EMU_DIR)/i2s_sdl.c
+
+# ulab (numpy-like ndarrays), same submodule the firmware builds -- pcmath,
+# plot() maths and the chapter-30 lab need it. Its micropython.mk snapshots
+# USERMOD_DIR, so point it at ulab for the include.
+PC3_SAVED_USERMOD := $(USERMOD_DIR)
+USERMOD_DIR := $(TOP)/lib/ulab/code
+include $(TOP)/lib/ulab/code/micropython.mk
+USERMOD_DIR := $(PC3_SAVED_USERMOD)
 
 # Image loaders (jpeg/bmp/png modules + decoders + dither): pure CPU code,
 # drawing through the shared hdmi core.

@@ -26,6 +26,8 @@ freeze(
         "pccursor.py",
         "pcimage.py",
         "pcaudio.py",
+        "ds3231.py",
+        "pcmath.py",
     ),
 )
 

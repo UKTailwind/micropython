@@ -92,6 +92,25 @@ import pcfm
 
 __main__.fm = pcfm.fm
 
+# DS3231 real-time clock (register-level emulation over the PC clock).
+import ds3231
+
+__main__.settime = ds3231.settime
+__main__.gettime = ds3231.gettime
+__main__.synctime = ds3231.synctime
+try:
+    ds3231.synctime()
+except Exception:
+    pass
+
+# Maths helpers over ulab, when ulab is in the build.
+try:
+    import pcmath
+
+    __main__.pcmath = pcmath
+except ImportError:
+    pass
+
 # Audio: playback, tone generator and 4-voice synth (SDL out when built).
 try:
     import pcaudio

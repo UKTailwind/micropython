@@ -117,19 +117,102 @@ class PWM:
         pass
 
 
+def _bcd(v):
+    return ((v // 10) << 4) | (v % 10)
+
+
+def _unbcd(b):
+    return (b >> 4) * 10 + (b & 0x0F)
+
+
+class _DS3231:
+    # Register-level DS3231 at 0x68, backed by the PC clock (offset shared
+    # with machine.RTC, so settime()/RTC agree). Supports the board's use:
+    # time regs 0x00-0x06 (BCD), Alarm 1 regs 0x07-0x0A (daily, A1M4 set),
+    # control 0x0E (INTCN|A1IE), status 0x0F (A1F). The INT line (GP32,
+    # open-drain active low) is mirrored onto the virtual Pin(32) whenever
+    # the chip is accessed.
+
+    def __init__(self):
+        self.regs = bytearray(0x13)
+        self.regs[0x0E] = 0x04  # power-up: INTCN set (alarms drive INT)
+        self._next_fire = None
+
+    def _now(self):
+        return time.time() + RTC._offset
+
+    def _encode_time(self):
+        t = time.localtime(self._now())
+        self.regs[0:7] = bytes((
+            _bcd(t[5]), _bcd(t[4]), _bcd(t[3]),      # sec min hour (24 h)
+            _bcd(t[6] + 1), _bcd(t[2]), _bcd(t[1]),  # dow date month
+            _bcd(t[0] % 100),
+        ))
+
+    def _arm(self):
+        # Daily alarm from the Alarm-1 registers, when enabled.
+        if (self.regs[0x0E] & 0x05) != 0x05:  # need INTCN|A1IE
+            self._next_fire = None
+            return
+        s = _unbcd(self.regs[0x07] & 0x7F)
+        m = _unbcd(self.regs[0x08] & 0x7F)
+        h = _unbcd(self.regs[0x09] & 0x3F)
+        t = time.localtime(self._now())
+        target = time.mktime((t[0], t[1], t[2], h, m, s, 0, 0))
+        if target <= self._now():
+            target += 86400
+        self._next_fire = target
+
+    def _tick(self):
+        if self._next_fire is not None and self._now() >= self._next_fire:
+            self.regs[0x0F] |= 0x01  # A1F
+            self._next_fire += 86400  # daily
+        # INT is open-drain active low while A1F and the enables are set.
+        asserted = bool(self.regs[0x0F] & 0x01) and (self.regs[0x0E] & 0x05) == 0x05
+        Pin(32, Pin.IN, Pin.PULL_UP)._value = 0 if asserted else 1
+
+    def read(self, reg, n):
+        if reg <= 0x06:
+            self._encode_time()
+        self._tick()
+        return bytes(self.regs[reg:reg + n])
+
+    def write(self, reg, data):
+        self.regs[reg:reg + len(data)] = bytes(data)
+        if reg == 0x00 and len(data) >= 7:
+            # Setting the time moves the emulated clock's offset.
+            y = 2000 + _unbcd(self.regs[6])
+            target = time.mktime((y, _unbcd(self.regs[5] & 0x1F),
+                                  _unbcd(self.regs[4] & 0x3F),
+                                  _unbcd(self.regs[2] & 0x3F),
+                                  _unbcd(self.regs[1] & 0x7F),
+                                  _unbcd(self.regs[0] & 0x7F), 0, 0))
+            RTC._offset = target - time.time()
+        if 0x07 <= reg <= 0x0A or reg == 0x0E or reg == 0x0F:
+            self._arm()
+        self._tick()
+
+
+_ds3231 = _DS3231()
+
+
 class I2C:
-    # Phase-1 stub: an empty bus. Phase 4 adds the DS3231 at address 0x68
-    # backed by the PC clock.
+    # I2C0 carries the DS3231 at 0x68 (as the machine's QWIIC/system bus).
     def __init__(self, bus_id=0, scl=None, sda=None, freq=400000):
         pass
 
     def scan(self):
-        return []
+        return [0x68]
 
     def readfrom_mem(self, addr, reg, n):
+        if addr == 0x68:
+            return _ds3231.read(reg, n)
         raise OSError(19)  # ENODEV, as an absent chip reads on hardware
 
     def writeto_mem(self, addr, reg, buf):
+        if addr == 0x68:
+            _ds3231.write(reg, bytes(buf))
+            return
         raise OSError(19)
 
     def readfrom(self, addr, n):

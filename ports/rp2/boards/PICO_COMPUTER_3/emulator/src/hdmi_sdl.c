@@ -43,6 +43,7 @@ extern void pc3emu_kbd_sdl_key(int scancode, int down, int sdl_mods);
 extern void pc3emu_kbd_tick(void);
 extern void pc3emu_kbd_reset(void);
 extern void pc3emu_kbd_paste(const char *txt);
+extern void pc3emu_mouse_sdl_event(int kind, int a, int b, int c, int out_w, int out_h);
 
 static pthread_t sdl_thread;
 static volatile bool sdl_thread_up = false;   // window exists, loop running
@@ -186,6 +187,13 @@ static void *sdl_thread_main(void *arg) {
                     pc3emu_kbd_sdl_key(ev.key.keysym.scancode,
                         ev.type == SDL_KEYDOWN, SDL_GetModState());
                 }
+            } else if (ev.type == SDL_MOUSEMOTION) {
+                pc3emu_mouse_sdl_event(0, ev.motion.x, ev.motion.y, 0, out_w, out_h);
+            } else if (ev.type == SDL_MOUSEBUTTONDOWN || ev.type == SDL_MOUSEBUTTONUP) {
+                pc3emu_mouse_sdl_event(1, ev.button.button,
+                    ev.type == SDL_MOUSEBUTTONDOWN, ev.button.clicks, out_w, out_h);
+            } else if (ev.type == SDL_MOUSEWHEEL) {
+                pc3emu_mouse_sdl_event(2, ev.wheel.y, 0, 0, out_w, out_h);
             }
         }
         pc3emu_kbd_tick(); // auto-repeat, at frame rate (25x the repeat period)

@@ -30,6 +30,9 @@ $(BUILD)/src/../../../../dr_mp3.o: CWARN += $(PC3_AUDIO_WNO)
 $(BUILD)/src/../../../../dr_flac.o: CWARN += $(PC3_AUDIO_WNO)
 $(BUILD)/src/../../../../hxcmod.o: CWARN += $(PC3_AUDIO_WNO)
 $(BUILD)/src/../../../../usb_mouse_mod.o: CWARN += $(PC3_AUDIO_WNO)
+# draw3d runs single-precision like MMBasic; double->float at the API
+# boundary is intentional.
+$(BUILD)/src/../../../../draw3d.o: CWARN += $(PC3_AUDIO_WNO)
 SRC_USERMOD_C += $(PC3_RP2_DIR)/audio.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_wav.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_mp3.c

@@ -55,7 +55,13 @@
 
 #define MAX3D  8 // MMBasic configuration.h
 #define MAXCAM 3
-#define D3D_FLOAT double
+// Single precision throughout, exactly as MMBasic (configuration.h: FLOAT3D
+// = float, sqrt3d = sqrtf...): the RP2350's FPU is single-precision only,
+// so doubles here would fall back to (slow) software arithmetic.
+#define D3D_FLOAT float
+#define sqrt3d  sqrtf
+#define round3d roundf
+#define fabs3d  fabsf
 
 typedef struct {
     D3D_FLOAT w, x, y, z, m;
@@ -142,7 +148,7 @@ static void q_rotate(const d3d_quat_t *in, const d3d_quat_t *rot, d3d_quat_t *ou
 }
 
 static void d3d_normalise(d3d_vec_t *v) {
-    D3D_FLOAT n = sqrt(v->x * v->x + v->y * v->y + v->z * v->z);
+    D3D_FLOAT n = sqrt3d(v->x * v->x + v->y * v->y + v->z * v->z);
     v->x /= n;
     v->y /= n;
     v->z /= n;
@@ -270,7 +276,7 @@ static void display3d(int n, D3D_FLOAT x, D3D_FLOAT y, D3D_FLOAT z,
             o->depth[f] = max_depth;
         }
         o->depthindex[f] = f;
-        o->distance += sqrt(o->depth[f]);
+        o->distance += sqrt3d(o->depth[f]);
     }
     o->distance /= o->nf;
     depthsort(o->depth, o->nf, o->depthindex);
@@ -290,12 +296,12 @@ static void display3d(int n, D3D_FLOAT x, D3D_FLOAT y, D3D_FLOAT z,
                 at = x1 - cam->x;
                 bt = y1 - cam->y;
                 ct = z1 - cam->z;
-                if (ct > -0.0005 && ct < 0.0005) {
-                    ct = (ct < 0.0 ? -0.0005 : 0.0005);
+                if (ct > -0.0005f && ct < 0.0005f) {
+                    ct = (ct < 0.0f ? -0.0005f : 0.0005f);
                 }
                 t = -(C * z1 + D) / (C * ct);
-                xcoord[v] = (short)(x1 + round(at * t) + (maxW >> 1) - cam->x - cam->panx);
-                ycoord[v] = (short)(maxH - round(y1 + bt * t) - 1);
+                xcoord[v] = (short)(x1 + round3d(at * t) + (maxW >> 1) - cam->x - cam->panx);
+                ycoord[v] = (short)(maxH - round3d(y1 + bt * t) - 1);
                 ycoord[v] = (short)(ycoord[v] - ((maxH >> 1) - cam->y - cam->pany));
                 if (clear) {
                     if (xcoord[v] > o->xmax) {
@@ -320,7 +326,7 @@ static void display3d(int n, D3D_FLOAT x, D3D_FLOAT y, D3D_FLOAT z,
                         o->fill[sortindex] = 0xFF0000;
                     }
                     if (o->flags[sortindex] & 8) {
-                        D3D_FLOAT lightratio = fabs(lighting.x * o->normals[sortindex].x
+                        D3D_FLOAT lightratio = fabs3d(lighting.x * o->normals[sortindex].x
                             + lighting.y * o->normals[sortindex].y
                             + lighting.z * o->normals[sortindex].z);
                         lightratio = (lightratio * o->ambient) + o->ambient;
@@ -480,7 +486,7 @@ static mp_obj_t d3d_create_fn(size_t n_args, const mp_obj_t *args) {
         D3D_FLOAT vz = mp_obj_get_float(seq_item(vertices, v * 3 + 2));
         D3D_FLOAT m = vx * vx + vy * vy + vz * vz;
         if (m) {
-            m = sqrt(m);
+            m = sqrt3d(m);
             o->q_vertices[v].x = vx / m;
             o->q_vertices[v].y = vy / m;
             o->q_vertices[v].z = vz / m;
@@ -534,7 +540,7 @@ static mp_obj_t d3d_create_fn(size_t n_args, const mp_obj_t *args) {
         cx /= o->facecount[f];
         cy /= o->facecount[f];
         cz /= o->facecount[f];
-        D3D_FLOAT scale = sqrt(cx * cx + cy * cy + cz * cz);
+        D3D_FLOAT scale = sqrt3d(cx * cx + cy * cy + cz * cz);
         o->q_centroids[f].x = cx / scale;
         o->q_centroids[f].y = cy / scale;
         o->q_centroids[f].z = cz / scale;
@@ -715,15 +721,17 @@ static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(d3d_light_obj, 5, 5, d3d_light_fn);
 
 // q_create(theta, x, y, z) -- MMBasic MATH Q_CREATE: a normalised rotation
 // quaternion as the (w, x, y, z, m) tuple rotate() takes. theta in radians.
+// Double precision, as MMBasic's MATH commands (MMFLOAT) -- only the 3D
+// engine itself runs single.
 static mp_obj_t d3d_q_create_fn(size_t n_args, const mp_obj_t *args) {
-    D3D_FLOAT theta = mp_obj_get_float(args[0]);
-    D3D_FLOAT x = mp_obj_get_float(args[1]);
-    D3D_FLOAT y = mp_obj_get_float(args[2]);
-    D3D_FLOAT z = mp_obj_get_float(args[3]);
-    D3D_FLOAT sineterm = sin(theta / 2.0);
-    D3D_FLOAT q0 = cos(theta / 2.0);
-    D3D_FLOAT q1 = x * sineterm, q2 = y * sineterm, q3 = z * sineterm;
-    D3D_FLOAT mag = sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+    double theta = mp_obj_get_float(args[0]);
+    double x = mp_obj_get_float(args[1]);
+    double y = mp_obj_get_float(args[2]);
+    double z = mp_obj_get_float(args[3]);
+    double sineterm = sin(theta / 2.0);
+    double q0 = cos(theta / 2.0);
+    double q1 = x * sineterm, q2 = y * sineterm, q3 = z * sineterm;
+    double mag = sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
     mp_obj_t t[5] = {
         mp_obj_new_float(q0 / mag), mp_obj_new_float(q1 / mag),
         mp_obj_new_float(q2 / mag), mp_obj_new_float(q3 / mag),

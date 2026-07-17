@@ -44,6 +44,8 @@ extern void pc3emu_kbd_tick(void);
 extern void pc3emu_kbd_reset(void);
 extern void pc3emu_kbd_paste(const char *txt);
 extern void pc3emu_mouse_sdl_event(int kind, int a, int b, int c, int out_w, int out_h);
+extern void pc3emu_pins_frame(void);
+extern bool pc3emu_pins_event(const SDL_Event *ev);
 
 static pthread_t sdl_thread;
 static volatile bool sdl_thread_up = false;   // window exists, loop running
@@ -165,10 +167,17 @@ static void *sdl_thread_main(void *arg) {
         }
         in_blank = true;
 
+        pc3emu_pins_frame(); // the I/O-header panel window, when open
+
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
-            if (ev.type == SDL_QUIT) {
-                mp_sched_keyboard_interrupt(); // window close == Ctrl-C
+            if (pc3emu_pins_event(&ev)) {
+                continue; // belonged to the panel window
+            }
+            if (ev.type == SDL_QUIT
+                || (ev.type == SDL_WINDOWEVENT
+                    && ev.window.event == SDL_WINDOWEVENT_CLOSE)) {
+                mp_sched_keyboard_interrupt(); // machine window close == Ctrl-C
             } else if (ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP) {
                 if (ev.key.repeat) {
                     // the shared decoder synthesises its own repeats

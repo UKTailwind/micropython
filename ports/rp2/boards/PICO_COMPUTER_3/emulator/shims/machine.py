@@ -14,6 +14,21 @@ try:
 except ImportError:
     pass
 
+try:
+    # The virtual I/O-header panel (import Pins). When present, input Pins
+    # read its switches, output Pins light its LEDs, ADC reads its pots.
+    import _emupins as _panel
+except ImportError:
+    _panel = None
+
+
+def _gpio(pin_id):
+    # Numeric GPIO for panel routing, or None (named pins like "LED").
+    try:
+        return int(str(pin_id))
+    except ValueError:
+        return None
+
 
 class Pin:
     IN = 0
@@ -49,11 +64,23 @@ class Pin:
             self._value = 1 if value else 0
         elif self._mode == Pin.IN:
             self._value = 1 if self._pull == Pin.PULL_UP else 0
+        g = _gpio(self._id)
+        if _panel is not None and g is not None:
+            _panel.set_output(g, self._mode == Pin.OUT)
+            if self._mode == Pin.IN:
+                _panel.idle_set(g, self._value)
 
     def value(self, v=None):
         if v is None:
+            g = _gpio(self._id)
+            if (_panel is not None and g is not None
+                    and self._mode == Pin.IN and g != 32):
+                return _panel.switch_get(g)  # 32 = DS3231 INT, chip-driven
             return self._value
         self._value = 1 if v else 0
+        g = _gpio(self._id)
+        if _panel is not None and g is not None and self._mode == Pin.OUT:
+            _panel.led_set(g, self._value)
 
     def on(self):
         self.value(1)
@@ -95,6 +122,9 @@ class ADC:
         self._id = pin._id if isinstance(pin, Pin) else str(pin)
 
     def read_u16(self):
+        g = _gpio(self._id)
+        if _panel is not None and g is not None:
+            return _panel.pot_get(g)  # the panel's potentiometer
         return _adc_raw.get(self._id, 32768)
 
 

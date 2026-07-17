@@ -15,6 +15,9 @@ SRC_USERMOD_C += $(PC3EMU_DIR)/kbd_sdl.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/usb_mouse_mod.c
 SRC_USERMOD_C += $(PC3EMU_DIR)/mouse_sdl.c
 
+# The virtual I/O-header panel (import Pins): switches/LEDs/pots window.
+SRC_USERMOD_C += $(PC3EMU_DIR)/pins_sdl.c
+
 # Audio: the firmware's renderer (synth/tones/MOD/WAV/MP3/FLAC -- pure pull
 # code) + the SDL-backed machine.I2S lookalike it plays through.
 # The unix CWARN (-Werror -Wdouble-promotion -Wfloat-conversion) lands after

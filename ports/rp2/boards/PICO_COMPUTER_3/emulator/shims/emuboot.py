@@ -79,8 +79,6 @@ except Exception:
 if hasattr(hdmi, "blit"):
     import sys
     import io
-    import time
-    import select
     import _emukbd
     import pcconsole
 
@@ -90,17 +88,19 @@ if hasattr(hdmi, "blit"):
     except Exception:
         hdmi.init(hdmi.RGB640)
 
+    # fd 0 becomes the machine console: a pipe merging the window keyboard
+    # and the launching terminal, so EVERYTHING that reads stdin -- the REPL,
+    # autosave(), pye -- sees both, exactly as sys.stdin is the one console
+    # on the machine. (Tests set PC3EMU_TEST to keep the ring buffer
+    # inspectable instead.)
+    if not os.getenv("PC3EMU_TEST"):
+        _emukbd.console_pipe()
+
     class _EmuTerm(io.IOBase):
-        # The dupterm stream: write mirrors to the on-screen console (when one
-        # is up); read BLOCKS, serving the window's keyboard (_emukbd, fed by
-        # the firmware's own decoder) and the launching terminal together --
-        # so it never falls back to a terminal-only blocking read that would
-        # starve window input.
+        # The dupterm stream: write mirrors to the on-screen console (when
+        # one is up); read serves the merged console on fd 0.
         def __init__(self, con):
             self.con = con
-            self._poll = select.poll()
-            self._poll.register(sys.stdin, select.POLLIN)
-            self._stdin_dead = False
 
         def write(self, buf):
             if self.con is not None:
@@ -108,21 +108,7 @@ if hasattr(hdmi, "blit"):
             return len(buf)
 
         def read(self, n=1):
-            while True:
-                b = _emukbd.read()
-                if b is not None:
-                    return b
-                if not self._stdin_dead and self._poll.poll(20):
-                    c = sys.stdin.buffer.read(1)
-                    if c:
-                        return c
-                    # Terminal EOF (e.g. piped input ran out): one Ctrl-D,
-                    # then the window keyboard is the only input source.
-                    self._poll.unregister(sys.stdin)
-                    self._stdin_dead = True
-                    return b"\x04"
-                if self._stdin_dead:
-                    time.sleep_ms(20)
+            return sys.stdin.buffer.read(1)
 
         def readinto(self, buf):
             b = self.read(1)

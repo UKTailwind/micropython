@@ -20,6 +20,12 @@
 // press keys without a window.
 
 #include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <poll.h>
+#include <pthread.h>
+#include <termios.h>
 
 #include "py/runtime.h"
 #include "py/mphal.h"
@@ -29,17 +35,18 @@
 
 #include "../../../../kbd_decode.h"
 
+extern int mp_interrupt_char; // unix_mphal.c (tracks mp_hal_set_interrupt_char)
+
 // The stdin ring buffer the decoder pushes translated keystrokes into (the
 // rp2 port defines this in its mphalport; the unix port has no equivalent,
 // so the emulator owns one).
 static uint8_t stdin_buf[260];
 ringbuf_t stdin_ringbuf = { stdin_buf, sizeof(stdin_buf), 0, 0 };
 
-// The unix port manages its interrupt char through signals and has no
-// shared/runtime/interrupt_char.c; define the global the shared decoder
-// tests against. 3 = Ctrl-C: a window Ctrl-C always interrupts, exactly as
-// the USB keyboard's does on the machine.
-int mp_interrupt_char = 3;
+// mp_interrupt_char is provided by unix_mphal.c, tracking
+// mp_hal_set_interrupt_char: -1 at the REPL prompt (Ctrl-C flows to readline
+// as byte 3 and cancels the line), 3 during execution (the decoder schedules
+// a KeyboardInterrupt) -- the same contract as the machine.
 
 // No physical lock LEDs to drive.
 void kbd_backend_set_leds(int slot, uint8_t leds) {
@@ -110,6 +117,118 @@ void pc3emu_kbd_tick(void) {
     kbd_repeat_check();
 }
 
+// The window is the keyboard: when the scanout stops (hdmi.deinit(), e.g. a
+// screen() mode change), any key release still queued in the dying window's
+// event loop is lost -- so treat it as a keyboard unplug, exactly as the
+// hardware does (MMBasic clearrepeat). Without this, the Enter that
+// submitted screen(...) keeps auto-repeating in the new mode.
+void pc3emu_kbd_reset(void) {
+    memset(sdl_held, 0, sizeof(sdl_held));
+    kbd_stop_repeat();
+    kbd_clear_state();
+}
+
+// --- fd 0 becomes the machine console ---------------------------------------
+//
+// On the machine, sys.stdin IS the console: USB keyboard and serial input
+// arrive through one stream, so autosave()/pye read both. The unix port's
+// sys.stdin is the raw terminal fd, which the window keyboard can never
+// reach. console_pipe() (called once at boot by emuboot) replaces fd 0 with
+// a pipe fed by a merger thread: window keystrokes (the decoder's ring
+// buffer) + the real terminal, one byte stream. Everything that reads
+// stdin -- the REPL, autosave, pye -- then sees the whole console.
+
+static int con_real = -1;          // the saved real stdin (terminal side)
+static int con_pipe_w = -1;        // write end of the fd-0 pipe
+static struct termios con_tio;     // terminal state to restore at exit
+static bool con_tio_saved = false;
+
+static void con_restore_tty(void) {
+    if (con_tio_saved) {
+        tcsetattr(con_real, TCSANOW, &con_tio);
+    }
+}
+
+static void *con_feeder(void *arg) {
+    (void)arg;
+    bool wake_sent = false;
+    for (;;) {
+        // Window keystrokes (already interrupt-filtered by the decoder).
+        int c;
+        while ((c = ringbuf_get(&stdin_ringbuf)) >= 0) {
+            uint8_t b = (uint8_t)c;
+            write(con_pipe_w, &b, 1);
+        }
+        // A scheduled KeyboardInterrupt can't reach a program blocked in a
+        // stdin read (the hardware's stdin loop pumps events; a posix read
+        // can't). Nudge the reader with a NUL so the pending exception is
+        // delivered; the byte is discarded along with the aborted read.
+        if (MP_STATE_MAIN_THREAD(mp_pending_exception) != MP_OBJ_NULL) {
+            if (!wake_sent) {
+                uint8_t nul = 0;
+                write(con_pipe_w, &nul, 1);
+                wake_sent = true;
+            }
+        } else {
+            wake_sent = false;
+        }
+        // The real terminal (poll doubles as the loop's 20 ms pace).
+        if (con_real >= 0) {
+            struct pollfd pfd = { con_real, POLLIN, 0 };
+            if (poll(&pfd, 1, 20) > 0) {
+                uint8_t b;
+                ssize_t n = read(con_real, &b, 1);
+                if (n <= 0) {
+                    // Terminal EOF: one Ctrl-D, then window-only input.
+                    uint8_t eot = 4;
+                    write(con_pipe_w, &eot, 1);
+                    con_real = -1;
+                } else if (mp_interrupt_char >= 0 && b == (uint8_t)mp_interrupt_char) {
+                    // Terminal Ctrl-C during execution: schedule the
+                    // interrupt, exactly as the machine's UART IRQ does.
+                    mp_sched_keyboard_interrupt();
+                } else {
+                    write(con_pipe_w, &b, 1);
+                }
+            }
+        } else {
+            usleep(20000);
+        }
+    }
+    return NULL;
+}
+
+// console_pipe() -- install the merged console on fd 0. Once, at boot.
+static mp_obj_t emukbd_console_pipe(void) {
+    if (con_pipe_w >= 0) {
+        return mp_const_none; // already installed
+    }
+    int p[2];
+    if (pipe(p) != 0) {
+        mp_raise_OSError(EPIPE);
+    }
+    con_real = dup(0);
+    con_pipe_w = p[1];
+    dup2(p[0], 0);
+    close(p[0]);
+    if (isatty(con_real) && tcgetattr(con_real, &con_tio) == 0) {
+        con_tio_saved = true;
+        atexit(con_restore_tty);
+        // Raw mode on the REAL terminal: the REPL's raw-mode call now acts
+        // on the pipe, so set the tty up front (restored at exit).
+        struct termios t = con_tio;
+        t.c_iflag &= ~(unsigned)(ICRNL | IXON);
+        t.c_lflag &= ~(unsigned)(ECHO | ICANON | ISIG);
+        t.c_cc[VMIN] = 1;
+        t.c_cc[VTIME] = 0;
+        tcsetattr(con_real, TCSANOW, &t);
+    }
+    pthread_t th;
+    pthread_create(&th, NULL, con_feeder, NULL);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(emukbd_console_pipe_obj, emukbd_console_pipe);
+
 // --- the _emukbd module ------------------------------------------------------
 
 // read() -> one byte from the keyboard's stdin stream, or None. emuboot's
@@ -153,6 +272,7 @@ static const mp_rom_map_elem_t emukbd_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR__emukbd) },
     { MP_ROM_QSTR(MP_QSTR_read), MP_ROM_PTR(&emukbd_read_obj) },
     { MP_ROM_QSTR(MP_QSTR_any), MP_ROM_PTR(&emukbd_any_obj) },
+    { MP_ROM_QSTR(MP_QSTR_console_pipe), MP_ROM_PTR(&emukbd_console_pipe_obj) },
     { MP_ROM_QSTR(MP_QSTR_inject), MP_ROM_PTR(&emukbd_inject_obj) },
     { MP_ROM_QSTR(MP_QSTR_tick), MP_ROM_PTR(&emukbd_tick_obj) },
 };

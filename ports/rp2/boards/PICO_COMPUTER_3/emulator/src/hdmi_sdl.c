@@ -41,6 +41,7 @@
 // SDL keyboard entry points (kbd_sdl.c).
 extern void pc3emu_kbd_sdl_key(int scancode, int down, int sdl_mods);
 extern void pc3emu_kbd_tick(void);
+extern void pc3emu_kbd_reset(void);
 
 static pthread_t sdl_thread;
 static volatile bool sdl_thread_up = false;   // window exists, loop running
@@ -213,6 +214,10 @@ void hdmi_backend_stop(void) {
     }
     sdl_thread_up = false;
     in_blank = false;
+    // The dying window's queued key releases are gone with it: treat the
+    // stop as a keyboard unplug so no key is left "held" (and auto-repeating)
+    // across a mode change.
+    pc3emu_kbd_reset();
 }
 
 bool hdmi_backend_in_blanking(void) {

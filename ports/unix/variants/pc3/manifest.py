@@ -17,6 +17,14 @@ freeze(
         "pcconfig.py",
         "pcgfx.py",
         "pcconsole.py",
+        "pcturtle.py",
+        "pcsprite.py",
+        "pctilemap.py",
+        "pcgame.py",
+        "pcplot.py",
+        "pcgui.py",
+        "pccursor.py",
+        "pcimage.py",
     ),
 )
 

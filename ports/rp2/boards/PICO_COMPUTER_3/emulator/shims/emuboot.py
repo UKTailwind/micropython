@@ -61,6 +61,32 @@ for _name in dir(pcgfx):
     if _name.isupper():
         setattr(__main__, _name, getattr(pcgfx, _name))
 
+# The graphics/game stack, injected as _boot_board.py does on the machine.
+import pcturtle
+import pctilemap
+import pcgame
+import pcgui
+import pccursor
+import pcplot
+import pcimage
+import mouse as _mouse
+import touch as _touch
+
+__main__.Turtle = pcturtle.Turtle
+__main__.TileMap = pctilemap.TileMap
+__main__.pcgame = pcgame
+__main__.pcgui = pcgui
+__main__.pccursor = pccursor
+__main__.plot = pcplot.plot
+__main__.draw_jpg = pcimage.draw_jpg
+__main__.draw_bmp = pcimage.draw_bmp
+__main__.draw_png = pcimage.draw_png
+__main__.save_image = pcimage.save_image
+__main__.load_image = pcimage.load_image
+__main__.mouse = _mouse.query
+__main__.mouse_speed = _mouse.speed
+__main__.touch = _touch.query
+
 import keyboard
 import pcconfig
 

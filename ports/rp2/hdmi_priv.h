@@ -72,6 +72,10 @@
 #define HDMI_MODE_RGB1024 (3) // 1024x600, RGB121 4bpp packed format, native res;
                               // core1 expands each line through a 16-colour palette
                               // into an RGB332 line buffer that HSTX scans natively.
+#define HDMI_MODE_RGB640_4 (4) // 640x480, RGB121 4bpp (16 colours) -- MMBasic's
+                               // fast game mode: the 150 KB framebuffer is half
+                               // the video SRAM, so hdmi.create()'s F buffer
+                               // lives in the OTHER half (SRAM, not PSRAM).
 
 // Largest framebuffer: 640x480x8 = 512x300x2 = 1024*600/2 = 307200 bytes. The
 // RGB121 1024x600x4 framebuffer is an exact fit in this same array.

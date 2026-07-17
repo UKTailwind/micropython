@@ -211,19 +211,25 @@ static void __not_in_flash_func(hdmi_fill_loop)(void) {
         return;
     }
     if (hdmi_rgb121) {
-        // 1024x600 native: expand 512 packed bytes per source row into 1024 RGB332
-        // pixels. One SRAM lookup + one 16-bit store per source byte (two pixels),
-        // no doubling. hdmi_map256/hdmi_fb/HDMIlines are all SRAM (no flash reads).
+        // 4bpp native (RGB1024 at 1024x600, RGB640_4 at 640x480): expand the
+        // packed source row into RGB332 pixels. One SRAM lookup + one 16-bit
+        // store per source byte (two pixels), no doubling. hdmi_map256 /
+        // hdmi_fb / HDMIlines are all SRAM (no flash reads). The bounds are
+        // hoisted out of the loop, so the per-line work stays the hot
+        // lookup+store pair for both geometries.
         const uint16_t *m = hdmi_map256;
+        const int total = (hdmi_mode == HDMI_MODE_RGB1024) ? X_V_TOTAL_LINES : MODE_V_TOTAL_LINES;
+        const int lines = (hdmi_mode == HDMI_MODE_RGB1024) ? X_V_ACTIVE_LINES : MODE_V_ACTIVE_LINES;
+        const int half = hdmi_w / 2; // packed bytes per source row
         int last_line = 2;
         while (hdmi_running) {
             if (v_scanline != last_line) {
                 last_line = v_scanline;
-                int active = v_scanline - (X_V_TOTAL_LINES - X_V_ACTIVE_LINES);
+                int active = v_scanline - (total - lines);
                 uint16_t *p = (uint16_t *)HDMIlines[last_line & 1];
-                if (active >= 0 && active < X_V_ACTIVE_LINES) {
-                    const uint8_t *s = &hdmi_fb[active * (X_H_ACTIVE_PIXELS / 2)];
-                    for (int i = 0; i < X_H_ACTIVE_PIXELS / 2; i++) {
+                if (active >= 0 && active < lines) {
+                    const uint8_t *s = &hdmi_fb[active * half];
+                    for (int i = 0; i < half; i++) {
                         p[i] = m[s[i]];
                     }
                 }

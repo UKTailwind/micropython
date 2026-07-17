@@ -1899,6 +1899,32 @@ when it moves, so it floats over any screen content without disturbing it.
   bounces, hide/restore/set_flags/close guards behave. 300 frames in
   15 ms on the emulator (the engine is C; pace with hdmi.vsync()).
 
+### 54. RGB640_4 — the fast game mode (Peter's diagnosis of the 3D fps gap)
+
+- **Why**: at 378 MHz the football ran 18.9 fps vs MMBasic's 42. Maths was
+  already hardware-FP and fills span-based; Peter identified the real gap:
+  MMBasic composes in 640×480×4-bit with BOTH the display and its
+  FRAMEBUFFER in the 307 KB video SRAM, while our RGB640 (8-bit) fills the
+  SRAM with the display alone and `hdmi.create()` puts F in the PSRAM heap
+  — every compose write and the 300 KB per-frame copy crossed the PSRAM
+  bus.
+- **`hdmi.RGB640_4`**: 640×480 in 16 colours (RGB121 palette), scanned by
+  the existing 4bpp machinery (core1 expands each 320-byte row through
+  `hdmi_map256` into an RGB332 line; standard 640×480 timing, clocks
+  252/315/378). The RGB121 fill loop is now geometry-aware (1024×600 or
+  640×480; bounds hoisted, hot pair unchanged).
+- **`hdmi.create()` in this mode** places F in the second half of the
+  static video SRAM (150 KB + 150 KB exactly fills it) instead of PSRAM —
+  MMBasic's exact layout. RGB320's second half still belongs to the layer;
+  RGB1024 fills the whole array; both keep the heap for F.
+- **Verified** (emulator): geometry/bpp; F-in-SRAM create/write/isolation/
+  copy; the football renders in 16 colours with zero off-palette nibbles
+  (red/white/black map exactly to palette 8/15/0); RGB1024 regression.
+- **Noted for later**: `hdmi.fb()`'s framebuf uses GS4_HMSB (even pixel =
+  high nibble) but the scanout and the C drawing are even-pixel = LOW
+  nibble — a latent nibble-swap for Display-based drawing in the 4bpp
+  modes (pre-existing in RGB1024, untouched here).
+
 ---
 
 ## Files touched

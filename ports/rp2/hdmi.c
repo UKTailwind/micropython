@@ -232,7 +232,8 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
     }
     int mode = (n_args > 0) ? mp_obj_get_int(args[0]) : HDMI_MODE_RGB640;
     if (mode != HDMI_MODE_RGB640 && mode != HDMI_MODE_RGB320 &&
-        mode != HDMI_MODE_RGB512 && mode != HDMI_MODE_RGB1024) {
+        mode != HDMI_MODE_RGB512 && mode != HDMI_MODE_RGB1024 &&
+        mode != HDMI_MODE_RGB640_4) {
         mp_raise_ValueError(MP_ERROR_TEXT("bad mode"));
     }
     // Only 640x480 (RGB640) and 320x240 (RGB320) may vary the clock, and only to
@@ -267,7 +268,7 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
         hdmi_native = 0;
         hdmi_rgb121 = 0;
         hdmi_transfer_count = X_H_ACTIVE_PIXELS / 2;   // 512 words (doubled 1024-wide line)
-    } else { // RGB1024
+    } else if (mode == HDMI_MODE_RGB1024) {
         hdmi_w = 1024;
         hdmi_h = 600;
         hdmi_native = 0;
@@ -275,6 +276,14 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
         hdmi_transfer_count = X_H_ACTIVE_PIXELS / 4;   // 256 words (native 1024-wide RGB332 line)
         hdmi_pal_ensure();    // load the default palette on first use
         hdmi_pal_rebuild();   // (re)build the SRAM expansion table from the live palette
+    } else { // RGB640_4: 640x480 in 16 colours, core1-expanded like RGB1024
+        hdmi_w = 640;
+        hdmi_h = 480;
+        hdmi_native = 0;
+        hdmi_rgb121 = 1;
+        hdmi_transfer_count = MODE_H_ACTIVE_PIXELS / 4; // 160 words (expanded 640-wide RGB332 line)
+        hdmi_pal_ensure();
+        hdmi_pal_rebuild();
     }
     // A mode change invalidates every FRAMEBUFFER-style target (buffer sizes
     // differ per mode): drop the layer, release the F buffer (the GC reclaims
@@ -753,7 +762,17 @@ static mp_obj_t hdmi_create(void) {
     if (MP_STATE_PORT(hdmi_framebuf_f) != NULL) {
         mp_raise_ValueError(MP_ERROR_TEXT("framebuffer already exists"));
     }
-    uint8_t *p = m_malloc(hdmi_fb_bytes()); // raises MemoryError if exhausted
+    uint8_t *p;
+    if (hdmi_rgb121 && hdmi_fb_bytes() * 2 <= sizeof(hdmi_fb)) {
+        // RGB640_4: the 150 KB framebuffer is half the video SRAM, so the F
+        // buffer takes the OTHER half -- fast SRAM instead of the PSRAM heap,
+        // exactly MMBasic's fast-game-mode layout (compose + copy never touch
+        // PSRAM). (RGB320's second half belongs to the layer; RGB1024 fills
+        // the whole array; both keep using the heap below.)
+        p = hdmi_fb + hdmi_fb_bytes();
+    } else {
+        p = m_malloc(hdmi_fb_bytes()); // PSRAM heap; raises MemoryError if exhausted
+    }
     memset(p, 0, hdmi_fb_bytes());
     MP_STATE_PORT(hdmi_framebuf_f) = p;
     return mp_const_none;
@@ -1452,6 +1471,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_RGB320), MP_ROM_INT(HDMI_MODE_RGB320) },
     { MP_ROM_QSTR(MP_QSTR_RGB512), MP_ROM_INT(HDMI_MODE_RGB512) },
     { MP_ROM_QSTR(MP_QSTR_RGB1024), MP_ROM_INT(HDMI_MODE_RGB1024) },
+    { MP_ROM_QSTR(MP_QSTR_RGB640_4), MP_ROM_INT(HDMI_MODE_RGB640_4) },
 };
 static MP_DEFINE_CONST_DICT(hdmi_module_globals, hdmi_module_globals_table);
 

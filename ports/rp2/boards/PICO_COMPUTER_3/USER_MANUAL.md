@@ -313,6 +313,7 @@ out on core 1. Four modes are available:
 | `hdmi.RGB320` | 320 × 240 | 16-bit (RGB565), pixel-doubled to 640 × 480 |
 | `hdmi.RGB512` | 512 × 300 | 16-bit, doubled to 1024 × 600 |
 | `hdmi.RGB1024` | 1024 × 600 | 4-bit (16 colours), **native** resolution |
+| `hdmi.RGB640_4` | 640 × 480 | 4-bit (16 colours) — the **fast game mode**: the 150 KB framebuffer is half the video SRAM, so `hdmi.create()`'s F buffer takes the other half (SRAM, not PSRAM) — double-buffered composing and `copy("F","N")` never touch the slower PSRAM |
 
 The framebuffer lives in SRAM. In `RGB640` each pixel is one byte (RGB332); in
 the two 16-bit modes each pixel is an RGB565 half-word; in `RGB1024` two pixels
@@ -507,7 +508,7 @@ Three drawing targets are available (MMBasic's `FRAMEBUFFER` model):
 | Command | Description |
 |---|---|
 | `hdmi.layer(transparent=0x000000)` | enable the layer (RGB320 only). `transparent` is an RGB888 colour; layer pixels of that colour show the display through, anything else overlays it. The layer starts fully transparent |
-| `hdmi.create()` | allocate the off-screen F buffer (display-sized, in PSRAM) |
+| `hdmi.create()` | allocate the off-screen F buffer (display-sized; PSRAM, except in `RGB640_4` where it takes the free half of the video SRAM — much faster) |
 | `hdmi.write("N"/"L"/"F")` | select where ALL drawing goes — `fb()`, `fill`, `text`, the console and the image loaders. `hdmi.write()` returns the current target |
 | `hdmi.copy(src, dst)` | block-copy one whole buffer to another, e.g. `hdmi.copy("F", "N")` |
 | `hdmi.blit(x, y, w, h, x1, y1, src=None, dst=None, skip=-1)` | copy the `w`×`h` rectangle at `(x,y)` of `src` to `(x1,y1)` of `dst` — see below |

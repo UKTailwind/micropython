@@ -1581,13 +1581,17 @@ body are removed instead of drawn through it. Faces *with* a fill colour
 still paint solidly, so solid and wireframe faces can mix in one object.
 Two things to know:
 
-- The depth test works at **any scene scale**: each pixel knows which face
-  is nearest, so a face never occludes its own edges, and anything behind
-  another surface (beyond a 0.2% depth tolerance) is culled. Only
-  paper-thin separations can still show through.
-- Usually combine it with `nonormals=1`: let the z-buffer do the hiding
-  rather than backface culling, so silhouettes stay complete at any
-  winding.
+- Let **backface culling do the heavy lifting**: wind your faces
+  consistently and keep `nonormals=0`. For a near-convex model culling
+  removes most hidden edges at any distance, and the z-buffer then cleans
+  up what culling alone can't (overlapping parts, concavities). Drawing
+  with `nonormals=1` puts every rear face's outline on screen and asks the
+  depth test to do all the work — on a thin hull that shows as doubled,
+  cluttered lines.
+- The depth test (MMBasic's, verbatim) compares 1/z values with an
+  absolute tolerance, so keep hidden-line scenes reasonably **close to the
+  camera** (camera `viewplane` ~100–150, object `z` up to a few hundred);
+  at long range the 1/z differences become too small to discriminate.
 
 See `demos/elite.py` — a tumbling wireframe ship — and `demos/cobra.py`,
 a classic 17-face polygon ship converted from MMBasic.

@@ -1987,25 +1987,26 @@ when it moves, so it floats over any screen content without disturbing it.
   `closeall3d`. MMBasic's is_hiddenline_target check (memory targets only)
   is vacuous here — every hdmi target is a memory buffer. `hdmi_pixel_raw`
   added to the hdmi_priv.h drawing helpers for the depth-tested plot.
-- **Depth test (deliberate deviation from MMBasic — bench-driven)**:
-  MMBasic subtracts an ABSOLUTE 0.0005 from the buffered 1/z. On the bench
-  that failed two ways: at z≈1000 every 1/z difference is under 0.0005 so
-  nothing hides, and on a flat hull (the Cobra) edges leak long partial
-  stubs through nearby surfaces at any distance (0.0005·z² ≈ 50 units of
-  indistinguishable depth at z=315). Even a relative 5% tolerance left
-  stubs wherever an edge leaves a visible surface rearward (depths are
-  equal at the shared vertex). Final design: the raster keeps a FACE-ID
-  byte per pixel alongside 1/z; an edge pixel draws if its own face owns
-  the pixel (self-occlusion exact, no tolerance), the pixel is empty, or
-  the edge is within 0.2% (in 1/z) of the owner — the tight relative
-  tolerance only has to cover coplanar faces and fold edges, so stubs
-  collapse to ~1 px and the test is scale-invariant. Cache is `count`
-  floats + `count` id bytes (worst case 640×480×5 = 1.5 MB); create()
-  therefore caps nf at 254 (0xFF = empty). Verified exactly: the
-  unrotated Cobra's hidden render equals a stern-silhouette-only
-  reference to within Bresenham's 1 px direction asymmetry — zero leaked
-  pixels, zero over-culled; cube near/far edges at z=200 AND z=1000;
-  5 tumbled poses strict-subset. Worth backporting to MMBasic.
+- **Depth test: MMBasic's, verbatim** (`izf >= zbuf - 0.0005`, absolute in
+  1/z). A bench episode is worth recording: the converted Cobra demo
+  initially looked "nowhere close to correct", and two successive
+  "improvements" to the epsilon (relative 5%, then a face-id buffer with a
+  0.2% tolerance) were built and later REVERTED — visual renders finally
+  showed the real fault was in the DEMO, not the engine: it drew with
+  `nonormals=1`, so every rear face's outline of a thin, nearly
+  top/bottom-symmetric hull landed on screen as doubled clutter that no
+  depth test could fix (and the face-id version quietly dashed visible
+  edges wherever a Bresenham pixel strayed onto a steep neighbouring
+  face). The fix: convert BASIC demos with their culling intact —
+  MMBasic-convention windings transfer AS-IS from screen-space `crossZ>0`
+  data — and let depthmode 2 clean up only what culling can't. With that,
+  the verbatim epsilon is fine at MMBasic's scene scales (close to the
+  camera; at long range 1/z differences drop below 0.0005 and hiding
+  fades, which is inherent). Verified visually (emulator BMP renders) and
+  exactly: unrotated Cobra culled+hidden == stern-only reference to 1 px
+  (Bresenham direction asymmetry), tumbled poses strict subsets, cube
+  suite at close range. Lesson: pixel-count assertions couldn't see any
+  of this — RENDER AND LOOK.
 - **API extra**: `create()` now accepts per-face `None` (or `-1`) in the
   `fill` index list — mixed solid + wireframe objects, the split the
   hidden-line renderer draws natively (MMBasic's fill array is

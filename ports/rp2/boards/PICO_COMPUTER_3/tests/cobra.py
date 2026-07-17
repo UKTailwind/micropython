@@ -10,13 +10,13 @@
 #     from the ORIGINAL vertex data) are composed into one quaternion for
 #     draw3d.rotate(), which also rotates from the original orientation --
 #     no reset(), matching the BASIC's absolute angles;
-#   - culling: none (nonormals=1) -- hidden edges are removed by depth, so
-#     the silhouette stays complete at any winding;
+#   - culling: the BASIC's screen-space cross product becomes draw3d's
+#     3D-normal backface culling (the face windings transfer as-is), and
+#     depthmode 2 removes what culling alone cannot;
 #   - the xpos/scale bounce: world-x drift with z coupled to it; the
 #     perspective projection provides the grow/shrink that `scale` did.
-# The hidden-line depth test uses a relative 5% tolerance on 1/z, so it
-# works at any scene scale; only features thinner than ~5% of their
-# distance can still show through.
+# Culling does most of the hiding (as in the BASIC); the z-buffer handles
+# the non-convex leftovers, using MMBasic's depth test verbatim.
 import math
 import time
 
@@ -123,7 +123,7 @@ try:
         zw = 315.0 * S + 0.5 * xw
 
         hdmi.fill(0)
-        draw3d.show(1, xw, yw, zw, 1, 2)    # nonormals + hidden line
+        draw3d.show(1, xw, yw, zw, 0, 2)    # backface culling + hidden line
         ms = time.ticks_diff(time.ticks_ms(), tts)
         if ms > 0:
             fps = fps * 0.9 + 0.1 * (1000.0 / ms)

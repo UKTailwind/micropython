@@ -162,8 +162,11 @@ if hasattr(hdmi, "blit"):
             return len(buf)
 
         def read(self, n=1):
+            # 5 ms slices: each timeout re-enters the VM, which pumps the
+            # event hook -- pcaudio's refill callbacks need ~4 kB served
+            # every 23 ms while music plays at an idle prompt.
             while True:
-                if _stdin_poll.poll(50):
+                if _stdin_poll.poll(5):
                     return sys.stdin.buffer.read(1)
 
         def readinto(self, buf):

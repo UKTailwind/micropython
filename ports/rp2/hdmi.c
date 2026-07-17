@@ -1237,6 +1237,37 @@ void hdmi_draw_line_raw(int x1, int y1, int x2, int y2, int32_t colour) {
     }
 }
 
+// Fast horizontal span x1..x2 (inclusive, caller-clipped) on a target
+// buffer -- runs written directly per mode, as MMBasic's DrawFill does,
+// instead of per-pixel calls.
+static void hdmi_hspan(uint8_t *buf, int x1, int x2, int y, mp_int_t colour) {
+    if (x2 < x1) {
+        return;
+    }
+    if (hdmi_rgb121) {
+        uint8_t *row = &buf[(size_t)y * (hdmi_w / 2)];
+        if (x1 & 1) { // odd x = high nibble
+            row[x1 >> 1] = (row[x1 >> 1] & 0x0f) | (uint8_t)((colour & 0x0f) << 4);
+            x1++;
+        }
+        if (!(x2 & 1)) { // even x = low nibble
+            row[x2 >> 1] = (row[x2 >> 1] & 0xf0) | (uint8_t)(colour & 0x0f);
+            x2--;
+        }
+        if (x1 <= x2) {
+            memset(&row[x1 >> 1], (uint8_t)((colour & 0x0f) * 0x11), (size_t)((x2 - x1 + 1) >> 1));
+        }
+    } else if (hdmi_native) {
+        memset(&buf[(size_t)y * hdmi_w + x1], (uint8_t)colour, (size_t)(x2 - x1 + 1));
+    } else {
+        uint16_t *row = &((uint16_t *)buf)[(size_t)y * hdmi_w + x1];
+        uint16_t c = (uint16_t)colour;
+        for (int n = x2 - x1 + 1; n > 0; n--) {
+            *row++ = c;
+        }
+    }
+}
+
 // Clipped filled rectangle on the current write target (MMBasic
 // DrawRectangle, as the 3D engine's hide/clear uses it).
 void hdmi_fill_rect_raw(int x1, int y1, int x2, int y2, int32_t colour) {
@@ -1264,9 +1295,7 @@ void hdmi_fill_rect_raw(int x1, int y1, int x2, int y2, int32_t colour) {
         y2 = hdmi_h - 1;
     }
     for (int y = y1; y <= y2; y++) {
-        for (int x = x1; x <= x2; x++) {
-            hdmi_px_set(buf, hdmi_w, x, y, colour);
-        }
+        hdmi_hspan(buf, x1, x2, y, colour);
     }
 }
 
@@ -1329,9 +1358,14 @@ void hdmi_polyfill_raw(const int16_t *pts, int count, int32_t colour, int patter
             if (xb > W - 1) {
                 xb = W - 1;
             }
-            for (int px = xa; px <= xb; px++) {
-                if (bits & (1u << (px & 7))) {
-                    hdmi_px_set(buf, W, px, scan_y, colour);
+            if (bits == 0xFF) {
+                // Solid row: write the span as a run (MMBasic's DrawFill).
+                hdmi_hspan(buf, xa, xb, scan_y, colour);
+            } else {
+                for (int px = xa; px <= xb; px++) {
+                    if (bits & (1u << (px & 7))) {
+                        hdmi_px_set(buf, W, px, scan_y, colour);
+                    }
                 }
             }
         }

@@ -101,6 +101,15 @@ def run(path):
         exec(code, g)
     finally:
         os.chdir(cwd)
+        # If the program died (or was Ctrl-C'd) while hdmi.write("F"/"L") was
+        # selected, console output would keep going to the invisible buffer and
+        # the REPL would LOOK dead. Always come home to the display, as MMBasic
+        # does when a program ends.
+        try:
+            import hdmi
+            hdmi.write("N")
+        except Exception:
+            pass
 
 
 def edit(*args, **kwargs):

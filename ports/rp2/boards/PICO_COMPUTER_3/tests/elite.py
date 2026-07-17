@@ -2,11 +2,8 @@
 # ship tumbling in the middle of the screen, green lines on black, with
 # the edges behind the hull properly removed by the 1/z buffer.
 #
-# The hidden-line depth test uses MMBasic's absolute epsilon (0.0005 on
-# 1/z), so the scene must sit CLOSE to the camera for occlusion to bite:
-# here viewplane 150 and z ~230 give 1/z differences of ~0.003 across the
-# hull. At football.py distances (z=1000) every 1/z is ~0.001 and nothing
-# would ever be hidden.
+# The hidden-line depth test uses a relative 5% tolerance on 1/z, so any
+# scene scale works; this demo keeps the ship close simply for size.
 import math
 import time
 
@@ -52,19 +49,20 @@ hdmi.write("F")
 Z = 230.0 * s
 frames = int(globals().get("FRAMES", 600))
 t0 = time.ticks_ms()
-for _ in range(frames):
-    # slow tumble: mostly yaw with a little pitch and roll
-    q1 = draw3d.q_create(math.radians(1.2), 0.25, 1.0, 0.12)
-    draw3d.rotate(q1, 1)
-    draw3d.reset(1)
-    hdmi.fill(0)
-    draw3d.show(1, 0, 0, Z, 1, 2)   # nonormals=1 + hidden line: pure Elite
-    hdmi.copy("F", "N")
+# the finally runs even on Ctrl-C: come home to the visible display and free
+# F, or the console would keep printing into the invisible buffer
+try:
+    for _ in range(frames):
+        # slow tumble: mostly yaw with a little pitch and roll
+        q1 = draw3d.q_create(math.radians(1.2), 0.25, 1.0, 0.12)
+        draw3d.rotate(q1, 1)
+        draw3d.reset(1)
+        hdmi.fill(0)
+        draw3d.show(1, 0, 0, Z, 1, 2)   # nonormals + hidden line: pure Elite
+        hdmi.copy("F", "N")
+finally:
+    hdmi.write("N")
+    hdmi.close("F")
 ms = time.ticks_diff(time.ticks_ms(), t0)
 if ms > 0:
     print("elite: %d frames in %d ms (%.1f fps)" % (frames, ms, frames * 1000.0 / ms))
-
-try:
-    hdmi.write("N")
-finally:
-    hdmi.close("F")

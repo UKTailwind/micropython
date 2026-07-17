@@ -1581,16 +1581,16 @@ body are removed instead of drawn through it. Faces *with* a fill colour
 still paint solidly, so solid and wireframe faces can mix in one object.
 Two things to know:
 
-- The depth test uses MMBasic's absolute tolerance (0.0005 on 1/z), so the
-  scene must be **close to the camera** for occlusion to engage — a camera
-  `viewplane` around 100–150 with the object at `z` ≈ 150–300 works well.
-  At long range (`z` ≈ 1000, football.py territory) every edge draws, as
-  in MMBasic.
+- The depth test works at **any scene scale**: each pixel knows which face
+  is nearest, so a face never occludes its own edges, and anything behind
+  another surface (beyond a 0.2% depth tolerance) is culled. Only
+  paper-thin separations can still show through.
 - Usually combine it with `nonormals=1`: let the z-buffer do the hiding
   rather than backface culling, so silhouettes stay complete at any
   winding.
 
-See `demos/elite.py` — a tumbling wireframe ship rendered this way.
+See `demos/elite.py` — a tumbling wireframe ship — and `demos/cobra.py`,
+a classic 17-face polygon ship converted from MMBasic.
 
 ### Maths — `ulab` + `pcmath`
 

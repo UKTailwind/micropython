@@ -81,34 +81,35 @@ xmax, ymax = HRES / 2 - radius, VRES / 2 - radius
 frames = int(globals().get("FRAMES", 300))
 draw3d.show(1, 0, 0, 1000)
 t0 = time.ticks_ms()
-for _ in range(frames):
-    px += vx
-    py += vy
-    bounced = False
-    if px > xmax:
-        px, vx, bounced = xmax, -vx, True
-    if px < -xmax:
-        px, vx, bounced = -xmax, -vx, True
-    if py > ymax:
-        py, vy, bounced = ymax, -vy, True
-    if py < -ymax:
-        py, vy, bounced = -ymax, -vy, True
-    if bounced:
-        sx = random.random() * 6 - 3
-        sy = random.random() * 6 - 3
-        sz = random.random() * 6 - 3
-        spd = random.random() * 2 + 0.1
-    q1 = draw3d.q_create(math.radians(spd), sx, sy, sz)
-    draw3d.rotate(q1, 1)
-    draw3d.reset(1)
-    hdmi.fill(0)
-    draw3d.show(1, px, py, 1000)
-    hdmi.copy("F", "N")
+# the finally runs even on Ctrl-C: come home to the visible display and free
+# F, or the console would keep printing into the invisible buffer
+try:
+    for _ in range(frames):
+        px += vx
+        py += vy
+        bounced = False
+        if px > xmax:
+            px, vx, bounced = xmax, -vx, True
+        if px < -xmax:
+            px, vx, bounced = -xmax, -vx, True
+        if py > ymax:
+            py, vy, bounced = ymax, -vy, True
+        if py < -ymax:
+            py, vy, bounced = -ymax, -vy, True
+        if bounced:
+            sx = random.random() * 6 - 3
+            sy = random.random() * 6 - 3
+            sz = random.random() * 6 - 3
+            spd = random.random() * 2 + 0.1
+        q1 = draw3d.q_create(math.radians(spd), sx, sy, sz)
+        draw3d.rotate(q1, 1)
+        draw3d.reset(1)
+        hdmi.fill(0)
+        draw3d.show(1, px, py, 1000)
+        hdmi.copy("F", "N")
+finally:
+    hdmi.write("N")
+    hdmi.close("F")
 ms = time.ticks_diff(time.ticks_ms(), t0)
 if ms > 0:
     print("football: %d frames in %d ms (%.1f fps)" % (frames, ms, frames * 1000.0 / ms))
-
-try:
-    hdmi.write("N")
-finally:
-    hdmi.close("F")

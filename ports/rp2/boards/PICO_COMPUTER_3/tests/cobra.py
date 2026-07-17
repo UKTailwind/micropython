@@ -14,8 +14,9 @@
 #     the silhouette stays complete at any winding;
 #   - the xpos/scale bounce: world-x drift with z coupled to it; the
 #     perspective projection provides the grow/shrink that `scale` did.
-# The hidden-line depth test is MMBasic's absolute 0.0005-on-1/z epsilon,
-# so the ship is kept close to the camera (see elite.py for the numbers).
+# The hidden-line depth test uses a relative 5% tolerance on 1/z, so it
+# works at any scene scale; only features thinner than ~5% of their
+# distance can still show through.
 import math
 import time
 
@@ -98,38 +99,39 @@ XLIM = 60.0 * S
 fps = 0.0
 frames = int(globals().get("FRAMES", 1000))
 t0 = time.ticks_ms()
-for _ in range(frames):
-    tts = time.ticks_ms()
-    # the BASIC's per-frame angle steps (radians)
-    ax -= 0.00005
-    ay += 0.01
-    az += 0.025
-    # rotate around z, then y, then x == one combined quaternion
-    q = qmul(draw3d.q_create(ax, 1.0, 0.0, 0.0),
-        qmul(draw3d.q_create(ay, 0.0, 1.0, 0.0),
-            draw3d.q_create(az, 0.0, 0.0, 1.0)))
-    draw3d.rotate(q, 1)
+# the finally runs even on Ctrl-C: come home to the visible display and free
+# F, or the console would keep printing into the invisible buffer
+try:
+    for _ in range(frames):
+        tts = time.ticks_ms()
+        # the BASIC's per-frame angle steps (radians)
+        ax -= 0.00005
+        ay += 0.01
+        az += 0.025
+        # rotate around z, then y, then x == one combined quaternion
+        q = qmul(draw3d.q_create(ax, 1.0, 0.0, 0.0),
+            qmul(draw3d.q_create(ay, 0.0, 1.0, 0.0),
+                draw3d.q_create(az, 0.0, 0.0, 1.0)))
+        draw3d.rotate(q, 1)
 
-    # drift and breathe: x bounces, z rides it (perspective = the old scale)
-    xw += step
-    if xw > XLIM or xw < -XLIM:
-        step = -step
+        # drift and breathe: x bounces, z rides it (perspective = old scale)
         xw += step
-    yw = 0.25 * xw
-    zw = 315.0 * S + 0.5 * xw
+        if xw > XLIM or xw < -XLIM:
+            step = -step
+            xw += step
+        yw = 0.25 * xw
+        zw = 315.0 * S + 0.5 * xw
 
-    hdmi.fill(0)
-    draw3d.show(1, xw, yw, zw, 1, 2)    # nonormals + hidden line
-    ms = time.ticks_diff(time.ticks_ms(), tts)
-    if ms > 0:
-        fps = fps * 0.9 + 0.1 * (1000.0 / ms)
-    hdmi.text("FPS: %.1f" % fps, 0, 0, WHITE)
-    hdmi.copy("F", "N")
+        hdmi.fill(0)
+        draw3d.show(1, xw, yw, zw, 1, 2)    # nonormals + hidden line
+        ms = time.ticks_diff(time.ticks_ms(), tts)
+        if ms > 0:
+            fps = fps * 0.9 + 0.1 * (1000.0 / ms)
+        hdmi.text("FPS: %.1f" % fps, 0, 0, WHITE)
+        hdmi.copy("F", "N")
+finally:
+    hdmi.write("N")
+    hdmi.close("F")
 ms = time.ticks_diff(time.ticks_ms(), t0)
 if ms > 0:
     print("cobra: %d frames in %d ms (%.1f fps)" % (frames, ms, frames * 1000.0 / ms))
-
-try:
-    hdmi.write("N")
-finally:
-    hdmi.close("F")

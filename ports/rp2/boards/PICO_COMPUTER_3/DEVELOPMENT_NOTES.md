@@ -1987,13 +1987,25 @@ when it moves, so it floats over any screen content without disturbing it.
   `closeall3d`. MMBasic's is_hiddenline_target check (memory targets only)
   is vacuous here — every hdmi target is a memory buffer. `hdmi_pixel_raw`
   added to the hdmi_priv.h drawing helpers for the depth-tested plot.
-- **Scene-scale caveat (MMBasic-verbatim)**: the depth test uses an
-  ABSOLUTE epsilon, `1/z >= zbuf - 0.0005`, so occlusion only engages when
-  1/z differences beat 0.0005 — scenes must sit close (camera viewplane
-  ~100-150, object z ~150-300). At football.py distances (z=1000) all 1/z
-  are ~0.001 and depthmode 2 degrades to drawing every visible edge —
-  identical arithmetic to MMBasic, so scenes tuned there behave the same
-  here.
+- **Depth test (deliberate deviation from MMBasic — bench-driven)**:
+  MMBasic subtracts an ABSOLUTE 0.0005 from the buffered 1/z. On the bench
+  that failed two ways: at z≈1000 every 1/z difference is under 0.0005 so
+  nothing hides, and on a flat hull (the Cobra) edges leak long partial
+  stubs through nearby surfaces at any distance (0.0005·z² ≈ 50 units of
+  indistinguishable depth at z=315). Even a relative 5% tolerance left
+  stubs wherever an edge leaves a visible surface rearward (depths are
+  equal at the shared vertex). Final design: the raster keeps a FACE-ID
+  byte per pixel alongside 1/z; an edge pixel draws if its own face owns
+  the pixel (self-occlusion exact, no tolerance), the pixel is empty, or
+  the edge is within 0.2% (in 1/z) of the owner — the tight relative
+  tolerance only has to cover coplanar faces and fold edges, so stubs
+  collapse to ~1 px and the test is scale-invariant. Cache is `count`
+  floats + `count` id bytes (worst case 640×480×5 = 1.5 MB); create()
+  therefore caps nf at 254 (0xFF = empty). Verified exactly: the
+  unrotated Cobra's hidden render equals a stern-silhouette-only
+  reference to within Bresenham's 1 px direction asymmetry — zero leaked
+  pixels, zero over-culled; cube near/far edges at z=200 AND z=1000;
+  5 tumbled poses strict-subset. Worth backporting to MMBasic.
 - **API extra**: `create()` now accepts per-face `None` (or `-1`) in the
   `fill` index list — mixed solid + wireframe objects, the split the
   hidden-line renderer draws natively (MMBasic's fill array is
@@ -2031,6 +2043,20 @@ when it moves, so it floats over any screen content without disturbing it.
 
 **v0.9 version bump**: `PICO_COMPUTER_3_VERSION` "0.9" (banner +
 `os.uname().machine`), emulator banner, manual header/footer.
+
+### 59. "Dead REPL" after interrupting a double-buffered program
+
+- **Symptom** (Peter's bench, after Ctrl-C-ing cobra.py): the REPL stops
+  responding to keys. Not a crash and not a heap problem: the program was
+  interrupted while `hdmi.write("F")` was selected, so its restore code
+  never ran and ALL console output — the KeyboardInterrupt traceback, the
+  prompt, every keystroke echo — kept rendering into the invisible
+  off-screen buffer. (Blind-typing `hdmi.write("N")` recovers.)
+- **Fix, both layers**: `pcshell.run()` now restores `hdmi.write("N")` in
+  its `finally` (as MMBasic does when a program ends, however it ends);
+  and the three double-buffered demos (football/elite/cobra) wrap their
+  frame loop in try/finally that restores the target and closes F even on
+  Ctrl-C.
 
 ---
 

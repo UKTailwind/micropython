@@ -1,0 +1,8 @@
+#!/bin/sh
+# Pico Computer 3 emulator launcher (phase 1: terminal console).
+#   PC3EMU_HOME   where /flash and /sd live (default ~/.pc3emu)
+#   MICROPYTHON   path to the pc3-variant interpreter (default: in-tree build)
+set -e
+here=$(dirname "$(realpath "$0")")
+mp=${MICROPYTHON:-"$here/../../../../unix/build-pc3/micropython"}
+exec "$mp" -X heapsize=8m -i -c "import emuboot"

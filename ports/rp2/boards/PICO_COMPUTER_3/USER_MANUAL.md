@@ -1566,6 +1566,7 @@ doesn't have, on top of it:
 | DSP | `window(n, kind)` (hann/hamming/blackman/bartlett/rect), `sinc(x)`, `crossings(a, level)`, `power_spectrum(a)` |
 | Statistics | `correl(a, b)` (Pearson r), `chi_square(obs, exp)` → `(chi2, p)` |
 | Control | `PID(kp, ki, kd, setpoint, out_min, out_max)` → `.update(measured, dt)` |
+| Sensor fusion | `AHRS()` → `.madgwick(ax,ay,az, gx,gy,gz, mx=None,my=None,mz=None, beta=0.5, dt=None)` / `.mahony(..., kp=10, ki=0, dt=None)` → `(roll, pitch, yaw)` in radians (MMBasic `MATH SENSORFUSION`, ported verbatim). Gyro in rad/s; magnetometer optional (omitted = 6-axis IMU); `dt=None` times itself between calls (capped 1 s); `.reset()` re-levels. One `AHRS()` instance per IMU |
 
 ```python
 import math, pcmath

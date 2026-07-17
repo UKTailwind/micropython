@@ -325,3 +325,252 @@ class PID:
             d = self.kd * (err - self._prev) / dt
         self._prev = err
         return self._clamp(self.kp * err + self._i + d)
+
+
+# --- Sensor fusion (MMBasic MATH SENSORFUSION) -------------------------------
+class AHRS:
+    """Attitude estimation from IMU readings (MMBasic MATH SENSORFUSION):
+    fuse accelerometer + gyroscope (+ optional magnetometer) samples into
+    roll/pitch/yaw with the Madgwick or Mahony filters -- both ported
+    verbatim from MMBasic (PicoMite MATHS.c), including its defaults
+    (beta=0.5; Kp=10, Ki=0) and its diverged-filter recovery.
+
+        imu = pcmath.AHRS()
+        while True:
+            ax, ay, az, gx, gy, gz = read_imu()      # g's and rad/s
+            roll, pitch, yaw = imu.madgwick(ax, ay, az, gx, gy, gz)
+
+    Gyro rates are radians/second; angles return in radians (use
+    math.degrees()). dt=None times itself between calls (MMBasic's
+    AHRSTimer, capped at 1 s); pass dt explicitly for recorded data.
+    Magnetometer axes are optional -- omitted = 6-axis IMU mode."""
+
+    def __init__(self):
+        self.q = [1.0, 0.0, 0.0, 0.0]
+        self._eint = [0.0, 0.0, 0.0]
+        self._last = None
+
+    def reset(self):
+        """Back to the identity orientation (and clear the Mahony integral)."""
+        self.q = [1.0, 0.0, 0.0, 0.0]
+        self._eint = [0.0, 0.0, 0.0]
+        self._last = None
+
+    def _dt(self, dt):
+        import time
+
+        if dt is not None:
+            return dt
+        now = time.ticks_ms()
+        if self._last is None:
+            d = 0.0
+        else:
+            d = time.ticks_diff(now, self._last) / 1000.0
+        self._last = now
+        return d if d < 1.0 else 1.0
+
+    def _store(self, q1, q2, q3, q4):
+        # MMBasic StoreQuaternion: normalise; reset to identity if diverged.
+        norm = math.sqrt(q1 * q1 + q2 * q2 + q3 * q3 + q4 * q4)
+        if norm == 0.0 or not (norm == norm) or norm == float("inf"):
+            q1, q2, q3, q4 = 1.0, 0.0, 0.0, 0.0
+        else:
+            norm = 1.0 / norm
+            q1 *= norm
+            q2 *= norm
+            q3 *= norm
+            q4 *= norm
+        self.q[0], self.q[1], self.q[2], self.q[3] = q1, q2, q3, q4
+        return q1, q2, q3, q4
+
+    def _angles(self, q1, q2, q3, q4):
+        ysqr = q3 * q3
+        t0 = 2.0 * (q1 * q2 + q3 * q4)
+        t1 = 1.0 - 2.0 * (q2 * q2 + ysqr)
+        roll = math.atan2(t0, t1)
+        t2 = 2.0 * (q1 * q3 - q4 * q2)
+        t2 = 1.0 if t2 > 1.0 else (-1.0 if t2 < -1.0 else t2)
+        pitch = math.asin(t2)
+        t3 = 2.0 * (q1 * q4 + q2 * q3)
+        t4 = 1.0 - 2.0 * (ysqr + q4 * q4)
+        yaw = math.atan2(t3, t4)
+        return roll, pitch, yaw
+
+    def madgwick(self, ax, ay, az, gx, gy, gz,
+                 mx=None, my=None, mz=None, beta=0.5, dt=None):
+        """One Madgwick update -> (roll, pitch, yaw) in radians."""
+        deltat = self._dt(dt)
+        q1, q2, q3, q4 = self.q
+        usemag = mx is not None
+        _2q1 = 2.0 * q1
+        _2q2 = 2.0 * q2
+        _2q3 = 2.0 * q3
+        _2q4 = 2.0 * q4
+        _2q1q3 = 2.0 * q1 * q3
+        _2q3q4 = 2.0 * q3 * q4
+        q1q1 = q1 * q1
+        q1q2 = q1 * q2
+        q1q3 = q1 * q3
+        q1q4 = q1 * q4
+        q2q2 = q2 * q2
+        q2q3 = q2 * q3
+        q2q4 = q2 * q4
+        q3q3 = q3 * q3
+        q3q4 = q3 * q4
+        q4q4 = q4 * q4
+
+        norm = math.sqrt(ax * ax + ay * ay + az * az)
+        if norm == 0.0:
+            return self._angles(q1, q2, q3, q4)
+        norm = 1.0 / norm
+        ax *= norm
+        ay *= norm
+        az *= norm
+
+        if usemag:
+            norm = math.sqrt(mx * mx + my * my + mz * mz)
+            if norm == 0.0:
+                return self._angles(q1, q2, q3, q4)
+            norm = 1.0 / norm
+            mx *= norm
+            my *= norm
+            mz *= norm
+            _2q1mx = 2.0 * q1 * mx
+            _2q1my = 2.0 * q1 * my
+            _2q1mz = 2.0 * q1 * mz
+            _2q2mx = 2.0 * q2 * mx
+            hx = (mx * q1q1 - _2q1my * q4 + _2q1mz * q3 + mx * q2q2
+                  + _2q2 * my * q3 + _2q2 * mz * q4 - mx * q3q3 - mx * q4q4)
+            hy = (_2q1mx * q4 + my * q1q1 - _2q1mz * q2 + _2q2mx * q3
+                  - my * q2q2 + my * q3q3 + _2q3 * mz * q4 - my * q4q4)
+            _2bx = math.sqrt(hx * hx + hy * hy)
+            _2bz = (-_2q1mx * q3 + _2q1my * q2 + mz * q1q1 + _2q2mx * q4
+                    - mz * q2q2 + _2q3 * my * q4 - mz * q3q3 + mz * q4q4)
+            _4bx = 2.0 * _2bx
+            _4bz = 2.0 * _2bz
+            s1 = (-_2q3 * (2.0 * q2q4 - _2q1q3 - ax) + _2q2 * (2.0 * q1q2 + _2q3q4 - ay)
+                  - _2bz * q3 * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx)
+                  + (-_2bx * q4 + _2bz * q2) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
+                  + _2bx * q3 * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
+            s2 = (_2q4 * (2.0 * q2q4 - _2q1q3 - ax) + _2q1 * (2.0 * q1q2 + _2q3q4 - ay)
+                  - 4.0 * q2 * (1.0 - 2.0 * q2q2 - 2.0 * q3q3 - az)
+                  + _2bz * q4 * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx)
+                  + (_2bx * q3 + _2bz * q1) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
+                  + (_2bx * q4 - _4bz * q2) * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
+            s3 = (-_2q1 * (2.0 * q2q4 - _2q1q3 - ax) + _2q4 * (2.0 * q1q2 + _2q3q4 - ay)
+                  - 4.0 * q3 * (1.0 - 2.0 * q2q2 - 2.0 * q3q3 - az)
+                  + (-_4bx * q3 - _2bz * q1) * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx)
+                  + (_2bx * q2 + _2bz * q4) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
+                  + (_2bx * q1 - _4bz * q3) * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
+            s4 = (_2q2 * (2.0 * q2q4 - _2q1q3 - ax) + _2q3 * (2.0 * q1q2 + _2q3q4 - ay)
+                  + (-_4bx * q4 + _2bz * q2) * (_2bx * (0.5 - q3q3 - q4q4) + _2bz * (q2q4 - q1q3) - mx)
+                  + (-_2bx * q1 + _2bz * q3) * (_2bx * (q2q3 - q1q4) + _2bz * (q1q2 + q3q4) - my)
+                  + _2bx * q2 * (_2bx * (q1q3 + q2q4) + _2bz * (0.5 - q2q2 - q3q3) - mz))
+        else:
+            _4q1 = 4.0 * q1
+            _4q2 = 4.0 * q2
+            _4q3 = 4.0 * q3
+            _8q2 = 8.0 * q2
+            _8q3 = 8.0 * q3
+            s1 = _4q1 * q3q3 + _2q3 * ax + _4q1 * q2q2 - _2q2 * ay
+            s2 = (_4q2 * q4q4 - _2q4 * ax + 4.0 * q1q1 * q2 - _2q1 * ay
+                  - _4q2 + _8q2 * q2q2 + _8q2 * q3q3 + _4q2 * az)
+            s3 = (4.0 * q1q1 * q3 + _2q1 * ax + _4q3 * q4q4 - _2q4 * ay
+                  - _4q3 + _8q3 * q2q2 + _8q3 * q3q3 + _4q3 * az)
+            s4 = 4.0 * q2q2 * q4 - _2q2 * ax + 4.0 * q3q3 * q4 - _2q3 * ay
+        norm = math.sqrt(s1 * s1 + s2 * s2 + s3 * s3 + s4 * s4)
+        if norm == 0.0:
+            return self._angles(q1, q2, q3, q4)
+        norm = 1.0 / norm
+        s1 *= norm
+        s2 *= norm
+        s3 *= norm
+        s4 *= norm
+
+        qDot1 = 0.5 * (-q2 * gx - q3 * gy - q4 * gz) - beta * s1
+        qDot2 = 0.5 * (q1 * gx + q3 * gz - q4 * gy) - beta * s2
+        qDot3 = 0.5 * (q1 * gy - q2 * gz + q4 * gx) - beta * s3
+        qDot4 = 0.5 * (q1 * gz + q2 * gy - q3 * gx) - beta * s4
+        q1 += qDot1 * deltat
+        q2 += qDot2 * deltat
+        q3 += qDot3 * deltat
+        q4 += qDot4 * deltat
+        q1, q2, q3, q4 = self._store(q1, q2, q3, q4)
+        return self._angles(q1, q2, q3, q4)
+
+    def mahony(self, ax, ay, az, gx, gy, gz,
+               mx=None, my=None, mz=None, kp=10.0, ki=0.0, dt=None):
+        """One Mahony update -> (roll, pitch, yaw) in radians."""
+        deltat = self._dt(dt)
+        q1, q2, q3, q4 = self.q
+        usemag = mx is not None
+        q1q1 = q1 * q1
+        q1q2 = q1 * q2
+        q1q3 = q1 * q3
+        q1q4 = q1 * q4
+        q2q2 = q2 * q2
+        q2q3 = q2 * q3
+        q2q4 = q2 * q4
+        q3q3 = q3 * q3
+        q3q4 = q3 * q4
+        q4q4 = q4 * q4
+
+        norm = math.sqrt(ax * ax + ay * ay + az * az)
+        if norm == 0.0:
+            return self._angles(q1, q2, q3, q4)
+        norm = 1.0 / norm
+        ax *= norm
+        ay *= norm
+        az *= norm
+
+        vx = 2.0 * (q2q4 - q1q3)
+        vy = 2.0 * (q1q2 + q3q4)
+        vz = q1q1 - q2q2 - q3q3 + q4q4
+        ex = ay * vz - az * vy
+        ey = az * vx - ax * vz
+        ez = ax * vy - ay * vx
+
+        if usemag:
+            norm = math.sqrt(mx * mx + my * my + mz * mz)
+            if norm == 0.0:
+                return self._angles(q1, q2, q3, q4)
+            norm = 1.0 / norm
+            mx *= norm
+            my *= norm
+            mz *= norm
+            hx = (2.0 * mx * (0.5 - q3q3 - q4q4) + 2.0 * my * (q2q3 - q1q4)
+                  + 2.0 * mz * (q2q4 + q1q3))
+            hy = (2.0 * mx * (q2q3 + q1q4) + 2.0 * my * (0.5 - q2q2 - q4q4)
+                  + 2.0 * mz * (q3q4 - q1q2))
+            bx = math.sqrt(hx * hx + hy * hy)
+            bz = (2.0 * mx * (q2q4 - q1q3) + 2.0 * my * (q3q4 + q1q2)
+                  + 2.0 * mz * (0.5 - q2q2 - q3q3))
+            wx = 2.0 * bx * (0.5 - q3q3 - q4q4) + 2.0 * bz * (q2q4 - q1q3)
+            wy = 2.0 * bx * (q2q3 - q1q4) + 2.0 * bz * (q1q2 + q3q4)
+            wz = 2.0 * bx * (q1q3 + q2q4) + 2.0 * bz * (0.5 - q2q2 - q3q3)
+            ex += my * wz - mz * wy
+            ey += mz * wx - mx * wz
+            ez += mx * wy - my * wx
+
+        if ki > 0.0:
+            self._eint[0] += ex
+            self._eint[1] += ey
+            self._eint[2] += ez
+        else:
+            self._eint[0] = 0.0
+            self._eint[1] = 0.0
+            self._eint[2] = 0.0
+
+        gx = gx + kp * ex + ki * self._eint[0]
+        gy = gy + kp * ey + ki * self._eint[1]
+        gz = gz + kp * ez + ki * self._eint[2]
+
+        pa = q2
+        pb = q3
+        pc = q4
+        q1 = q1 + (-q2 * gx - q3 * gy - q4 * gz) * (0.5 * deltat)
+        q2 = pa + (q1 * gx + pb * gz - pc * gy) * (0.5 * deltat)
+        q3 = pb + (q1 * gy - pa * gz + pc * gx) * (0.5 * deltat)
+        q4 = pc + (q1 * gz + pa * gy - pb * gx) * (0.5 * deltat)
+        q1, q2, q3, q4 = self._store(q1, q2, q3, q4)
+        return self._angles(q1, q2, q3, q4)

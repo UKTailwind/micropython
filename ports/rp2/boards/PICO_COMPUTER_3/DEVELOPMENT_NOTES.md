@@ -1854,6 +1854,25 @@ when it moves, so it floats over any screen content without disturbing it.
   to 274 px on a 100-px triangle; checkerboard covers exactly 50% of the
   solid fill's pixels; all 32 patterns render; get/set round-trips.
 
+### 52. Sensor fusion — `pcmath.AHRS` (MMBasic MATH SENSORFUSION)
+
+- **What**: `AHRS()` with `.madgwick(...)` and `.mahony(...)` -- both
+  filters ported VERBATIM from MMBasic (PicoMite `core/MATHS.c`,
+  `MadgwickQuaternionUpdate` / `MahonyQuaternionUpdate`), including the
+  MMBasic defaults (`beta=0.5`; `Kp=10, Ki=0`), the 9-axis/6-axis split on
+  whether magnetometer values are supplied, the Mahony integral with
+  wind-up clearing when `Ki<=0`, and `StoreQuaternion`'s diverged-filter
+  recovery (zero/NaN norm resets to identity). State (quaternion + Mahony
+  integral) is per-instance rather than MMBasic's globals -- one `AHRS()`
+  per IMU; `dt=None` self-times between calls like MMBasic's `AHRSTimer`
+  (capped at 1 s).
+- **Units**: gyro rad/s in, angles in radians out (MMBasic scales by
+  `OPTION ANGLE`; Python convention is the `math` module's radians).
+- **Verified** (emulator): a 30° static tilt converges to roll 30.00°
+  (Mahony) / 29.58° (Madgwick, beta 0.5) with pitch 0; re-levelling
+  returns both to 0; the 9-axis path settles yaw to magnetic north; the
+  Ki integral path holds; the divergence reset restores identity.
+
 ---
 
 ## Files touched

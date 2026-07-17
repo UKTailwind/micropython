@@ -1,6 +1,6 @@
 # Pico Computer 3 — MicroPython User Manual
 
-**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.8** (test release).
+**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.9** (test release).
 The REPL banner reports the version:
 
 ```

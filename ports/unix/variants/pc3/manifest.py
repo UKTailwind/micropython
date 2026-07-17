@@ -16,6 +16,7 @@ freeze(
         "pye.py",
         "pcconfig.py",
         "pcgfx.py",
+        "pcconsole.py",
     ),
 )
 

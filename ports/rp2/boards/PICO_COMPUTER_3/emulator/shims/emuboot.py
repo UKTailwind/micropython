@@ -73,10 +73,69 @@ try:
 except Exception:
     pass
 
+# Real display build: open the window at boot (saved mode, as the machine
+# does), put the on-screen console in it, and route keyboard input from the
+# window into the REPL alongside the launching terminal.
+if hasattr(hdmi, "blit"):
+    import sys
+    import io
+    import select
+    import _emukbd
+    import pcconsole
+
+    try:
+        hdmi.init(pcconfig.get("hdmi_mode", hdmi.RGB640),
+                  pcconfig.get("hdmi_clock", 252))
+    except Exception:
+        hdmi.init(hdmi.RGB640)
+
+    class _EmuTerm(io.IOBase):
+        # The dupterm stream: write mirrors to the on-screen console (when one
+        # is up); read BLOCKS, serving the window's keyboard (_emukbd, fed by
+        # the firmware's own decoder) and the launching terminal together --
+        # so it never falls back to a terminal-only blocking read that would
+        # starve window input.
+        def __init__(self, con):
+            self.con = con
+            self._poll = select.poll()
+            self._poll.register(sys.stdin, select.POLLIN)
+
+        def write(self, buf):
+            if self.con is not None:
+                self.con.write(buf)
+            return len(buf)
+
+        def read(self, n=1):
+            while True:
+                b = _emukbd.read()
+                if b is not None:
+                    return b
+                if self._poll.poll(20):
+                    c = sys.stdin.buffer.read(1)
+                    return c if c else b"\x04"  # terminal EOF -> Ctrl-D
+
+        def readinto(self, buf):
+            b = self.read(1)
+            if not b:
+                return None
+            buf[0] = b[0]
+            return 1
+
+    _orig_console = pcconsole.console
+
+    def _console(target=True, fg=0xFFFFFF, bg=0x000000):
+        con = _orig_console(target, fg, bg)
+        os.dupterm(_EmuTerm(con))  # keep window keyboard input on ANY target
+        return con
+
+    pcconsole.console = _console
+    __main__.console = _console
+    _console("both")
+
 print("Pico Computer 3 emulator")
 print("flash -> %s/flash   sd -> %s/sd" % (_home, _home))
 if hasattr(hdmi, "blit"):
-    print("graphics: real hdmi + SDL -- hdmi.init() opens the display window,")
-    print("          hdmi.test() shows the colour bars")
+    print("display: window open, console 'both' -- type in the window or here")
+    print("exit: Ctrl-D at the prompt (or machine.reset())")
 else:
     print("graphics: not built (terminal only) -- install libsdl2-dev and rebuild")

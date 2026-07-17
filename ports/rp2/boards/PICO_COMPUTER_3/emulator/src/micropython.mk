@@ -7,9 +7,12 @@ PC3_RP2_DIR := $(PC3EMU_DIR)/../../../..
 
 SRC_USERMOD_C += $(PC3_RP2_DIR)/hdmi.c
 SRC_USERMOD_C += $(PC3EMU_DIR)/hdmi_sdl.c
+SRC_USERMOD_C += $(PC3_RP2_DIR)/usb_keyboard.c
+SRC_USERMOD_C += $(PC3_RP2_DIR)/kbd_decode.c
+SRC_USERMOD_C += $(PC3EMU_DIR)/kbd_sdl.c
 
 # No -I$(PC3_RP2_DIR): that would put ports/rp2's mpconfigport.h ahead of the
 # unix port's for every compile unit. hdmi.c resolves its own quoted includes
 # (fonts.h, hdmi_priv.h) relative to itself; hdmi_sdl.c uses a relative path.
-CFLAGS_USERMOD += -DMICROPY_HW_ENABLE_HDMI=1 $(shell sdl2-config --cflags)
+CFLAGS_USERMOD += -DMICROPY_HW_ENABLE_HDMI=1 -DMICROPY_HW_USB_HOST=1 $(shell sdl2-config --cflags)
 LDFLAGS_USERMOD += $(shell sdl2-config --libs) -lpthread

@@ -38,6 +38,10 @@
 
 #include "../../../../hdmi_priv.h" // ports/rp2/hdmi_priv.h (no -I on ports/rp2 -- see micropython.mk)
 
+// SDL keyboard entry points (kbd_sdl.c).
+extern void pc3emu_kbd_sdl_key(int scancode, int down, int sdl_mods);
+extern void pc3emu_kbd_tick(void);
+
 static pthread_t sdl_thread;
 static volatile bool sdl_thread_up = false;   // window exists, loop running
 static volatile bool sdl_want_stop = false;
@@ -162,9 +166,14 @@ static void *sdl_thread_main(void *arg) {
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) {
                 mp_sched_keyboard_interrupt(); // window close == Ctrl-C
+            } else if (ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP) {
+                if (!ev.key.repeat) { // the shared decoder synthesises repeats
+                    pc3emu_kbd_sdl_key(ev.key.keysym.scancode,
+                        ev.type == SDL_KEYDOWN, SDL_GetModState());
+                }
             }
-            // Phase 2b: keyboard events feed the keymap tables here.
         }
+        pc3emu_kbd_tick(); // auto-repeat, at frame rate (25x the repeat period)
         SDL_Delay(1);
         in_blank = false;
     }

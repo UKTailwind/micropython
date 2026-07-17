@@ -215,6 +215,7 @@ endif()
 if(MICROPY_HW_USB_HOST)
     list(APPEND MICROPY_SOURCE_PORT
         mp_usbh.c
+        kbd_decode.c
         usb_keyboard.c
         usb_touch.c
         usb_touch_mod.c

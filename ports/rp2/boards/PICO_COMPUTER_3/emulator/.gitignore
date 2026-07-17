@@ -1,0 +1,2 @@
+# build outputs -- regenerate with make-dist.sh
+dist/

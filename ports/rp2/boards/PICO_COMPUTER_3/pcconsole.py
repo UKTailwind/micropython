@@ -30,6 +30,16 @@ _ANSI = (
 )
 
 
+def size():
+    """(rows, cols) of the on-screen console, or None when output is routed
+    serial-only. Full-screen programs (pye) size themselves from this, so the
+    layout follows the screen even when an attached terminal ignored
+    sync_terminal()'s resize (or no terminal is attached at all)."""
+    if _con is None:
+        return None
+    return (_con.rows, _con.cols)
+
+
 def sync_terminal():
     """Resize the attached serial terminal to match the screen's character grid
     (xterm CSI 8;rows;cols t), so the terminal and HDMI console stay in sync."""

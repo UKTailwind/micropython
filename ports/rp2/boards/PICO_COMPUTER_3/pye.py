@@ -1385,6 +1385,17 @@ class IO_DEVICE:
         except ImportError:
             pass
     def get_screen_size(self):
+        # The on-screen console is authoritative when it's up: size from it
+        # directly (the VT100 query below would measure the attached serial
+        # terminal instead, which may ignore sync_terminal()'s resize -- and
+        # without a terminal attached nothing would answer at all).
+        try:
+            import pcconsole
+            size = pcconsole.size()
+            if size is not None:
+                return list(size)
+        except ImportError:
+            pass
         self.wr("\x1b[999;999H\x1b[6n")
         pos = ""
         char = self.rd()

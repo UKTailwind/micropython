@@ -87,6 +87,11 @@ __main__.mouse = _mouse.query
 __main__.mouse_speed = _mouse.speed
 __main__.touch = _touch.query
 
+# Full-screen file manager.
+import pcfm
+
+__main__.fm = pcfm.fm
+
 import keyboard
 import pcconfig
 

@@ -96,7 +96,7 @@ static void hdmi_pal_rebuild(void) {
         p332[i] = (uint8_t)(((c >> 16) & 0xE0) | (((c >> 8) & 0xE0) >> 3) | ((c & 0xC0) >> 6));
     }
     for (int b = 0; b < 256; b++) {
-        hdmi_map256[b] = (uint16_t)(p332[b & 0x0f] | (p332[b >> 4] << 8));
+        hdmi_map256[b] = (uint16_t)(p332[b >> 4] | (p332[b & 0x0f] << 8));
     }
 }
 
@@ -205,7 +205,7 @@ static void hdmi_fill_test_pattern(void) {
                 int x = i * 2;
                 uint8_t lo = (uint8_t)((x * 16) / hdmi_w);
                 uint8_t hi = (uint8_t)(((x + 1) * 16) / hdmi_w);
-                row[i] = (uint8_t)((hi << 4) | (lo & 0x0f));
+                row[i] = (uint8_t)((lo << 4) | (hi & 0x0f));
             }
         }
     } else if (hdmi_native) {
@@ -459,7 +459,7 @@ static mp_obj_t hdmi_putc(size_t n_args, const mp_obj_t *args) {
                 if (x >= 0 && x < hdmi_w) {
                     uint8_t v = (bits & (0x80 >> col)) ? (uint8_t)(fg & 0x0f) : (uint8_t)(bg & 0x0f);
                     uint8_t *pb = &line[x >> 1];
-                    *pb = (x & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                    *pb = (x & 1) ? ((*pb & 0xf0) | v) : ((*pb & 0x0f) | (uint8_t)(v << 4));
                 }
             }
         } else if (hdmi_native) {
@@ -537,7 +537,7 @@ static void hdmi_blit_glyph(int px, int py, int ch, mp_int_t fg, mp_int_t bg, in
                     if (hdmi_rgb121) {
                         uint8_t *pb = &buf[(size_t)y * (hdmi_w / 2) + (x >> 1)];
                         uint8_t v = (uint8_t)(c & 0x0f);
-                        *pb = (x & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                        *pb = (x & 1) ? ((*pb & 0xf0) | v) : ((*pb & 0x0f) | (uint8_t)(v << 4));
                     } else if (hdmi_native) {
                         buf[(size_t)y * hdmi_w + x] = (uint8_t)c;
                     } else {
@@ -868,7 +868,7 @@ static hdmi_surf_t hdmi_parse_surface(mp_obj_t obj) {
 static inline mp_int_t hdmi_px_get(const uint8_t *b, int sw, int x, int y) {
     if (hdmi_rgb121) {
         uint8_t v = b[(size_t)y * (sw / 2) + (x >> 1)];
-        return (x & 1) ? (v >> 4) : (v & 0x0f);
+        return (x & 1) ? (v & 0x0f) : (v >> 4);
     }
     if (hdmi_native) {
         return b[(size_t)y * sw + x];
@@ -878,8 +878,8 @@ static inline mp_int_t hdmi_px_get(const uint8_t *b, int sw, int x, int y) {
 static inline void hdmi_px_set(uint8_t *b, int sw, int x, int y, mp_int_t v) {
     if (hdmi_rgb121) {
         uint8_t *p = &b[(size_t)y * (sw / 2) + (x >> 1)];
-        *p = (x & 1) ? ((*p & 0x0f) | (uint8_t)((v & 0x0f) << 4))
-                     : ((*p & 0xf0) | (uint8_t)(v & 0x0f));
+        *p = (x & 1) ? ((*p & 0xf0) | (uint8_t)(v & 0x0f))
+                     : ((*p & 0x0f) | (uint8_t)((v & 0x0f) << 4));
     } else if (hdmi_native) {
         b[(size_t)y * sw + x] = (uint8_t)v;
     } else {
@@ -1265,12 +1265,12 @@ static void hdmi_hspan(uint8_t *buf, int x1, int x2, int y, mp_int_t colour) {
     }
     if (hdmi_rgb121) {
         uint8_t *row = &buf[(size_t)y * (hdmi_w / 2)];
-        if (x1 & 1) { // odd x = high nibble
-            row[x1 >> 1] = (row[x1 >> 1] & 0x0f) | (uint8_t)((colour & 0x0f) << 4);
+        if (x1 & 1) { // odd x = low nibble (GS4_HMSB)
+            row[x1 >> 1] = (row[x1 >> 1] & 0xf0) | (uint8_t)(colour & 0x0f);
             x1++;
         }
-        if (!(x2 & 1)) { // even x = low nibble
-            row[x2 >> 1] = (row[x2 >> 1] & 0xf0) | (uint8_t)(colour & 0x0f);
+        if (!(x2 & 1)) { // even x = high nibble
+            row[x2 >> 1] = (row[x2 >> 1] & 0x0f) | (uint8_t)((colour & 0x0f) << 4);
             x2--;
         }
         if (x1 <= x2) {

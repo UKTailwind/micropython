@@ -1920,10 +1920,8 @@ when it moves, so it floats over any screen content without disturbing it.
 - **Verified** (emulator): geometry/bpp; F-in-SRAM create/write/isolation/
   copy; the football renders in 16 colours with zero off-palette nibbles
   (red/white/black map exactly to palette 8/15/0); RGB1024 regression.
-- **Noted for later**: `hdmi.fb()`'s framebuf uses GS4_HMSB (even pixel =
-  high nibble) but the scanout and the C drawing are even-pixel = LOW
-  nibble — a latent nibble-swap for Display-based drawing in the 4bpp
-  modes (pre-existing in RGB1024, untouched here).
+- ~~Noted for later~~: the 4bpp nibble-order mismatch found here is FIXED
+  in §56 — GS4_HMSB is now the single convention.
 
 ### 55. screen() lockup at 315/378 MHz — boot2 flash divider (PICO_FLASH_SPI_CLKDIV)
 
@@ -1945,6 +1943,28 @@ when it moves, so it floats over any screen content without disturbing it.
   Verified the define reaches the bs2_default stage2 build.
 - **Needs hardware confirmation**: `screen(hdmi.RGB640, 315)` (and 378, and
   RGB320 variants) after flashing a CLEAN build.
+
+### 56. 4bpp nibble order unified on framebuf's GS4_HMSB
+
+- **Why**: `hdmi.fb()` wraps the 4bpp framebuffer as framebuf `GS4_HMSB`
+  (even/left pixel = HIGH nibble), but the C side — px_get/px_set, the
+  glyph/box writers, hspan edges, `hdmi_map256` (and with it the scanout
+  and the emulator compose), the test pattern, the image loaders' 4bpp
+  writes and bmp_save's framebuffer read — used even = LOW nibble. Mixing
+  Display drawing with C drawing in RGB1024/RGB640_4 produced a
+  column-pair swap. Since framebuf's format is fixed (MicroPython has no
+  GS4_LMSB), the C code now follows framebuf: even pixel = high nibble,
+  everywhere.
+- **Sites flipped** (12): hdmi.c map256 build / test pattern / px_get /
+  px_set / two glyph-box writers / hspan edge nibbles; bmp.c save-side
+  framebuffer read + two 4bpp writes; jpeg.c two writes; png.c one write.
+  (bmp_decoder.c reads BMP *files* and outputs RGB — untouched.)
+- **Verified** (emulator, RGB640_4 and RGB1024): framebuf reference byte
+  layout; C polyfill produces byte-identical packing; an odd-x fill edge
+  touches only the low nibble; C-drawn text reads back exactly through
+  `d.pixel()`; the football census stays clean. Firmware compiles.
+- **Bench note**: anything previously drawn via Display in RGB1024 (the
+  console included) will now render with the columns the right way round.
 
 ---
 

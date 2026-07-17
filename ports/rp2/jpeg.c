@@ -111,7 +111,7 @@ static void jpeg_blit_row(const uint8_t *row, int row_stride, int image_y, int m
                     uint8_t v = idxrow[ox];
                     if (bpp == 4) {
                         uint8_t *pb = &fb8[(screen_y * fb_w + screen_x) >> 1];
-                        *pb = (screen_x & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                        *pb = (screen_x & 1) ? ((*pb & 0xf0) | v) : ((*pb & 0x0f) | (uint8_t)(v << 4));
                     } else { // bpp == 8, v is an RGB332 byte
                         fb8[screen_y * fb_w + screen_x] = v;
                     }
@@ -136,7 +136,7 @@ static void jpeg_blit_row(const uint8_t *row, int row_stride, int image_y, int m
             } else if (bpp == 4) {
                 uint8_t *pb = &fb8[(screen_y * fb_w + screen_x) >> 1];
                 uint8_t v = (uint8_t)hdmi_nearest_index(r, g, b);
-                *pb = (screen_x & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                *pb = (screen_x & 1) ? ((*pb & 0xf0) | v) : ((*pb & 0x0f) | (uint8_t)(v << 4));
             } else {
                 fb8[screen_y * fb_w + screen_x] =
                     (r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6);

@@ -69,7 +69,7 @@ static mp_obj_t png_render(size_t n_args, const mp_obj_t *args) {
             } else if (bpp == 4) {
                 uint8_t *pb = &fb8[(sy * fb_w + sx) >> 1];
                 uint8_t v = (uint8_t)hdmi_nearest_index(r, g, b);
-                *pb = (sx & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                *pb = (sx & 1) ? ((*pb & 0xf0) | v) : ((*pb & 0x0f) | (uint8_t)(v << 4));
             } else {
                 fb8[sy * fb_w + sx] = (r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6);
             }

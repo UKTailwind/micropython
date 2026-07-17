@@ -90,7 +90,7 @@ static mp_obj_t bmp_save(size_t n_args, const mp_obj_t *args) {
                 b = (b5 << 3) | (b5 >> 2);
             } else if (bpp == 4) { // RGB121: unpack the nibble, look up the palette
                 uint8_t byte = fb8[(y * w + x) >> 1];
-                uint8_t idx = (x & 1) ? (byte >> 4) : (byte & 0x0f);
+                uint8_t idx = (x & 1) ? (byte & 0x0f) : (byte >> 4);
                 uint32_t c = hdmi_index_rgb888(idx);
                 r = (c >> 16) & 0xFF;
                 g = (c >> 8) & 0xFF;
@@ -183,7 +183,7 @@ static bool bmp_fb_line(int *pw, int *ph, uint32_t *linedata, int *prow) {
                 uint8_t v = g_bd->idxrow[col];
                 if (g_bpp == 4) {
                     uint8_t *pb = &fb8[(sy * g_fbw + sx) >> 1];
-                    *pb = (sx & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+                    *pb = (sx & 1) ? ((*pb & 0xf0) | v) : ((*pb & 0x0f) | (uint8_t)(v << 4));
                 } else { // g_bpp == 8, v is an RGB332 byte
                     fb8[sy * g_fbw + sx] = v;
                 }
@@ -207,7 +207,7 @@ static bool bmp_fb_line(int *pw, int *ph, uint32_t *linedata, int *prow) {
         } else if (g_bpp == 4) {
             uint8_t *pb = &fb8[(sy * g_fbw + sx) >> 1];
             uint8_t v = (uint8_t)hdmi_nearest_index(r, g, b);
-            *pb = (sx & 1) ? ((*pb & 0x0f) | (uint8_t)(v << 4)) : ((*pb & 0xf0) | v);
+            *pb = (sx & 1) ? ((*pb & 0xf0) | v) : ((*pb & 0x0f) | (uint8_t)(v << 4));
         } else {
             fb8[sy * g_fbw + sx] = (r & 0xE0) | ((g & 0xE0) >> 3) | (b >> 6);
         }

@@ -79,6 +79,7 @@ except Exception:
 if hasattr(hdmi, "blit"):
     import sys
     import io
+    import time
     import select
     import _emukbd
     import pcconsole
@@ -99,6 +100,7 @@ if hasattr(hdmi, "blit"):
             self.con = con
             self._poll = select.poll()
             self._poll.register(sys.stdin, select.POLLIN)
+            self._stdin_dead = False
 
         def write(self, buf):
             if self.con is not None:
@@ -110,9 +112,17 @@ if hasattr(hdmi, "blit"):
                 b = _emukbd.read()
                 if b is not None:
                     return b
-                if self._poll.poll(20):
+                if not self._stdin_dead and self._poll.poll(20):
                     c = sys.stdin.buffer.read(1)
-                    return c if c else b"\x04"  # terminal EOF -> Ctrl-D
+                    if c:
+                        return c
+                    # Terminal EOF (e.g. piped input ran out): one Ctrl-D,
+                    # then the window keyboard is the only input source.
+                    self._poll.unregister(sys.stdin)
+                    self._stdin_dead = True
+                    return b"\x04"
+                if self._stdin_dead:
+                    time.sleep_ms(20)
 
         def readinto(self, buf):
             b = self.read(1)

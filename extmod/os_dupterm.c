@@ -205,6 +205,17 @@ int mp_os_dupterm_tx_strn(const char *str, size_t len) {
             }
             nlr_pop();
         } else {
+            #if MICROPY_KBD_EXCEPTION
+            // A Ctrl-C that happens to land while the VM is running the
+            // dupterm write (e.g. mid-echo on the Pico Computer 3's screen
+            // console) must not kill the console: keep the interrupt pending
+            // for delivery at the next safe point and treat the write as done.
+            if (mp_obj_is_subclass_fast(MP_OBJ_FROM_PTR(mp_obj_get_type(MP_OBJ_FROM_PTR(nlr.ret_val))),
+                MP_OBJ_FROM_PTR(&mp_type_KeyboardInterrupt))) {
+                mp_sched_keyboard_interrupt();
+                continue;
+            }
+            #endif
             mp_os_deactivate(idx, "dupterm: Exception in write() method, deactivating: ", MP_OBJ_FROM_PTR(nlr.ret_val));
             ret = 0;
         }

@@ -72,7 +72,15 @@ static void sighandler(int signum) {
 }
 #endif
 
+// The interrupt char as an inspectable global (armed = 3 during execution,
+// disarmed = -1 at the REPL prompt). The terminal delivers Ctrl-C through
+// SIGINT above, but dupterm-style input sources (e.g. the Pico Computer 3
+// emulator's window keyboard) test this to decide between queueing the byte
+// and scheduling a KeyboardInterrupt -- the same contract as bare-metal ports.
+int mp_interrupt_char = -1;
+
 void mp_hal_set_interrupt_char(char c) {
+    mp_interrupt_char = c;
     // configure terminal settings to (not) let ctrl-C through
     if (c == CHAR_CTRL_C) {
         #ifndef _WIN32
@@ -142,6 +150,15 @@ static int call_dupterm_read(size_t idx) {
         nlr_pop();
         return *(byte *)bufinfo.buf;
     } else {
+        // A KeyboardInterrupt raised inside read() (e.g. Ctrl-C arriving from
+        // the Pico Computer 3 emulator's window keyboard while the REPL waits
+        // on the dupterm stream) must propagate exactly as it does from the
+        // built-in stdin path: the REPL or running program sees the interrupt
+        // and the dupterm stays active.
+        if (mp_obj_is_subclass_fast(MP_OBJ_FROM_PTR(mp_obj_get_type(MP_OBJ_FROM_PTR(nlr.ret_val))),
+            MP_OBJ_FROM_PTR(&mp_type_KeyboardInterrupt))) {
+            nlr_jump(nlr.ret_val);
+        }
         // Temporarily disable dupterm to avoid infinite recursion
         mp_obj_t save_term = MP_STATE_VM(dupterm_objs[idx]);
         MP_STATE_VM(dupterm_objs[idx]) = NULL;

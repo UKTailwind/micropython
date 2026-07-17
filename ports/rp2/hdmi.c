@@ -730,6 +730,10 @@ static mp_obj_t hdmi_layer_fn(size_t n_args, const mp_obj_t *args) {
     if (hdmi_layer_on) {
         mp_raise_ValueError(MP_ERROR_TEXT("layer already exists"));
     }
+    if (MP_STATE_PORT(hdmi_framebuf_f) == hdmi_fb + hdmi_fb_bytes()) {
+        // create() ran first and claimed the second half of video SRAM.
+        mp_raise_ValueError(MP_ERROR_TEXT("layer RAM in use by the F framebuffer -- close('F') first"));
+    }
     uint32_t rgb = (n_args > 0) ? ((uint32_t)mp_obj_get_int(args[0]) & 0xFFFFFFu) : 0;
     uint16_t t565 = (uint16_t)((((rgb >> 16) & 0xF8) << 8)
         | (((rgb >> 8) & 0xFC) << 3) | ((rgb & 0xFF) >> 3));
@@ -763,12 +767,15 @@ static mp_obj_t hdmi_create(void) {
         mp_raise_ValueError(MP_ERROR_TEXT("framebuffer already exists"));
     }
     uint8_t *p;
-    if (hdmi_rgb121 && hdmi_fb_bytes() * 2 <= sizeof(hdmi_fb)) {
-        // RGB640_4: the 150 KB framebuffer is half the video SRAM, so the F
-        // buffer takes the OTHER half -- fast SRAM instead of the PSRAM heap,
-        // exactly MMBasic's fast-game-mode layout (compose + copy never touch
-        // PSRAM). (RGB320's second half belongs to the layer; RGB1024 fills
-        // the whole array; both keep using the heap below.)
+    if (!hdmi_layer_on && hdmi_fb_bytes() * 2 <= sizeof(hdmi_fb)) {
+        // RGB640_4 -- and RGB320 while no layer exists: the framebuffer is
+        // half the video SRAM, so the F buffer takes the OTHER half -- fast
+        // SRAM instead of the PSRAM heap, exactly MMBasic's fast-game-mode
+        // layout (compose + copy never touch PSRAM). In RGB320 that space
+        // doubles as the layer's, first-come first-served: create() before
+        // layer() claims it (and layer() then errors); layer() first sends
+        // create() to the heap below. (RGB1024/RGB640/RGB512 fill the whole
+        // array and always use the heap.)
         p = hdmi_fb + hdmi_fb_bytes();
     } else {
         p = m_malloc(hdmi_fb_bytes()); // PSRAM heap; raises MemoryError if exhausted

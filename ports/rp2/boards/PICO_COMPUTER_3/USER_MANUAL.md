@@ -4,7 +4,7 @@
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.8 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.9 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -508,7 +508,7 @@ Three drawing targets are available (MMBasic's `FRAMEBUFFER` model):
 | Command | Description |
 |---|---|
 | `hdmi.layer(transparent=0x000000)` | enable the layer (RGB320 only). `transparent` is an RGB888 colour; layer pixels of that colour show the display through, anything else overlays it. The layer starts fully transparent |
-| `hdmi.create()` | allocate the off-screen F buffer (display-sized; PSRAM, except in `RGB640_4` where it takes the free half of the video SRAM — much faster) |
+| `hdmi.create()` | allocate the off-screen F buffer (display-sized). In `RGB640_4` — and in `RGB320` when no layer exists — it takes the free half of the video SRAM (much faster than PSRAM); otherwise PSRAM |
 | `hdmi.write("N"/"L"/"F")` | select where ALL drawing goes — `fb()`, `fill`, `text`, the console and the image loaders. `hdmi.write()` returns the current target |
 | `hdmi.copy(src, dst)` | block-copy one whole buffer to another, e.g. `hdmi.copy("F", "N")` |
 | `hdmi.blit(x, y, w, h, x1, y1, src=None, dst=None, skip=-1)` | copy the `w`×`h` rectangle at `(x,y)` of `src` to `(x1,y1)` of `dst` — see below |
@@ -519,6 +519,12 @@ free — 2 × 320×240×16-bit exactly fills it), so it costs no extra RAM and t
 merge happens **per scanline in hardware-speed C on core 1**: moving a sprite on
 the layer never disturbs the artwork underneath. A mode change closes both
 targets.
+
+In RGB320 that free half is shared, first come first served: `hdmi.create()`
+called **before** `hdmi.layer()` claims it for the F buffer (fast-SRAM double
+buffering, as in `RGB640_4`), and `hdmi.layer()` then raises an error until
+`hdmi.close("F")`. Call `hdmi.layer()` first and `hdmi.create()` allocates
+the F buffer from PSRAM as before — layer and F buffer still coexist.
 
 ```python
 screen(hdmi.RGB320)
@@ -1718,5 +1724,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.8 — based on MicroPython. See
+*Pico Computer 3 firmware v0.9 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

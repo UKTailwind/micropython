@@ -2007,6 +2007,31 @@ when it moves, so it floats over any screen content without disturbing it.
   `tests/elite.py` (tumbling wireframe ship) pixel-census clean in RGB640
   and RGB640_4. Firmware compiles.
 
+### 58. RGB320: create() before layer() puts F in fast SRAM (v0.9)
+
+- **What**: RGB320's second half of video SRAM was reserved for the layer
+  unconditionally; the F buffer always went to PSRAM. Now the space is
+  first come, first served: `hdmi.create()` called while no layer exists
+  places F in the second SRAM half (the RGB640_4 fast-game layout — 16-bit
+  double buffering with compose and copy entirely in SRAM), and
+  `hdmi.layer()` then raises `layer RAM in use by the F framebuffer --
+  close('F') first`. Calling `layer()` first keeps the old behaviour:
+  `create()` falls back to PSRAM and both coexist.
+- **How**: `hdmi_create()`'s SRAM condition became `!hdmi_layer_on &&
+  hdmi_fb_bytes()*2 <= sizeof(hdmi_fb)` (covers RGB640_4 and RGB320;
+  RGB640/RGB512/RGB1024 fill the whole array so they still heap-allocate);
+  `hdmi_layer_fn()` errors when `hdmi_framebuf_f == hdmi_fb +
+  hdmi_fb_bytes()`. No free-path changes needed: close("F")/deinit only
+  NULL the root pointer, valid for both placements. Scanout untouched
+  (layer merge is still gated on `hdmi_layer_on`).
+- **Verified** (emulator): RGB320 create-first → layer() raises, close("F")
+  → layer() succeeds; layer-first → create() heap path, both targets
+  drawable and copy/blit work; RGB640_4 placement unchanged; football
+  regression census clean.
+
+**v0.9 version bump**: `PICO_COMPUTER_3_VERSION` "0.9" (banner +
+`os.uname().machine`), emulator banner, manual header/footer.
+
 ---
 
 ## Files touched

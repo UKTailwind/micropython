@@ -1966,6 +1966,47 @@ when it moves, so it floats over any screen content without disturbing it.
 - **Bench note**: anything previously drawn via Display in RGB1024 (the
   console included) will now render with the columns the right way round.
 
+### 57. draw3d depthmode 2 — z-buffer hidden line (the Elite mode)
+
+- **What**: the last unported DRAW3D feature. `show(n, x, y, z, nonormals,
+  2)` projects every visible face once, rasterises them into a 1/z buffer
+  bounded by their union bbox (edge-function triangles, fan-triangulated,
+  keeping the nearest 1/z per pixel), then draws outline-only faces
+  (`fill` index `None`) edge-by-edge with a per-pixel depth test — edges
+  behind the model's own body are removed, the classic Elite wireframe.
+  Filled faces still paint via the painter's sort from the same cached
+  projections. Ported verbatim from PicoMite `Draw3D.c`
+  (`hiddenline_raster_triangle` / `hiddenline_draw_edge` /
+  `hiddenline_get_zbuf`).
+- **Adaptations**: MMBasic's `GetTempMainMemory` scratch (projections +
+  visibility) is one `m_new` block freed at the end of `display3d`; the
+  grow-only z-buffer cache is an `MP_REGISTER_ROOT_POINTER` (worst case
+  full-screen 640×480 floats = 1.2 MB from the PSRAM-backed GC heap; the
+  capacity static is not trusted when the root pointer is NULL, so a soft
+  reset can't leave it stale), released by `close_all()` like MMBasic's
+  `closeall3d`. MMBasic's is_hiddenline_target check (memory targets only)
+  is vacuous here — every hdmi target is a memory buffer. `hdmi_pixel_raw`
+  added to the hdmi_priv.h drawing helpers for the depth-tested plot.
+- **Scene-scale caveat (MMBasic-verbatim)**: the depth test uses an
+  ABSOLUTE epsilon, `1/z >= zbuf - 0.0005`, so occlusion only engages when
+  1/z differences beat 0.0005 — scenes must sit close (camera viewplane
+  ~100-150, object z ~150-300). At football.py distances (z=1000) all 1/z
+  are ~0.001 and depthmode 2 degrades to drawing every visible edge —
+  identical arithmetic to MMBasic, so scenes tuned there behave the same
+  here.
+- **API extra**: `create()` now accepts per-face `None` (or `-1`) in the
+  `fill` index list — mixed solid + wireframe objects, the split the
+  hidden-line renderer draws natively (MMBasic's fill array is
+  all-or-nothing at CREATE, but its renderer handles the mix; ours can
+  express it).
+- **Verified** (emulator): face-on cube at z=200/viewplane 100 — far
+  square 0% drawn, near square 100%, all 12 edges present in painter mode;
+  rotated generic view removes only occluded pixels (hidden result is a
+  strict subset of the painter render, zero strays); `hide()`/`restore()`
+  round-trips preserve depthmode 2; mixed solid+wireframe renders both;
+  `tests/elite.py` (tumbling wireframe ship) pixel-census clean in RGB640
+  and RGB640_4. Firmware compiles.
+
 ---
 
 ## Files touched

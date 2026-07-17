@@ -41,10 +41,14 @@
 //   draw3d.query(n, "xmin"/"ymax"/"x"/"z"/"distance"/...)
 //
 // depthmode: 0 = centroid depth sort (MMBasic default), 1 = max-vertex
-// depth sort. (MMBasic's depthmode 2, z-buffer hidden-line, is not ported
-// yet.) Face flags and per-face lighting behave as MMBasic's.
+// depth sort, 2 = z-buffer hidden-line: outline-only faces (fill index None)
+// have their edges depth-tested against a 1/z buffer prefilled from every
+// visible face, so edges behind the model's own body are removed -- the
+// classic Elite wireframe look. Face flags and per-face lighting behave as
+// MMBasic's (in mode 2 the red/light flags are ignored, as MMBasic).
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "py/runtime.h"
@@ -203,7 +207,141 @@ static void d3d_draw_polygon(d3d_obj_t *o, const short *xc, const short *yc, int
     }
 }
 
-// --- display3d (MMBasic, verbatim shape; depthmode 2 not ported) ------------
+// --- depthmode 2: z-buffer hidden line (MMBasic rp2350 helpers, verbatim) ---
+
+// Rasterise one triangle of a visible face into the 1/z buffer (bounded by
+// the union bbox minx..maxx/miny..maxy), keeping the NEAREST 1/z per pixel.
+static void hiddenline_raster_triangle(short x0, short y0, D3D_FLOAT iz0,
+    short x1, short y1, D3D_FLOAT iz1,
+    short x2, short y2, D3D_FLOAT iz2,
+    int minx, int miny, int maxx, int maxy,
+    D3D_FLOAT *zbuf, int bw) {
+    int tri_minx = x0 < x1 ? x0 : x1;
+    tri_minx = tri_minx < x2 ? tri_minx : x2;
+    int tri_maxx = x0 > x1 ? x0 : x1;
+    tri_maxx = tri_maxx > x2 ? tri_maxx : x2;
+    int tri_miny = y0 < y1 ? y0 : y1;
+    tri_miny = tri_miny < y2 ? tri_miny : y2;
+    int tri_maxy = y0 > y1 ? y0 : y1;
+    tri_maxy = tri_maxy > y2 ? tri_maxy : y2;
+
+    int bbminx = tri_minx > minx ? tri_minx : minx;
+    int bbmaxx = tri_maxx < maxx ? tri_maxx : maxx;
+    int bbminy = tri_miny > miny ? tri_miny : miny;
+    int bbmaxy = tri_maxy < maxy ? tri_maxy : maxy;
+
+    int den_i = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2);
+    if (den_i == 0) {
+        return;
+    }
+
+    D3D_FLOAT inv_den = 1.0 / (D3D_FLOAT)den_i;
+    D3D_FLOAT c0 = iz0 * inv_den;
+    D3D_FLOAT c1 = iz1 * inv_den;
+    D3D_FLOAT c2 = iz2 * inv_den;
+
+    // Edge-function coefficients: e(x,y) = A*x + B*y + C
+    int A0 = y1 - y2, B0 = x2 - x1, C0 = x1 * y2 - x2 * y1;
+    int A1 = y2 - y0, B1 = x0 - x2, C1 = x2 * y0 - x0 * y2;
+    int A2 = y0 - y1, B2 = x1 - x0, C2 = x0 * y1 - x1 * y0;
+
+    int sign = den_i > 0 ? 1 : -1;
+
+    for (int y = bbminy; y <= bbmaxy; y++) {
+        int e0 = A0 * bbminx + B0 * y + C0;
+        int e1 = A1 * bbminx + B1 * y + C1;
+        int e2 = A2 * bbminx + B2 * y + C2;
+        for (int x = bbminx; x <= bbmaxx; x++) {
+            if (e0 * sign >= 0 && e1 * sign >= 0 && e2 * sign >= 0) {
+                D3D_FLOAT iz = ((D3D_FLOAT)e0 * c0) + ((D3D_FLOAT)e1 * c1) + ((D3D_FLOAT)e2 * c2);
+                int idx = (y - miny) * bw + (x - minx);
+                if (iz > zbuf[idx]) {
+                    zbuf[idx] = iz;
+                }
+            }
+            e0 += A0;
+            e1 += A1;
+            e2 += A2;
+        }
+    }
+}
+
+// Bresenham an edge, plotting only pixels whose interpolated 1/z is not
+// beaten by the z-buffer (small epsilon so a face's own surface never
+// occludes its edges).
+static void hiddenline_draw_edge(short x0, short y0, D3D_FLOAT iz0,
+    short x1, short y1, D3D_FLOAT iz1,
+    int32_t c,
+    int minx, int miny, int maxx, int maxy,
+    D3D_FLOAT *zbuf, int bw) {
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+    int steps = dx > dy ? dx : dy;
+    if (steps == 0) {
+        if (x0 >= minx && x0 <= maxx && y0 >= miny && y0 <= maxy) {
+            int idx = (y0 - miny) * bw + (x0 - minx);
+            if (iz0 >= zbuf[idx] - 0.0005) {
+                hdmi_pixel_raw(x0, y0, c);
+            }
+        }
+        return;
+    }
+
+    D3D_FLOAT izstep = (iz1 - iz0) / (D3D_FLOAT)steps;
+    int sx = (x0 < x1) ? 1 : -1;
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx - dy;
+    int x = x0;
+    int y = y0;
+    D3D_FLOAT izf = iz0;
+
+    for (int i = 0; i <= steps; i++) {
+        if (x >= minx && x <= maxx && y >= miny && y <= maxy) {
+            int idx = (y - miny) * bw + (x - minx);
+            if (izf >= zbuf[idx] - 0.0005) {
+                hdmi_pixel_raw(x, y, c);
+            }
+        }
+        int e2 = err << 1;
+        if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y += sy;
+        }
+        izf += izstep;
+    }
+}
+
+// MMBasic's grow-only z-buffer cache (worst case full screen: 640x480 floats
+// = 1.2 MB, from the PSRAM-backed GC heap). Rooted so the GC keeps it across
+// frames; released by close_all(), as MMBasic's closeall3d.
+MP_REGISTER_ROOT_POINTER(uint8_t *draw3d_zbuf);
+static int d3d_zbuf_capacity = 0;
+
+static D3D_FLOAT *hiddenline_get_zbuf(int count) {
+    if (count <= 0) {
+        return NULL;
+    }
+    // NULL check as well as capacity: a soft reset zeroes the root pointer
+    // but not this static, so the stale capacity must not be trusted.
+    if (MP_STATE_PORT(draw3d_zbuf) == NULL || count > d3d_zbuf_capacity) {
+        MP_STATE_PORT(draw3d_zbuf) = NULL; // old block becomes garbage
+        d3d_zbuf_capacity = 0;
+        MP_STATE_PORT(draw3d_zbuf) = (uint8_t *)m_new(D3D_FLOAT, count);
+        d3d_zbuf_capacity = count;
+    }
+    return (D3D_FLOAT *)MP_STATE_PORT(draw3d_zbuf);
+}
+
+static void hiddenline_release_zbuf(void) {
+    MP_STATE_PORT(draw3d_zbuf) = NULL;
+    d3d_zbuf_capacity = 0;
+}
+
+// --- display3d (MMBasic, verbatim shape) ------------------------------------
 static void display3d(int n, D3D_FLOAT x, D3D_FLOAT y, D3D_FLOAT z,
     int clear, int nonormals, int depthmode) {
     d3d_obj_t *o = d3d_get(n, true);
@@ -281,6 +419,162 @@ static void display3d(int n, D3D_FLOAT x, D3D_FLOAT y, D3D_FLOAT z,
     o->distance /= o->nf;
     depthsort(o->depth, o->nf, o->depthindex);
 
+    // --- depthmode 2: project once, prefill the 1/z buffer ------------------
+    int hiddenline = (depthmode == 2);
+    D3D_FLOAT *hlr_zbuf = NULL;
+    int hlr_minx = maxW, hlr_maxx = -1, hlr_miny = maxH, hlr_maxy = -1;
+    int hlr_bw = 0;
+    short *hlr_projx = NULL, *hlr_projy = NULL;
+    D3D_FLOAT *hlr_projiz = NULL;
+    uint8_t *hlr_visible = NULL;
+    uint8_t *hlr_tmp = NULL;
+    size_t hlr_tmp_sz = 0;
+    if (hiddenline) {
+        // One scratch block (MMBasic GetTempMainMemory x4), freed at the end.
+        size_t nvert = (size_t)o->tot_face_x_vert;
+        hlr_tmp_sz = nvert * (sizeof(D3D_FLOAT) + 2 * sizeof(short)) + (size_t)o->nf;
+        hlr_tmp = m_new(uint8_t, hlr_tmp_sz);
+        hlr_projiz = (D3D_FLOAT *)hlr_tmp;
+        hlr_projx = (short *)(hlr_tmp + nvert * sizeof(D3D_FLOAT));
+        hlr_projy = hlr_projx + nvert;
+        hlr_visible = (uint8_t *)(hlr_projy + nvert);
+        memset(hlr_visible, 0, (size_t)o->nf);
+
+        // First pass: project visible faces once and cache for the depth
+        // fill and the edge draw. (Local facedot: dots[] is not negated
+        // in place here, exactly as MMBasic.)
+        for (int f = 0; f < o->nf; f++) {
+            int sortindex = o->depthindex[f];
+            D3D_FLOAT facedot = o->dots[sortindex];
+            if (o->flags[sortindex] & 4) {
+                facedot = -facedot;
+            }
+            if ((o->flags[sortindex] & 1) || !(nonormals || facedot < 0)) {
+                continue;
+            }
+            hlr_visible[sortindex] = 1;
+
+            int vp = o->facestart[sortindex];
+            for (int v = 0; v < o->facecount[sortindex]; v++) {
+                int pi = vp + v;
+                x1 = RV(vp + v).x * RV(vp + v).m + x;
+                y1 = RV(vp + v).y * RV(vp + v).m + y;
+                z1 = RV(vp + v).z * RV(vp + v).m + z;
+                at = x1 - cam->x;
+                bt = y1 - cam->y;
+                ct = z1 - cam->z;
+                if (ct > -0.0005f && ct < 0.0005f) {
+                    ct = (ct < 0.0f ? -0.0005f : 0.0005f);
+                }
+                t = -(C * z1 + D) / (C * ct);
+                hlr_projx[pi] = (short)(x1 + round3d(at * t) + (maxW >> 1) - cam->x - cam->panx);
+                hlr_projy[pi] = (short)(maxH - round3d(y1 + bt * t) - 1);
+                hlr_projy[pi] = (short)(hlr_projy[pi] - ((maxH >> 1) - cam->y - cam->pany));
+                if (ct < 0.0005f) {
+                    ct = 0.0005f;
+                }
+                hlr_projiz[pi] = 1.0 / ct;
+
+                if (hlr_projx[pi] < hlr_minx) {
+                    hlr_minx = hlr_projx[pi];
+                }
+                if (hlr_projx[pi] > hlr_maxx) {
+                    hlr_maxx = hlr_projx[pi];
+                }
+                if (hlr_projy[pi] < hlr_miny) {
+                    hlr_miny = hlr_projy[pi];
+                }
+                if (hlr_projy[pi] > hlr_maxy) {
+                    hlr_maxy = hlr_projy[pi];
+                }
+
+                if (clear) {
+                    if (hlr_projx[pi] > o->xmax) {
+                        o->xmax = hlr_projx[pi];
+                    }
+                    if (hlr_projx[pi] < o->xmin) {
+                        o->xmin = hlr_projx[pi];
+                    }
+                    if (hlr_projy[pi] > o->ymax) {
+                        o->ymax = hlr_projy[pi];
+                    }
+                    if (hlr_projy[pi] < o->ymin) {
+                        o->ymin = hlr_projy[pi];
+                    }
+                }
+            }
+        }
+
+        if (hlr_minx < 0) {
+            hlr_minx = 0;
+        }
+        if (hlr_miny < 0) {
+            hlr_miny = 0;
+        }
+        if (hlr_maxx >= maxW) {
+            hlr_maxx = maxW - 1;
+        }
+        if (hlr_maxy >= maxH) {
+            hlr_maxy = maxH - 1;
+        }
+
+        if (hlr_maxx >= hlr_minx && hlr_maxy >= hlr_miny) {
+            hlr_bw = hlr_maxx - hlr_minx + 1;
+            int hlr_bh = hlr_maxy - hlr_miny + 1;
+            hlr_zbuf = hiddenline_get_zbuf(hlr_bw * hlr_bh);
+            memset(hlr_zbuf, 0, (size_t)(hlr_bw * hlr_bh) * sizeof(D3D_FLOAT));
+
+            // Second pass: depth prefill from all visible faces (fan
+            // triangulation from vertex 0).
+            for (int f = 0; f < o->nf; f++) {
+                int sortindex = o->depthindex[f];
+                if (!hlr_visible[sortindex]) {
+                    continue;
+                }
+                int vp = o->facestart[sortindex];
+                for (int v = 1; v < o->facecount[sortindex] - 1; v++) {
+                    hiddenline_raster_triangle(hlr_projx[vp], hlr_projy[vp], hlr_projiz[vp],
+                        hlr_projx[vp + v], hlr_projy[vp + v], hlr_projiz[vp + v],
+                        hlr_projx[vp + v + 1], hlr_projy[vp + v + 1], hlr_projiz[vp + v + 1],
+                        hlr_minx, hlr_miny, hlr_maxx, hlr_maxy,
+                        hlr_zbuf, hlr_bw);
+                }
+            }
+        }
+    }
+
+    if (hiddenline && hlr_zbuf != NULL) {
+        // Hidden-line draw: outline faces get depth-tested edges; filled
+        // faces paint as normal from the cached projections (red/light
+        // flags not applied here, as MMBasic).
+        for (int f = 0; f < o->nf; f++) {
+            int sortindex = o->depthindex[f];
+            if (!hlr_visible[sortindex]) {
+                continue;
+            }
+            int vp = o->facestart[sortindex];
+            if (o->fill[sortindex] == 0xFFFFFFFF) {
+                int vc = o->facecount[sortindex];
+                int32_t lc = hdmi_colour_native(o->line[sortindex]);
+                for (int v = 0; v < vc; v++) {
+                    int vn = (v + 1 == vc ? 0 : v + 1);
+                    hiddenline_draw_edge(hlr_projx[vp + v], hlr_projy[vp + v], hlr_projiz[vp + v],
+                        hlr_projx[vp + vn], hlr_projy[vp + vn], hlr_projiz[vp + vn],
+                        lc,
+                        hlr_minx, hlr_miny, hlr_maxx, hlr_maxy,
+                        hlr_zbuf, hlr_bw);
+                }
+            } else {
+                for (int v = 0; v < o->facecount[sortindex]; v++) {
+                    xcoord[v] = hlr_projx[vp + v];
+                    ycoord[v] = hlr_projy[vp + v];
+                }
+                d3d_draw_polygon(o, xcoord, ycoord, sortindex);
+            }
+        }
+        goto display_done;
+    }
+
     // display the forward-facing faces, furthest first
     for (int f = 0; f < o->nf; f++) {
         int sortindex = o->depthindex[f];
@@ -346,6 +640,10 @@ static void display3d(int n, D3D_FLOAT x, D3D_FLOAT y, D3D_FLOAT z,
                 }
             }
         }
+    }
+display_done:
+    if (hlr_tmp != NULL) {
+        m_del(uint8_t, hlr_tmp, hlr_tmp_sz);
     }
     o->current.x = x;
     o->current.y = y;
@@ -519,8 +817,12 @@ static mp_obj_t d3d_create_fn(size_t n_args, const mp_obj_t *args) {
         } else {
             o->line[f] = 0xFFFFFF;
         }
-        if (fill != mp_const_none) {
-            int idx = mp_obj_get_int(seq_item(fill, f));
+        mp_obj_t fitem = (fill != mp_const_none) ? seq_item(fill, f) : mp_const_none;
+        // A per-face None (or -1) index leaves that face outline-only, so
+        // solid and wireframe faces can mix in one object (the hidden-line
+        // mode draws exactly this split).
+        if (fitem != mp_const_none && mp_obj_get_int(fitem) != -1) {
+            int idx = mp_obj_get_int(fitem);
             if (idx < 0 || idx >= colourcount) {
                 mp_raise_ValueError(MP_ERROR_TEXT("fill colour index"));
             }
@@ -564,8 +866,8 @@ static void d3d_show_common(size_t n_args, const mp_obj_t *args, int clear) {
     if (d3d_cams[o->cam].viewplane == -32767) {
         mp_raise_ValueError(MP_ERROR_TEXT("camera position not defined"));
     }
-    if (depthmode < 0 || depthmode > 1) {
-        mp_raise_ValueError(MP_ERROR_TEXT("depthmode 2 (hidden line) not ported yet"));
+    if (depthmode < 0 || depthmode > 2) {
+        mp_raise_ValueError(MP_ERROR_TEXT("depthmode must be 0..2"));
     }
     display3d(n, x, y, z, clear, nonormals, depthmode);
 }
@@ -686,6 +988,7 @@ static mp_obj_t d3d_close_all_fn(void) {
     for (int i = 1; i <= MAXCAM; i++) {
         d3d_cams[i].viewplane = -32767;
     }
+    hiddenline_release_zbuf(); // MMBasic closeall3d
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(d3d_close_all_obj, d3d_close_all_fn);

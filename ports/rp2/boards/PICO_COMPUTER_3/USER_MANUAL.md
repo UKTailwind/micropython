@@ -1556,8 +1556,8 @@ per screen mode). See `demos/football.py` — a tumbling truncated icosahedron.
 | Call | MMBasic | Notes |
 |---|---|---|
 | `draw3d.camera(c, viewplane, x=0, y=0, panx=0, pany=0)` | `DRAW3D CAMERA` | cameras 1..3 |
-| `draw3d.create(n, nv, nf, cam, vertices, fc, faces, colours, edge=None, fill=None)` | `DRAW3D CREATE` | `vertices` = flat x,y,z per vertex; `faces` = flat vertex-index list in `fc` order; `edge`/`fill` = per-face **index** into `colours` (omit `fill` for wireframe) |
-| `draw3d.show(n, x, y, z, nonormals=0, depthmode=0)` | `DRAW3D SHOW` | erases the previous position first; `depthmode` 1 sorts by deepest vertex |
+| `draw3d.create(n, nv, nf, cam, vertices, fc, faces, colours, edge=None, fill=None)` | `DRAW3D CREATE` | `vertices` = flat x,y,z per vertex; `faces` = flat vertex-index list in `fc` order; `edge`/`fill` = per-face **index** into `colours` (omit `fill` — or use `None`/`-1` per face — for wireframe) |
+| `draw3d.show(n, x, y, z, nonormals=0, depthmode=0)` | `DRAW3D SHOW` | erases the previous position first; `depthmode` 1 sorts by deepest vertex, 2 = hidden-line (below) |
 | `draw3d.write(n, x, y, z, ...)` | `DRAW3D WRITE` | as `show` without the erase |
 | `draw3d.rotate(q, n, ...)` | `DRAW3D ROTATE` | `q` = `(w, x, y, z, m)`; rotates from the *original* orientation |
 | `draw3d.reset(n, ...)` | `DRAW3D RESET` | rotated becomes the new original (cumulative spins) |
@@ -1568,7 +1568,23 @@ per screen mode). See `demos/football.py` — a tumbling truncated icosahedron.
 | `draw3d.q_create(theta, x, y, z)` | `MATH Q_CREATE` | rotation quaternion tuple; theta in radians |
 | `draw3d.query(n, "xmin"/"ymax"/"x"/"z"/"distance"/...)` | `DRAW3D()` | last-drawn bounding box / position / mean camera distance |
 
-Not yet ported: `depthmode=2` (the z-buffer hidden-line mode).
+**Hidden-line wireframes (`depthmode=2`)** — the classic *Elite* look:
+wireframe (no-fill) faces have their edges depth-tested against a z-buffer
+prefilled from every visible face, so edges passing behind the model's own
+body are removed instead of drawn through it. Faces *with* a fill colour
+still paint solidly, so solid and wireframe faces can mix in one object.
+Two things to know:
+
+- The depth test uses MMBasic's absolute tolerance (0.0005 on 1/z), so the
+  scene must be **close to the camera** for occlusion to engage — a camera
+  `viewplane` around 100–150 with the object at `z` ≈ 150–300 works well.
+  At long range (`z` ≈ 1000, football.py territory) every edge draws, as
+  in MMBasic.
+- Usually combine it with `nonormals=1`: let the z-buffer do the hiding
+  rather than backface culling, so silhouettes stay complete at any
+  winding.
+
+See `demos/elite.py` — a tumbling wireframe ship rendered this way.
 
 ### Maths — `ulab` + `pcmath`
 

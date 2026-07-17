@@ -113,6 +113,7 @@ bool hdmi_backend_stack_ok(void);
 // For C-side renderers (draw3d.c): mode-aware colour conversion and clipped
 // primitives operating on hdmi.write()'s target buffer.
 int32_t hdmi_colour_native(uint32_t rgb888);
+void hdmi_pixel_raw(int x, int y, int32_t colour);
 void hdmi_draw_line_raw(int x1, int y1, int x2, int y2, int32_t colour);
 void hdmi_fill_rect_raw(int x1, int y1, int x2, int y2, int32_t colour);
 void hdmi_polyfill_raw(const int16_t *pts, int count, int32_t colour, int pattern);

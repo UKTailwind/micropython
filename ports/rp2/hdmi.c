@@ -1256,6 +1256,14 @@ void hdmi_draw_line_raw(int x1, int y1, int x2, int y2, int32_t colour) {
     }
 }
 
+// Clipped single pixel on the current write target (MMBasic DrawPixel, as
+// the 3D hidden-line edge drawer uses it).
+void hdmi_pixel_raw(int x, int y, int32_t colour) {
+    if (x >= 0 && x < hdmi_w && y >= 0 && y < hdmi_h) {
+        hdmi_px_set(hdmi_wbuf(), hdmi_w, x, y, colour);
+    }
+}
+
 // Fast horizontal span x1..x2 (inclusive, caller-clipped) on a target
 // buffer -- runs written directly per mode, as MMBasic's DrawFill does,
 // instead of per-pixel calls.

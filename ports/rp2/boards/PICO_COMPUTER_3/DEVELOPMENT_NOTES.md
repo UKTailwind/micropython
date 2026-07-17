@@ -1830,6 +1830,30 @@ when it moves, so it floats over any screen content without disturbing it.
   placement, save/restore on move, hide/show/erase/off, shape + colour
   changes and corner clipping, in all four video modes.
 
+### 51. Turtle texture fill + crisp fill borders — `hdmi.polyfill`
+
+- **Why**: the turtle's `end_fill()` used `framebuf.poly`, which (a) had no
+  MMBasic pattern/texture fills and (b) partially overdrew the outline the
+  turtle had traced while walking, leaving a speckled border (in whatever
+  pen colours the trace used).
+- **`hdmi.polyfill(points, colour, pattern=0)`** (hdmi.c): MMBasic turtle's
+  polygon fill, ported verbatim from PicoMite `graphics/Turtle.c`
+  (`fill_polygon_scanline` / `fill_polygon_pattern` + the 32-entry
+  `fill_patterns` 8×8 table). Even-odd scanline spans, up to 256 crossings
+  per line, clipped to the write target; pattern bits anchored to screen
+  coordinates (`pattern[y & 7] & 1 << (x & 7)`), gaps leave the background.
+  Works in every mode via the px_set helpers (incl. 4bpp RGB121). Note:
+  PicoMite's `fill_polygon_pattern` guard caps patterns at 8 despite its
+  32-entry table; we accept the full 0..31.
+- **`pcturtle`**: `fillpattern(n)` / `fp(n)` (MMBasic `TURTLE FILL PATTERN`,
+  0 solid / 1..31 textures; reset() restores 0), and `end_fill()` now runs
+  MMBasic's exact end sequence — fill, then re-stroke the outline in the
+  pen colour/width if the pen is down (`draw_filled_polygon`'s trailing
+  DrawLine loop), which is what keeps the border crisp.
+- **Verified** (emulator suite): outline survival after fill went from 65
+  to 274 px on a 100-px triangle; checkerboard covers exactly 50% of the
+  solid fill's pixels; all 32 patterns render; get/set round-trips.
+
 ---
 
 ## Files touched

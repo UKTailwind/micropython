@@ -402,6 +402,7 @@ geometry and pixel format change.
 | `d.arc(x, y, r1, r2, a1, a2, colour)` | a filled **arc / ring segment** between radii `r1`–`r2`, angles `a1`–`a2`° (0°=up, clockwise); `a1==a2` = full ring; thin arc = `r1=r-1, r2=r` |
 | `d.bezier(points, colour)` | a **Bézier curve** through a list of `(x, y)` control points (2 or more) |
 | `d.flood(x, y, colour, border=None)` | **flood fill**: no `border` = replace the seed pixel's colour (paint bucket); with `border` = fill outward to that boundary colour |
+| `hdmi.polyfill(points, colour, pattern=0)` | **polygon fill** on the current write target (MMBasic turtle's scanline fill): `points` is a flat int16 array of x,y pairs (as `framebuf.poly` takes); `pattern` 0 = solid, 1..31 = the MMBasic 8×8 texture set. The turtle's `end_fill()` uses this |
 
 ```python
 d.line(0, 0, 200, 120, d.colour(CYAN), 5)     # 5px-thick line
@@ -674,7 +675,8 @@ screen centre, and the heading is **0 = up, 90 = right** (clockwise), so
 | `rectangle(w, h)` | rectangle centred on the turtle (filled if a fill colour is set) |
 | `wedge(radius, start, end)` | filled pie slice |
 | `fillcolor(rgb)` / `nofill()` | set fill colour (enables filling) / disable |
-| `begin_fill()` / `end_fill()` | record the turtle's path and fill it as a polygon |
+| `fillpattern(n)` / `fp(n)` | texture fill (MMBasic `TURTLE FILL PATTERN`): 0 = solid, 1..31 = the 8×8 pattern set (checkerboards, stripes, crosshatch, weave, dots...). Patterns are screen-anchored so adjacent shapes tile; a pattern's gaps leave the background. No argument reads it back |
+| `begin_fill()` / `end_fill()` | record the turtle's path and fill it as a polygon (colour + pattern), then re-stroke the outline in the pen colour if the pen is down — MMBasic's end-fill sequence, keeping the border crisp |
 | `stamp(size=12)` | stamp a small triangle showing position + heading |
 | `push()` / `pop()` | save / restore position + heading |
 | `position()` , `xcor()` , `ycor()` , `heading()` | read the state |

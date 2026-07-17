@@ -33,6 +33,7 @@ class Turtle:
         self._pw = 1
         self._fill = self.d.colour(0xFFFFFF)
         self._filling = False
+        self._fillpat = 0       # 0 = solid; 1..31 = MMBasic fill patterns
         self._poly = None       # points recorded between begin_fill/end_fill
 
     def reset(self, clear=True):
@@ -250,8 +251,23 @@ class Turtle:
 
     bf = begin_fill
 
+    def fillpattern(self, n=None):
+        """Get (no argument) or set the fill pattern (MMBasic TURTLE FILL
+        PATTERN): 0 = solid, 1..31 = the MMBasic 8x8 texture set --
+        checkerboards, stripes, crosshatch, weave, dots, chevrons...
+        Patterns are anchored to screen coordinates, so adjacent patterned
+        shapes tile seamlessly. A pattern's gaps leave the background."""
+        if n is None:
+            return self._fillpat
+        self._fillpat = max(0, min(31, int(n)))
+
+    fp = fillpattern
+
     def end_fill(self):
-        """Fill the polygon traced since begin_fill() with the fill colour."""
+        """Fill the polygon traced since begin_fill() with the fill colour
+        (and pattern), then re-stroke the outline in the pen colour if the
+        pen is down -- MMBasic's exact end-fill sequence, which is what
+        keeps the border crisp instead of speckled by the fill."""
         pts = self._poly
         self._poly = None
         if pts and len(pts) > 2:
@@ -261,7 +277,14 @@ class Turtle:
             for px, py in pts:
                 flat.append(px)
                 flat.append(py)
-            self.d.poly(0, 0, flat, self._fill, True)
+            hdmi.polyfill(flat, self._fill, self._fillpat)
+            if self._down:
+                x0, y0 = pts[0]
+                lx, ly = x0, y0
+                for px, py in pts[1:]:
+                    self.d.line(lx, ly, px, py, self._pen, self._pw)
+                    lx, ly = px, py
+                self.d.line(lx, ly, x0, y0, self._pen, self._pw)
 
     ef = end_fill
 

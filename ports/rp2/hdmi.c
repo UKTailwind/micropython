@@ -1154,6 +1154,125 @@ static mp_obj_t hdmi_flood(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_flood_obj, 3, 4, hdmi_flood);
 
+// MMBasic turtle fill patterns (PicoMite Turtle.c fill_patterns, verbatim):
+// 8x8 bitmaps, row = pattern[y & 7], bit = 1 << (x & 7), anchored to screen
+// coordinates so adjacent patterned shapes tile seamlessly. 0 is solid.
+static const uint8_t hdmi_fill_patterns[32][8] = {
+    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, // 0: Solid
+    {0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55}, // 1: Checkerboard
+    {0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88}, // 2: Vertical lines
+    {0xFF, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00}, // 3: Horizontal lines
+    {0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81}, // 4: Diagonal cross
+    {0x11, 0x22, 0x44, 0x88, 0x11, 0x22, 0x44, 0x88}, // 5: Diagonal stripes
+    {0xC3, 0xC3, 0x3C, 0x3C, 0xC3, 0xC3, 0x3C, 0x3C}, // 6: Crosshatch
+    {0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01}, // 7: Diagonal fine
+    {0x99, 0x66, 0x99, 0x66, 0x99, 0x66, 0x99, 0x66}, // 8: Dense checkerboard
+    {0x92, 0x49, 0x24, 0x92, 0x49, 0x24, 0x92, 0x49}, // 9: Diagonal right medium
+    {0x49, 0x92, 0x24, 0x49, 0x92, 0x24, 0x49, 0x92}, // 10: Diagonal left medium
+    {0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC}, // 11: Vertical lines medium
+    {0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00}, // 12: Horizontal lines medium
+    {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F}, // 13: Large checkerboard
+    {0xAA, 0x00, 0xAA, 0x00, 0xAA, 0x00, 0xAA, 0x00}, // 14: Dotted vertical
+    {0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00}, // 15: Horizontal stripes tight
+    {0x81, 0x81, 0x81, 0xFF, 0x81, 0x81, 0x81, 0xFF}, // 16: Grid
+    {0x88, 0x55, 0x22, 0x55, 0x88, 0x55, 0x22, 0x55}, // 17: Weave pattern
+    {0x18, 0x3C, 0x7E, 0xFF, 0xFF, 0x7E, 0x3C, 0x18}, // 18: Diamond
+    {0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE, 0xFF}, // 19: Gradient diagonal
+    {0x01, 0x03, 0x07, 0x0F, 0x1F, 0x3F, 0x7F, 0xFF}, // 20: Gradient diagonal reverse
+    {0xFF, 0x81, 0x81, 0x81, 0x81, 0x81, 0x81, 0xFF}, // 21: Border/frame
+    {0xC0, 0xC0, 0xC0, 0xC0, 0x03, 0x03, 0x03, 0x03}, // 22: Vertical split
+    {0x66, 0x99, 0x99, 0x66, 0x66, 0x99, 0x99, 0x66}, // 23: Woven
+    {0x55, 0x00, 0x55, 0x00, 0x55, 0x00, 0x55, 0x00}, // 24: Sparse dots
+    {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80}, // 25: Diagonal very fine
+    {0x10, 0x38, 0x7C, 0xFE, 0x7C, 0x38, 0x10, 0x00}, // 26: Arrow up
+    {0xDB, 0xDB, 0xDB, 0x00, 0xDB, 0xDB, 0xDB, 0x00}, // 27: Dense dots
+    {0xE7, 0xC3, 0x81, 0x00, 0x81, 0xC3, 0xE7, 0xFF}, // 28: Chevron
+    {0x18, 0x24, 0x42, 0x81, 0x81, 0x42, 0x24, 0x18}, // 29: Diamond hollow
+    {0x3C, 0x42, 0x81, 0x81, 0x81, 0x81, 0x42, 0x3C}, // 30: Circle
+    {0x7E, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7E}, // 31: Circle filled
+};
+
+// hdmi.polyfill(points, colour, pattern=0) -- fill a polygon on the current
+// write target: the MMBasic turtle's scanline fill (fill_polygon_scanline /
+// fill_polygon_pattern from PicoMite Turtle.c, ported verbatim: even-odd
+// spans, up to 256 edge crossings per scanline). `points` is a flat buffer
+// of int16 x,y pairs (as framebuf.poly takes). pattern 0 = solid, 1..31 =
+// the MMBasic pattern set; a pattern's unset bits leave the background.
+static mp_obj_t hdmi_polyfill_fn(size_t n_args, const mp_obj_t *args) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(args[0], &bufinfo, MP_BUFFER_READ);
+    const int16_t *pts = (const int16_t *)bufinfo.buf;
+    int count = (int)(bufinfo.len / 4); // int16 x,y pairs
+    mp_int_t colour = mp_obj_get_int(args[1]);
+    int pattern = (n_args > 2) ? mp_obj_get_int(args[2]) : 0;
+    if (pattern < 0 || pattern > 31) {
+        pattern = 0;
+    }
+    if (count < 3) {
+        return mp_const_none;
+    }
+    uint8_t *buf = hdmi_wbuf();
+    const int W = hdmi_w, H = hdmi_h;
+    int min_y = pts[1], max_y = pts[1];
+    for (int i = 1; i < count; i++) {
+        int yy = pts[i * 2 + 1];
+        if (yy < min_y) {
+            min_y = yy;
+        }
+        if (yy > max_y) {
+            max_y = yy;
+        }
+    }
+    if (min_y < 0) {
+        min_y = 0;
+    }
+    if (max_y > H - 1) {
+        max_y = H - 1;
+    }
+    const uint8_t *prow = hdmi_fill_patterns[pattern];
+    for (int scan_y = min_y; scan_y <= max_y; scan_y++) {
+        int inter[256];
+        int n = 0;
+        for (int i = 0; i < count; i++) {
+            int next = (i + 1) % count;
+            int y1 = pts[i * 2 + 1], y2 = pts[next * 2 + 1];
+            if ((y1 <= scan_y && y2 > scan_y) || (y2 <= scan_y && y1 > scan_y)) {
+                int x1 = pts[i * 2], x2 = pts[next * 2];
+                int ix = x1 + (scan_y - y1) * (x2 - x1) / (y2 - y1);
+                if (n < 256) {
+                    inter[n++] = ix;
+                }
+            }
+        }
+        for (int i = 0; i < n - 1; i++) { // sort crossings (MMBasic verbatim)
+            for (int j = i + 1; j < n; j++) {
+                if (inter[i] > inter[j]) {
+                    int t = inter[i];
+                    inter[i] = inter[j];
+                    inter[j] = t;
+                }
+            }
+        }
+        uint8_t bits = prow[scan_y & 7];
+        for (int i = 0; i + 1 < n; i += 2) {
+            int xa = inter[i], xb = inter[i + 1];
+            if (xa < 0) {
+                xa = 0;
+            }
+            if (xb > W - 1) {
+                xb = W - 1;
+            }
+            for (int px = xa; px <= xb; px++) {
+                if (bits & (1u << (px & 7))) {
+                    hdmi_px_set(buf, W, px, scan_y, colour);
+                }
+            }
+        }
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(hdmi_polyfill_obj, 2, 3, hdmi_polyfill_fn);
+
 // hdmi.close("L"/"F") or hdmi.close() for both -- drop the layer (the overlay
 // disappears; the display underneath is untouched) and/or release the F buffer.
 // If the write target was closed, drawing returns to the display (MMBasic).
@@ -1211,6 +1330,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_blit), MP_ROM_PTR(&hdmi_blit_obj) },
     { MP_ROM_QSTR(MP_QSTR_tilemap), MP_ROM_PTR(&hdmi_tilemap_obj) },
     { MP_ROM_QSTR(MP_QSTR_flood), MP_ROM_PTR(&hdmi_flood_obj) },
+    { MP_ROM_QSTR(MP_QSTR_polyfill), MP_ROM_PTR(&hdmi_polyfill_obj) },
     { MP_ROM_QSTR(MP_QSTR_vsync), MP_ROM_PTR(&hdmi_vsync_obj) },
     { MP_ROM_QSTR(MP_QSTR_close), MP_ROM_PTR(&hdmi_close_obj) },
     { MP_ROM_QSTR(MP_QSTR_RGB640), MP_ROM_INT(HDMI_MODE_RGB640) },

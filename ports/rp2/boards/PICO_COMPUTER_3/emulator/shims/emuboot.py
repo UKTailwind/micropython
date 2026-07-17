@@ -53,6 +53,14 @@ __main__.framebuf = framebuf
 for _name in pcshell.COMMANDS:
     setattr(__main__, _name, getattr(pcshell, _name))
 
+# Graphics: Display class + the named colour palette (RED, WHITE, ...).
+import pcgfx
+
+__main__.Display = pcgfx.Display
+for _name in dir(pcgfx):
+    if _name.isupper():
+        setattr(__main__, _name, getattr(pcgfx, _name))
+
 import keyboard
 import pcconfig
 
@@ -65,5 +73,10 @@ try:
 except Exception:
     pass
 
-print("Pico Computer 3 emulator (phase 1: terminal console)")
+print("Pico Computer 3 emulator")
 print("flash -> %s/flash   sd -> %s/sd" % (_home, _home))
+if hasattr(hdmi, "blit"):
+    print("graphics: real hdmi + SDL -- hdmi.init() opens the display window,")
+    print("          hdmi.test() shows the colour bars")
+else:
+    print("graphics: not built (terminal only) -- install libsdl2-dev and rebuild")

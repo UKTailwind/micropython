@@ -36,7 +36,7 @@
 
 #include <SDL.h>
 
-#include "hdmi_priv.h"
+#include "../../../../hdmi_priv.h" // ports/rp2/hdmi_priv.h (no -I on ports/rp2 -- see micropython.mk)
 
 static pthread_t sdl_thread;
 static volatile bool sdl_thread_up = false;   // window exists, loop running

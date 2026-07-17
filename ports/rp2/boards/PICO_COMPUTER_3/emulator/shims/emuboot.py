@@ -92,6 +92,23 @@ import pcfm
 
 __main__.fm = pcfm.fm
 
+# Audio: playback, tone generator and 4-voice synth (SDL out when built).
+try:
+    import pcaudio
+
+    __main__.play = pcaudio.play
+    __main__.volume = pcaudio.volume
+    __main__.beep = pcaudio.beep
+    __main__.stop = pcaudio.stop
+    __main__.is_playing = pcaudio.is_playing
+    __main__.tone = pcaudio.tone
+    __main__.sound = pcaudio.sound
+    __main__.mod_sample = pcaudio.mod_sample
+    __main__.pause = pcaudio.pause
+    __main__.resume = pcaudio.resume
+except ImportError:
+    pass  # audio C modules not in this build
+
 import keyboard
 import pcconfig
 
@@ -110,6 +127,7 @@ except Exception:
 if hasattr(hdmi, "blit"):
     import sys
     import io
+    import select
     import _emukbd
     import pcconsole
 
@@ -127,9 +145,14 @@ if hasattr(hdmi, "blit"):
     if not os.getenv("PC3EMU_TEST"):
         _emukbd.console_pipe()
 
+    _stdin_poll = select.poll()
+    _stdin_poll.register(sys.stdin, select.POLLIN)
+
     class _EmuTerm(io.IOBase):
         # The dupterm stream: write mirrors to the on-screen console (when
-        # one is up); read serves the merged console on fd 0.
+        # one is up); read serves the merged console on fd 0 through a poll
+        # loop, so waiting for a key keeps pumping events -- audio callbacks,
+        # timers -- exactly as the machine's stdin wait loop does.
         def __init__(self, con):
             self.con = con
 
@@ -139,7 +162,9 @@ if hasattr(hdmi, "blit"):
             return len(buf)
 
         def read(self, n=1):
-            return sys.stdin.buffer.read(1)
+            while True:
+                if _stdin_poll.poll(50):
+                    return sys.stdin.buffer.read(1)
 
         def readinto(self, buf):
             b = self.read(1)

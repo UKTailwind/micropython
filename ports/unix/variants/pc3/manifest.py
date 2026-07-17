@@ -25,6 +25,7 @@ freeze(
         "pcgui.py",
         "pccursor.py",
         "pcimage.py",
+        "pcaudio.py",
     ),
 )
 

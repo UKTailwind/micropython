@@ -11,6 +11,23 @@ SRC_USERMOD_C += $(PC3_RP2_DIR)/usb_keyboard.c
 SRC_USERMOD_C += $(PC3_RP2_DIR)/kbd_decode.c
 SRC_USERMOD_C += $(PC3EMU_DIR)/kbd_sdl.c
 
+# Audio: the firmware's renderer (synth/tones/MOD/WAV/MP3/FLAC -- pure pull
+# code) + the SDL-backed machine.I2S lookalike it plays through.
+# The unix CWARN (-Werror -Wdouble-promotion -Wfloat-conversion) lands after
+# CFLAGS_USERMOD, so vendored float maths needs target-specific relaxation.
+PC3_AUDIO_WNO = -Wno-float-conversion -Wno-double-promotion
+$(BUILD)/src/../../../../audio.o: CWARN += $(PC3_AUDIO_WNO)
+$(BUILD)/src/../../../../dr_wav.o: CWARN += $(PC3_AUDIO_WNO)
+$(BUILD)/src/../../../../dr_mp3.o: CWARN += $(PC3_AUDIO_WNO)
+$(BUILD)/src/../../../../dr_flac.o: CWARN += $(PC3_AUDIO_WNO)
+$(BUILD)/src/../../../../hxcmod.o: CWARN += $(PC3_AUDIO_WNO)
+SRC_USERMOD_C += $(PC3_RP2_DIR)/audio.c
+SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_wav.c
+SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_mp3.c
+SRC_USERMOD_C += $(PC3_RP2_DIR)/dr_flac.c
+SRC_USERMOD_C += $(PC3_RP2_DIR)/hxcmod.c
+SRC_USERMOD_C += $(PC3EMU_DIR)/i2s_sdl.c
+
 # Image loaders (jpeg/bmp/png modules + decoders + dither): pure CPU code,
 # drawing through the shared hdmi core.
 SRC_USERMOD_C += $(PC3_RP2_DIR)/jpeg.c
@@ -28,5 +45,6 @@ SRC_USERMOD_C += $(PC3_RP2_DIR)/dither.c
 # MMBasic): signed shifts and sign-compares that the arm toolchain accepts;
 # unchanged from the firmware build.
 CFLAGS_USERMOD += -DMICROPY_HW_ENABLE_HDMI=1 -DMICROPY_HW_USB_HOST=1 \
-	-Wno-shift-negative-value -Wno-sign-compare $(shell sdl2-config --cflags)
+	-Wno-shift-negative-value -Wno-sign-compare \
+	-Wno-float-conversion -Wno-double-promotion $(shell sdl2-config --cflags)
 LDFLAGS_USERMOD += $(shell sdl2-config --libs) -lpthread

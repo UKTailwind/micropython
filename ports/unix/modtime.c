@@ -87,6 +87,16 @@ static mp_obj_t mod_time_clock(void) {
 static MP_DEFINE_CONST_FUN_OBJ_0(mod_time_clock_obj, mod_time_clock);
 
 static mp_obj_t mp_time_sleep(mp_obj_t arg) {
+    #ifdef MICROPY_UNIX_TIME_SLEEP_EVENT_DRIVEN
+    // Pico Computer 3 emulator: sleep like the bare-metal ports -- keep
+    // pumping events throughout (the audio feeder's I2S callbacks, timers,
+    // Ctrl-C), instead of blocking in select() for the whole duration.
+    mp_float_t dt = mp_obj_get_float(arg);
+    if (dt > 0) {
+        mp_hal_delay_ms((mp_uint_t)(dt * MICROPY_FLOAT_CONST(1000.0)));
+    }
+    return mp_const_none;
+    #else
     #if MICROPY_PY_BUILTINS_FLOAT
     struct timeval tv;
     mp_float_t val = mp_obj_get_float(arg);
@@ -123,6 +133,7 @@ static mp_obj_t mp_time_sleep(mp_obj_t arg) {
         }
     }
     #endif
+    #endif // MICROPY_UNIX_TIME_SLEEP_EVENT_DRIVEN
     return mp_const_none;
 }
 

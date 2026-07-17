@@ -25,3 +25,18 @@
 // emulator's combined stream feeds window keystrokes back into the REPL.
 // One slot (all unix_mphal supports).
 #define MICROPY_PY_OS_DUPTERM (1)
+
+// SDL build only (PC3EMU_SDL from mpconfigvariant.mk): pump the emulator's
+// VM-side work on every event wait -- exactly the machine's pattern, where
+// MICROPY_INTERNAL_EVENT_HOOK runs the USB host task. Today it delivers
+// pcaudio's consumed-write I2S callbacks (scheduling them from the SDL audio
+// thread proved unreliable; the audio thread only flags, the VM delivers).
+#ifdef PC3EMU_SDL
+extern void pc3emu_event_hook(void);
+#define MICROPY_INTERNAL_EVENT_HOOK pc3emu_event_hook()
+#endif
+
+// time.sleep() pumps events for its whole duration (the machine's behaviour:
+// music keeps playing, timers fire, Ctrl-C lands), instead of the unix
+// port's blocking select().
+#define MICROPY_UNIX_TIME_SLEEP_EVENT_DRIVEN (1)

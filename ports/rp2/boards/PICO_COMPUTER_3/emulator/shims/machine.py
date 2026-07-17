@@ -8,6 +8,12 @@
 import sys
 import time
 
+try:
+    # The SDL-backed I2S (real audio out) when the emulator's C is built in.
+    from _emuaudio import I2S
+except ImportError:
+    pass
+
 
 class Pin:
     IN = 0

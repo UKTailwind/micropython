@@ -132,6 +132,6 @@ print("Pico Computer 3 emulator")
 print("flash -> %s/flash   sd -> %s/sd" % (_home, _home))
 if hasattr(hdmi, "blit"):
     print("display: window open, console 'both' -- type in the window or here")
-    print("exit: Ctrl-D at the prompt (or machine.reset())")
+    print("exit: Ctrl-D at the prompt; paste into the window: Ctrl-V")
 else:
     print("graphics: not built (terminal only) -- install libsdl2-dev and rebuild")

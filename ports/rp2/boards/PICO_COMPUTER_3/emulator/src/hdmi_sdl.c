@@ -42,6 +42,7 @@
 extern void pc3emu_kbd_sdl_key(int scancode, int down, int sdl_mods);
 extern void pc3emu_kbd_tick(void);
 extern void pc3emu_kbd_reset(void);
+extern void pc3emu_kbd_paste(const char *txt);
 
 static pthread_t sdl_thread;
 static volatile bool sdl_thread_up = false;   // window exists, loop running
@@ -168,7 +169,20 @@ static void *sdl_thread_main(void *arg) {
             if (ev.type == SDL_QUIT) {
                 mp_sched_keyboard_interrupt(); // window close == Ctrl-C
             } else if (ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP) {
-                if (!ev.key.repeat) { // the shared decoder synthesises repeats
+                if (ev.key.repeat) {
+                    // the shared decoder synthesises its own repeats
+                } else if (ev.type == SDL_KEYDOWN
+                           && ev.key.keysym.scancode == SDL_SCANCODE_V
+                           && (SDL_GetModState() & KMOD_CTRL)) {
+                    // Ctrl-V: paste the system clipboard into the console.
+                    char *txt = SDL_GetClipboardText();
+                    if (txt != NULL) {
+                        if (*txt) {
+                            pc3emu_kbd_paste(txt);
+                        }
+                        SDL_free(txt);
+                    }
+                } else {
                     pc3emu_kbd_sdl_key(ev.key.keysym.scancode,
                         ev.type == SDL_KEYDOWN, SDL_GetModState());
                 }

@@ -142,6 +142,50 @@ static int con_real = -1;          // the saved real stdin (terminal side)
 static int con_pipe_w = -1;        // write end of the fd-0 pipe
 static struct termios con_tio;     // terminal state to restore at exit
 static bool con_tio_saved = false;
+static pthread_mutex_t con_wlock = PTHREAD_MUTEX_INITIALIZER;
+
+// Serialised write to the console pipe (feeder thread bytes and window
+// pastes must not interleave mid-paste).
+static void con_write(const uint8_t *b, size_t n) {
+    pthread_mutex_lock(&con_wlock);
+    size_t off = 0;
+    while (off < n) {
+        ssize_t w = write(con_pipe_w, b + off, n - off);
+        if (w <= 0) {
+            break;
+        }
+        off += (size_t)w;
+    }
+    pthread_mutex_unlock(&con_wlock);
+}
+
+// Paste text into the console as keyboard input (window Ctrl-V; also
+// _emukbd.paste for tests). LF and CRLF become CR -- what Enter sends -- so
+// the REPL, autosave() and pye see paste and typing identically.
+void pc3emu_kbd_paste(const char *txt) {
+    size_t len = strlen(txt);
+    uint8_t *buf = malloc(len ? len : 1);
+    if (buf == NULL) {
+        return;
+    }
+    size_t n = 0;
+    for (size_t i = 0; i < len; i++) {
+        char c = txt[i];
+        if (c == '\r' && txt[i + 1] == '\n') {
+            continue; // CRLF: the LF that follows emits the CR
+        }
+        buf[n++] = (c == '\n') ? '\r' : (uint8_t)c;
+    }
+    if (con_pipe_w >= 0) {
+        con_write(buf, n);
+    } else {
+        // No console pipe (test mode): best-effort into the ring buffer.
+        for (size_t i = 0; i < n; i++) {
+            ringbuf_put(&stdin_ringbuf, buf[i]);
+        }
+    }
+    free(buf);
+}
 
 static void con_restore_tty(void) {
     if (con_tio_saved) {
@@ -157,7 +201,7 @@ static void *con_feeder(void *arg) {
         int c;
         while ((c = ringbuf_get(&stdin_ringbuf)) >= 0) {
             uint8_t b = (uint8_t)c;
-            write(con_pipe_w, &b, 1);
+            con_write(&b, 1);
         }
         // A scheduled KeyboardInterrupt can't reach a program blocked in a
         // stdin read (the hardware's stdin loop pumps events; a posix read
@@ -166,7 +210,7 @@ static void *con_feeder(void *arg) {
         if (MP_STATE_MAIN_THREAD(mp_pending_exception) != MP_OBJ_NULL) {
             if (!wake_sent) {
                 uint8_t nul = 0;
-                write(con_pipe_w, &nul, 1);
+                con_write(&nul, 1);
                 wake_sent = true;
             }
         } else {
@@ -181,14 +225,14 @@ static void *con_feeder(void *arg) {
                 if (n <= 0) {
                     // Terminal EOF: one Ctrl-D, then window-only input.
                     uint8_t eot = 4;
-                    write(con_pipe_w, &eot, 1);
+                    con_write(&eot, 1);
                     con_real = -1;
                 } else if (mp_interrupt_char >= 0 && b == (uint8_t)mp_interrupt_char) {
                     // Terminal Ctrl-C during execution: schedule the
                     // interrupt, exactly as the machine's UART IRQ does.
                     mp_sched_keyboard_interrupt();
                 } else {
-                    write(con_pipe_w, &b, 1);
+                    con_write(&b, 1);
                 }
             }
         } else {
@@ -260,6 +304,14 @@ static mp_obj_t emukbd_inject(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(emukbd_inject_obj, 1, 3, emukbd_inject);
 
+// paste(text) -- feed text into the console as keyboard input (the window's
+// Ctrl-V uses the same path with the system clipboard).
+static mp_obj_t emukbd_paste(mp_obj_t txt_in) {
+    pc3emu_kbd_paste(mp_obj_str_get_str(txt_in));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(emukbd_paste_obj, emukbd_paste);
+
 // tick() -- run the auto-repeat check (the SDL thread does this itself; the
 // test suite calls it to pass time deterministically).
 static mp_obj_t emukbd_tick(void) {
@@ -273,6 +325,7 @@ static const mp_rom_map_elem_t emukbd_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_read), MP_ROM_PTR(&emukbd_read_obj) },
     { MP_ROM_QSTR(MP_QSTR_any), MP_ROM_PTR(&emukbd_any_obj) },
     { MP_ROM_QSTR(MP_QSTR_console_pipe), MP_ROM_PTR(&emukbd_console_pipe_obj) },
+    { MP_ROM_QSTR(MP_QSTR_paste), MP_ROM_PTR(&emukbd_paste_obj) },
     { MP_ROM_QSTR(MP_QSTR_inject), MP_ROM_PTR(&emukbd_inject_obj) },
     { MP_ROM_QSTR(MP_QSTR_tick), MP_ROM_PTR(&emukbd_tick_obj) },
 };

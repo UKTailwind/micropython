@@ -147,6 +147,47 @@ When a program finishes, its variables evaporate — nothing it did leaks
 back to your prompt (and nothing stale leaks into the next run). A
 program's output is what it prints, plays, and saves to files.
 
+## Passing arguments to a program
+
+A good program is worth running twice — with different instructions each
+time. Anything you add to `run()` after the filename is handed to the
+program as its **arguments**. Create `countdown.py`:
+
+```python
+import sys
+import time
+
+seconds = int(sys.argv[1]) if len(sys.argv) > 1 else 5
+
+for n in range(seconds, 0, -1):
+    print(n, "...")
+    beep(440, 100)
+    time.sleep(1)
+print("LIFT OFF!")
+beep(880, 600)
+```
+
+```python
+>>> run("countdown.py")        # the classic five
+>>> run("countdown.py", 10)    # mission control wants ten
+```
+
+The program finds its arguments in `sys.argv`, a list: entry `0` is the
+program's own name, and the rest are what you passed — **always as
+strings**, which is why the program says `int(sys.argv[1])` before
+counting with it. The `if len(sys.argv) > 1 else 5` supplies a default
+so the bare `run()` still works: accepting an argument shouldn't mean
+*demanding* one.
+
+This is not a local custom. Desktop Python programs receive their
+command line in exactly this way, so every `sys.argv` recipe on the web
+works here unchanged — and the habit transfers straight to any Python
+you write on a PC.
+
+> **Coming from MMBasic:** this is `RUN "prog", cmdline` and
+> `MM.CMDLINE$` — except the arguments arrive already split into a
+> list, no `FIELD$` chopping required.
+
 ## Getting programs in from a PC
 
 You will not type everything on the machine. Programs come from PCs — your

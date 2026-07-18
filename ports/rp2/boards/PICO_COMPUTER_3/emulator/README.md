@@ -28,8 +28,11 @@ display window) -- install SDL2 and rebuild for the full machine.
 On Windows, install Ubuntu under WSL2 (`wsl --install` in an
 administrator PowerShell, then the two commands above inside Ubuntu).
 WSL2's WSLg shows the emulator's windows and plays its audio natively.
-A native Windows build (no WSL) is future work: the emulator's console
-plumbing is POSIX.
+**`INSTALL-WINDOWS.md` (alongside this file, and in the release
+download) is a complete walk-through for a machine that has never seen
+WSL** — including the prebuilt-download route that skips compiling
+entirely. A native Windows build (no WSL) is future work: the
+emulator's console plumbing is POSIX.
 
 ## Using it
 

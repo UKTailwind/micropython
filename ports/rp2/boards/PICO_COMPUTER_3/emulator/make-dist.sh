@@ -14,9 +14,12 @@ mkdir -p "$dist/sd-seed"
 
 cp "$top/ports/unix/build-pc3/micropython" "$dist/pc3emu-bin"
 cp "$here/README.md" "$dist/README.md"
+cp "$here/INSTALL-WINDOWS.md" "$dist/INSTALL-WINDOWS.md"
 
 # SD seed: the course book's example programs + the reader's toolkit.
 cp -r "$board/book/examples" "$dist/sd-seed/examples"
+# Windows ADS artifacts (Explorer/WSL copies) must never ship
+find "$dist" -name '*Zone.Identifier*' -delete
 
 # Launcher: run from anywhere; seed the SD card on first run.
 cat > "$dist/pc3emu" <<'EOF'

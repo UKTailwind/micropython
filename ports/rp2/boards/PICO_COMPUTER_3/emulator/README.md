@@ -13,20 +13,30 @@ what you see is the machine's behaviour, not an imitation of it.
 
 ## Building (Linux, or Windows via WSL2)
 
-Requirements: the usual C build tools and SDL2.
+Requirements: git, the usual C build tools, and SDL2. From nothing to a
+running emulator (a few minutes on any distro, however old):
 
-    sudo apt install build-essential libsdl2-dev
-    make -C ports/unix VARIANT=pc3 -j8
+    sudo apt install -y git build-essential libsdl2-dev python3
+    git clone --branch pico-computer-3 https://github.com/UKTailwind/micropython
+    cd micropython
+    make -C mpy-cross -j$(nproc)
+    make -C ports/unix VARIANT=pc3 submodules
+    make -C ports/unix VARIANT=pc3 -j$(nproc)
 
 Run it:
 
     ports/rp2/boards/PICO_COMPUTER_3/emulator/pc3emu
 
+**Clone with git as shown -- GitHub's "Download ZIP"/source-tarball
+links won't build**: those archives lack the git submodules
+(`lib/ulab` and friends), and the `make ... submodules` step can only
+fetch them inside a real clone.
+
 Without `libsdl2-dev` the build still works but is terminal-only (no
 display window) -- install SDL2 and rebuild for the full machine.
 
-On Windows, install Ubuntu under WSL2 (`wsl --install` in an
-administrator PowerShell, then the two commands above inside Ubuntu).
+On Windows, install Ubuntu under WSL2 (`wsl --install -d Ubuntu-26.04`
+in an administrator PowerShell, then the commands above inside Ubuntu).
 WSL2's WSLg shows the emulator's windows and plays its audio natively.
 **`INSTALL-WINDOWS.md` (alongside this file, and in the release
 download) is a complete walk-through for a machine that has never seen
@@ -107,3 +117,9 @@ Honest differences: the PC is far faster (pace game loops with
 toolkit -- copied onto the SD card on first run, so `cd("/sd/examples")`
 works out of the box. The target machine needs only the SDL2 runtime
 (`sudo apt install libsdl2-2.0-0`).
+
+The prebuilt binary is made on current Ubuntu and needs **glibc 2.43 or
+newer** (Ubuntu 26.04+). On an older distro it stops with
+`` version `GLIBC_2.43' not found `` -- that machine can't run this
+binary, but building from source (above) works everywhere and takes
+only a few minutes.

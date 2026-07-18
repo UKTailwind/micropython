@@ -11,21 +11,24 @@ about 2 GB of disk space. On Windows 10 one extra step is flagged below.
 
 ## Step 1 — Install WSL and Ubuntu
 
+The prebuilt emulator needs **Ubuntu 26.04 or newer** (older releases
+stop with a `GLIBC` error), so we install that version by name:
+
 1. Right-click the Start button and choose **Terminal (Admin)** (on
    Windows 10: **Windows PowerShell (Admin)**).
 2. Type:
 
-       wsl --install
+       wsl --install -d Ubuntu-26.04
 
-   This installs WSL2 and the Ubuntu Linux distribution in one go.
+   This installs WSL2 and the Ubuntu 26.04 Linux distribution in one go.
 3. **Reboot** when it asks.
 4. After the reboot a window opens finishing the Ubuntu install. It asks
    for a **username** and **password** — these are new, for Linux only
    (the password doesn't echo as you type; that's normal). Remember
    them: the password is needed for `sudo` (administrator) commands.
 
-You now have an "Ubuntu" entry in the Start menu. Opening it gives a
-Linux terminal — every command below is typed **there**, not in
+You now have an "Ubuntu 26.04 LTS" entry in the Start menu. Opening it
+gives a Linux terminal — every command below is typed **there**, not in
 PowerShell.
 
 > **Windows 10 only:** WSL's GUI support (WSLg) comes with the Store
@@ -33,9 +36,14 @@ PowerShell.
 > `wsl --version` reports a WSLg version. Without it the emulator still
 > runs, but terminal-only.
 
-> **Already had WSL?** `wsl --update` then `wsl --install -d Ubuntu` (if
-> Ubuntu is missing), and check `wsl -l -v` shows Ubuntu as VERSION 2 —
-> if it says 1, run `wsl --set-version Ubuntu 2`.
+> **Already had WSL with an older Ubuntu?** Check with `lsb_release -ds`
+> inside it. If it's older than 26.04, run `wsl --update` then
+> `wsl --install -d Ubuntu-26.04` in the admin terminal — the new
+> distribution installs **alongside** your existing one, which is left
+> completely untouched. Do the rest of this guide in the new one, and
+> use `-d Ubuntu-26.04` wherever a command names the distribution.
+> Finally check `wsl -l -v` shows it as VERSION 2 — if it says 1, run
+> `wsl --set-version Ubuntu-26.04 2`.
 
 ## Step 2 — First-time Ubuntu setup
 
@@ -79,7 +87,7 @@ Exit with **Ctrl-D** at the prompt. Day to day: open Ubuntu from the
 Start menu, run the same command. For a one-click start, make a Windows
 shortcut with this as the target:
 
-    wsl.exe -d Ubuntu -- ~/pc3emu-linux-x64/pc3emu
+    wsl.exe -d Ubuntu-26.04 -- ~/pc3emu-linux-x64/pc3emu
 
 ## Where your files are
 
@@ -90,7 +98,7 @@ The machine's drives are two ordinary folders in Ubuntu:
 
 Windows Explorer can see them: paste this in the Explorer address bar —
 
-    \\wsl.localhost\Ubuntu\home\<your-linux-username>\.pc3emu
+    \\wsl.localhost\Ubuntu-26.04\home\<your-linux-username>\.pc3emu
 
 Drag files in and they appear on the machine instantly (and the machine's
 files can be edited with any Windows editor). Those two folders are
@@ -112,6 +120,12 @@ If you'd rather compile it (or want to track the repository):
     make -C ports/unix VARIANT=pc3 submodules
     make -C ports/unix VARIANT=pc3 -j$(nproc)
 
+**Use `git clone`, not GitHub's "Download ZIP" / source-tarball links** —
+those archives are missing the git submodules (`lib/ulab` and friends),
+so the build stops with `lib/ulab/code/micropython.mk: No such file`.
+The `make ... submodules` step above fetches them, but only inside a
+real clone.
+
 Run it with:
 
     ports/rp2/boards/PICO_COMPUTER_3/emulator/pc3emu
@@ -124,6 +138,11 @@ Run it with:
   needs the Store version of WSL, which `wsl --update` installs).
 - **`error while loading shared libraries: libSDL2`** — step 2 was
   skipped: `sudo apt install -y libsdl2-2.0-0`.
+- **`` version `GLIBC_2.xx' not found ``** — your Ubuntu is older than
+  26.04, and the prebuilt binary can't run on it. Install Ubuntu 26.04
+  alongside it as described in step 1 (your existing distribution is
+  untouched), or build from source — that section works on any distro,
+  however old.
 - **No sound** — sound also travels through WSLg, so the fix is the same
   `wsl --update` / `wsl --shutdown` cycle. Check Windows hasn't muted
   the "System sounds" mixer entry for WSLg.

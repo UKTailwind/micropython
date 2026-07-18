@@ -42,11 +42,17 @@ SRC_USERMOD_C += $(PC3EMU_DIR)/i2s_sdl.c
 
 # ulab (numpy-like ndarrays), same submodule the firmware builds -- pcmath,
 # plot() maths and the chapter-30 lab need it. Its micropython.mk snapshots
-# USERMOD_DIR, so point it at ulab for the include.
+# USERMOD_DIR, so point it at ulab for the include. Guard the include so a
+# fresh clone can still parse this file and run `make ... submodules` (which
+# fetches lib/ulab); a hard include would kill make before it could fetch.
+ifneq ($(wildcard $(TOP)/lib/ulab/code/micropython.mk),)
 PC3_SAVED_USERMOD := $(USERMOD_DIR)
 USERMOD_DIR := $(TOP)/lib/ulab/code
 include $(TOP)/lib/ulab/code/micropython.mk
 USERMOD_DIR := $(PC3_SAVED_USERMOD)
+else
+$(warning pc3: lib/ulab submodule not present -- run 'make -C ports/unix VARIANT=pc3 submodules' first (needs a git clone, not a source tarball), then rebuild)
+endif
 
 # Image loaders (jpeg/bmp/png modules + decoders + dither): pure CPU code,
 # drawing through the shared hdmi core.

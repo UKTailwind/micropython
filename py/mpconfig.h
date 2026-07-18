@@ -1367,12 +1367,17 @@ typedef time_t mp_timestamp_t;
 
 // Whether str object is proper unicode
 #ifndef MICROPY_PY_BUILTINS_STR_UNICODE
-#define MICROPY_PY_BUILTINS_STR_UNICODE (MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_EXTRA_FEATURES)
+#define MICROPY_PY_BUILTINS_STR_UNICODE (MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_BASIC_FEATURES)
 #endif
 
 // Whether to check for valid UTF-8 when converting bytes to str
 #ifndef MICROPY_PY_BUILTINS_STR_UNICODE_CHECK
 #define MICROPY_PY_BUILTINS_STR_UNICODE_CHECK (MICROPY_PY_BUILTINS_STR_UNICODE)
+#endif
+
+// Whether bytes.decode() supports the 'ignore' and 'replace' error handlers
+#ifndef MICROPY_PY_BUILTINS_BYTES_DECODE_ERRORS
+#define MICROPY_PY_BUILTINS_BYTES_DECODE_ERRORS (MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_EXTRA_FEATURES)
 #endif
 
 // Whether str.center() method provided
@@ -1426,7 +1431,7 @@ typedef time_t mp_timestamp_t;
 
 // Whether to support memoryview.itemsize attribute
 #ifndef MICROPY_PY_BUILTINS_MEMORYVIEW_ITEMSIZE
-#define MICROPY_PY_BUILTINS_MEMORYVIEW_ITEMSIZE (MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_EVERYTHING)
+#define MICROPY_PY_BUILTINS_MEMORYVIEW_ITEMSIZE (MICROPY_PY_MACHINE_MEM_BACKUP || MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_BASIC_FEATURES)
 #endif
 
 // Whether to support set object
@@ -2092,6 +2097,11 @@ typedef time_t mp_timestamp_t;
 // Whether to provide the "machine.mem8/16/32" objects
 #ifndef MICROPY_PY_MACHINE_MEMX
 #define MICROPY_PY_MACHINE_MEMX (MICROPY_PY_MACHINE)
+#endif
+
+// Whether to provide the "machine.mem_backup" function
+#ifndef MICROPY_PY_MACHINE_MEM_BACKUP
+#define MICROPY_PY_MACHINE_MEM_BACKUP (0)
 #endif
 
 // Whether to provide the "machine.Signal" class

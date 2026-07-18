@@ -29,6 +29,12 @@ function ci_gcc_riscv_setup {
     riscv64-unknown-elf-gcc --version
 }
 
+function ci_gcc_ppc64_setup {
+    sudo apt-get update
+    sudo apt-get install gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
+    powerpc64le-linux-gnu-gcc --version
+}
+
 function ci_picotool_setup {
     # Manually installing picotool ensures we use a release version, and speeds up the build.
     git clone https://github.com/raspberrypi/pico-sdk.git
@@ -274,9 +280,10 @@ function ci_esp32_build_c2_c5_c6 {
     make ${MAKEOPTS} -C ports/esp32 BOARD=ESP32_GENERIC_C6
 }
 
-function ci_esp32_build_p4 {
+function ci_esp32_build_h2_p4 {
     ci_esp32_build_common
 
+    make ${MAKEOPTS} -C ports/esp32 BOARD=ESP32_GENERIC_H2
     make ${MAKEOPTS} -C ports/esp32 BOARD=ESP32_GENERIC_P4
     make ${MAKEOPTS} -C ports/esp32 BOARD=ESP32_GENERIC_P4 BOARD_VARIANT=C6_WIFI
 }
@@ -342,19 +349,6 @@ function ci_nrf_build {
 }
 
 ########################################################################################
-# ports/powerpc
-
-function ci_powerpc_setup {
-    sudo apt-get update
-    sudo apt-get install gcc-powerpc64le-linux-gnu libc6-dev-ppc64el-cross
-}
-
-function ci_powerpc_build {
-    make ${MAKEOPTS} -C ports/powerpc UART=potato
-    make ${MAKEOPTS} -C ports/powerpc UART=lpc_serial
-}
-
-########################################################################################
 # ports/qemu
 
 function ci_qemu_setup_arm {
@@ -382,6 +376,13 @@ function ci_qemu_setup_rv64 {
     sudo pip3 install pyelftools
     sudo pip3 install ar
     qemu-system-riscv64 --version
+}
+
+function ci_qemu_setup_ppc64 {
+    ci_gcc_ppc64_setup
+    sudo apt-get update
+    sudo apt-get install qemu-system
+    qemu-system-ppc64 --version
 }
 
 function ci_qemu_build_arm_prepare {
@@ -445,6 +446,12 @@ function ci_qemu_build_rv64 {
     make ${MAKEOPTS} -C ports/qemu BOARD=VIRT_RV64 test_natmod
 }
 
+function ci_qemu_build_ppc64 {
+    make ${MAKEOPTS} -C mpy-cross
+    make ${MAKEOPTS} -C ports/qemu BOARD=POWERNV9 submodules
+    make ${MAKEOPTS} -C ports/qemu BOARD=POWERNV9 test
+}
+
 ########################################################################################
 # ports/renesas-ra
 
@@ -502,6 +509,7 @@ function ci_samd_build {
     make ${MAKEOPTS} -C ports/samd submodules
     make ${MAKEOPTS} -C ports/samd BOARD=ADAFRUIT_ITSYBITSY_M0_EXPRESS
     make ${MAKEOPTS} -C ports/samd BOARD=ADAFRUIT_ITSYBITSY_M4_EXPRESS
+    make ${MAKEOPTS} -C ports/samd BOARD=SPARKFUN_SAMD21_DEV_BREAKOUT
 }
 
 ########################################################################################
@@ -613,6 +621,12 @@ CI_UNIX_OPTS_QEMU_LOONG64=(
     MICROPY_STANDALONE=1
 )
 
+CI_UNIX_OPTS_QEMU_X64=(
+    CROSS_COMPILE=x86_64-linux-gnu-
+    VARIANT=coverage
+    MICROPY_STANDALONE=1
+)
+
 CI_UNIX_OPTS_SANITIZE_ADDRESS=(
     # Macro MP_ASAN allows detecting ASan on gcc<=13
     CFLAGS_EXTRA="-fsanitize=address --param asan-use-after-return=0 -DMP_ASAN=1"
@@ -628,9 +642,12 @@ CI_UNIX_OPTS_SANITIZE_UNDEFINED=(
 CI_UNIX_OPTS_REPR_B=(
     VARIANT=standard
     CFLAGS_EXTRA="-DMICROPY_OBJ_REPR=MICROPY_OBJ_REPR_B -DMICROPY_PY_UCTYPES=0 -Dmp_int_t=int32_t -Dmp_uint_t=uint32_t"
-    MICROPY_FORCE_32BIT=1
     RUN_TESTS_MPY_CROSS_FLAGS="--mpy-cross-flags=\"-march=x86 -msmall-int-bits=30\""
+)
 
+CI_UNIX_OPTS_X86=(
+    CROSS_COMPILE=i686-linux-gnu-
+    RUN_TESTS_MPY_CROSS_FLAGS=${RUN_TESTS_MPY_CROSS_FLAGS:-"--mpy-cross-flags=\"-march=x86\""}
 )
 
 function ci_unix_build_helper {
@@ -721,11 +738,19 @@ function ci_unix_standard_v2_run_tests {
     ci_unix_run_tests_full_helper standard
 }
 
-function ci_unix_standard_terse_build {
+function ci_unix_standard_error_terse_build {
     ci_unix_build_helper VARIANT=standard CFLAGS_EXTRA="-DMICROPY_ERROR_REPORTING=MICROPY_ERROR_REPORTING_TERSE"
 }
 
-function ci_unix_standard_terse_run_tests {
+function ci_unix_standard_error_terse_run_tests {
+    make -C ports/unix VARIANT=standard test
+}
+
+function ci_unix_standard_error_none_build {
+    ci_unix_build_helper VARIANT=standard CFLAGS_EXTRA="-DMICROPY_ERROR_REPORTING=MICROPY_ERROR_REPORTING_NONE" MICROPY_ROM_TEXT_COMPRESSION=0
+}
+
+function ci_unix_standard_error_none_run_tests {
     make -C ports/unix VARIANT=standard test
 }
 
@@ -785,20 +810,20 @@ function ci_unix_coverage_run_native_mpy_tests {
 function ci_unix_32bit_setup {
     sudo dpkg --add-architecture i386
     sudo apt-get update
-    sudo apt-get install gcc-multilib g++-multilib libffi-dev:i386
+    sudo apt-get install gcc-i686-linux-gnu g++-i686-linux-gnu patchelf libffi-dev:i386
     python -m pip install pyelftools
     python -m pip install ar
-    gcc --version
+    i686-linux-gnu-gcc --version
     python3 --version
 }
 
 function ci_unix_coverage_32bit_build {
-    ci_unix_build_helper VARIANT=coverage MICROPY_FORCE_32BIT=1
-    ci_unix_build_ffi_lib_helper gcc -m32
+    ci_unix_build_helper VARIANT=coverage "${CI_UNIX_OPTS_X86[@]}"
+    ci_unix_build_ffi_lib_helper i686-linux-gnu-gcc
 }
 
 function ci_unix_coverage_32bit_run_tests {
-    ci_unix_run_tests_full_helper coverage MICROPY_FORCE_32BIT=1
+    ci_unix_run_tests_full_helper coverage "${CI_UNIX_OPTS_X86[@]}"
 }
 
 function ci_unix_coverage_32bit_run_native_mpy_tests {
@@ -806,8 +831,8 @@ function ci_unix_coverage_32bit_run_native_mpy_tests {
 }
 
 function ci_unix_nanbox_build {
-    ci_unix_build_helper VARIANT=nanbox CFLAGS_EXTRA="-DMICROPY_PY_MATH_CONSTANTS=1"
-    ci_unix_build_ffi_lib_helper gcc -m32
+    ci_unix_build_helper VARIANT=nanbox CFLAGS_EXTRA="-DMICROPY_PY_MATH_CONSTANTS=1" "${CI_UNIX_OPTS_X86[@]}"
+    ci_unix_build_ffi_lib_helper i686-linux-gnu-gcc
 }
 
 function ci_unix_nanbox_run_tests {
@@ -815,7 +840,8 @@ function ci_unix_nanbox_run_tests {
 }
 
 function ci_unix_longlong_build {
-    ci_unix_build_helper VARIANT=longlong "${CI_UNIX_OPTS_SANITIZE_UNDEFINED[@]}"
+    ci_unix_build_helper VARIANT=longlong "${CI_UNIX_OPTS_SANITIZE_UNDEFINED[@]}" "${CI_UNIX_OPTS_X86[@]}"
+    patchelf --add-rpath "/usr/i686-linux-gnu/lib" ports/unix/build-longlong/micropython
 }
 
 function ci_unix_longlong_run_tests {
@@ -1017,15 +1043,43 @@ EOF
     (cd tests && MICROPY_MICROPYTHON=../ports/unix/build-coverage/micropython-runner MICROPY_TEST_TIMEOUT=180 ./run-tests.py)
 }
 
+function ci_unix_qemu_x64_setup {
+    sudo apt-get update
+    sudo apt-get install gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-amd64-cross libltdl-dev
+    sudo apt-get install qemu-user-static
+    python3 -m pip install pyelftools
+    python3 -m pip install ar
+    qemu-x86_64-static --version
+    sudo mkdir -p /usr/gnemul
+    sudo ln -s /usr/x86_64-linux-gnu /usr/gnemul/qemu-x86_64
+}
+
+function ci_unix_qemu_x64_build {
+    ci_unix_build_helper "${CI_UNIX_OPTS_QEMU_X64[@]}"
+    ci_unix_build_ffi_lib_helper x86_64-linux-gnu-gcc
+    ci_native_mpy_modules_build x64
+}
+
+function ci_unix_qemu_x64_run_tests {
+    # Issues with x64 tests on non-x64 hosts:
+    # - thread/stress_aes.py takes around 90 seconds
+    # - ports/unix/ffi_callback.py crashes QEMU (x86_64-binfmt-P: QEMU internal SIGSEGV {code=MAPERR, addr=0x20})
+    file ./ports/unix/build-coverage/micropython
+    pushd tests
+    MICROPY_MICROPYTHON=../ports/unix/build-coverage/micropython ./run-tests.py --exclude '(thread/stress_aes.py|ports/unix/ffi_callback.py)'
+    MICROPY_MICROPYTHON=../ports/unix/build-coverage/micropython ./run-natmodtests.py extmod/btree*.py extmod/deflate*.py extmod/framebuf*.py extmod/heapq*.py extmod/random_basic*.py extmod/re*.py
+    popd
+}
+
 function ci_unix_repr_b_build {
-    ci_unix_build_helper "${CI_UNIX_OPTS_REPR_B[@]}"
-    ci_unix_build_ffi_lib_helper gcc -m32
+    ci_unix_build_helper "${CI_UNIX_OPTS_REPR_B[@]}" "${CI_UNIX_OPTS_X86[@]}"
+    ci_unix_build_ffi_lib_helper i686-linux-gnu-gcc
 }
 
 function ci_unix_repr_b_run_tests {
     # ci_unix_run_tests_full_no_native_helper is not used due to
     # https://github.com/micropython/micropython/issues/18105
-    ci_unix_run_tests_helper "${CI_UNIX_OPTS_REPR_B[@]}"
+    ci_unix_run_tests_helper "${CI_UNIX_OPTS_REPR_B[@]}" "${CI_UNIX_OPTS_X86[@]}"
 }
 
 ########################################################################################

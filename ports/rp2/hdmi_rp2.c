@@ -126,11 +126,12 @@ static void __not_in_flash_func(hdmi_dma_irq)(void) {
         vactive_cmdlist_posted = true;
     } else {
         int active = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
-        if (hdmi_native) {
+        if (hdmi_mode == HDMI_MODE_RGB640) {
             // Native 640x480x8: scan the framebuffer line directly.
             ch->read_addr = (uintptr_t)&hdmi_fb[active * MODE_H_ACTIVE_PIXELS];
         } else {
-            // 320x240 RGB565: the core1 fill-loop has doubled this line.
+            // Everything else at this timing (RGB320/RGB640_4/RGB320_8): the
+            // core1 fill-loop has doubled/expanded this line.
             ch->read_addr = (uintptr_t)HDMIlines[v_scanline & 1];
         }
         ch->transfer_count = hdmi_transfer_count;
@@ -201,12 +202,50 @@ static void __not_in_flash_func(hdmi_dma_irq_1024)(void) {
     }
 }
 
-// --- core1 fill loop: RGB565 horizontal doubling into the next line buffer -
-// (RGB332 is native, so this returns immediately and core1 idles.)
+// --- core1 fill loop: per-mode line preparation into the next line buffer -
+// (RGB640 is scanned directly from the framebuffer, so core1 idles.)
 static void __not_in_flash_func(hdmi_fill_loop)(void) {
-    if (hdmi_native) {
+    if (hdmi_mode == HDMI_MODE_RGB640) {
         while (hdmi_running) { // RGB640 scans the framebuffer directly; core1 idles
             __wfe();
+        }
+        return;
+    }
+    if (hdmi_mode == HDMI_MODE_RGB320_8) {
+        // 320x240 RGB332 -> 640x480: double 320 source bytes to 640, vertical
+        // double. With the layer enabled, merge per pixel first: the layer
+        // byte wins unless it equals the transparent colour (verbatim
+        // MMBasic's SCREENMODE5 merge in HDMI.c). Layer = second quarter of
+        // the static video memory, so every read here stays SRAM.
+        const uint8_t *layer8 = hdmi_fb + 320 * 240;
+        int last_line8 = 2;
+        while (hdmi_running) {
+            if (v_scanline != last_line8) {
+                last_line8 = v_scanline;
+                int active = v_scanline - (MODE_V_TOTAL_LINES - MODE_V_ACTIVE_LINES);
+                uint8_t *p = (uint8_t *)HDMIlines[last_line8 & 1];
+                if (active >= 0 && active < MODE_V_ACTIVE_LINES) {
+                    const uint8_t *s = &hdmi_fb[(active >> 1) * 320];
+                    if (hdmi_layer_on) {
+                        const uint8_t *l = &layer8[(active >> 1) * 320];
+                        uint8_t t = (uint8_t)hdmi_layer_transp;
+                        for (int i = 0; i < 320; i++) {
+                            uint8_t v = l[i];
+                            if (v == t) {
+                                v = s[i];
+                            }
+                            *p++ = v;
+                            *p++ = v;
+                        }
+                    } else {
+                        for (int i = 0; i < 320; i++) {
+                            uint8_t v = s[i];
+                            *p++ = v;
+                            *p++ = v;
+                        }
+                    }
+                }
+            }
         }
         return;
     }
@@ -554,8 +593,10 @@ void hdmi_backend_stop(void) {
 }
 
 bool hdmi_backend_in_blanking(void) {
-    int blank = (hdmi_mode == HDMI_MODE_RGB640 || hdmi_mode == HDMI_MODE_RGB320)
-        ? BLANKING_COUNT : X_BLANKING_COUNT;
+    // Group by TIMING, not by mode name: only RGB512/RGB1024 run the 1024x600
+    // timing; everything else (RGB640/RGB320/RGB640_4/RGB320_8) is 640x480.
+    int blank = (hdmi_mode == HDMI_MODE_RGB512 || hdmi_mode == HDMI_MODE_RGB1024)
+        ? X_BLANKING_COUNT : BLANKING_COUNT;
     return v_scanline < blank;
 }
 

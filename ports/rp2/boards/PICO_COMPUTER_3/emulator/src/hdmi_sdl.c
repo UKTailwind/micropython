@@ -76,7 +76,27 @@ static void build_maps(void) {
 // Composite the frame into an out_w*out_h ARGB8888 buffer -- the exact
 // mode/doubling/layer rules of hdmi_rp2.c's DMA scan + fill loop.
 static void compose(uint32_t *dst, int out_w, int out_h) {
-    if (hdmi_native) {
+    if (hdmi_mode == HDMI_MODE_RGB320_8) {
+        // 320x240 RGB332, pixel+line doubled; layer merged byte-wise first
+        // (the fill loop's SCREENMODE5 rule).
+        const uint8_t *layer8 = hdmi_fb + hdmi_fb_bytes();
+        bool merge = hdmi_layer_on;
+        uint8_t t = (uint8_t)hdmi_layer_transp;
+        for (int sy = 0; sy < hdmi_h; sy++) {
+            const uint8_t *s = &hdmi_fb[sy * hdmi_w];
+            const uint8_t *l = &layer8[sy * hdmi_w];
+            uint32_t *p0 = &dst[(sy * 2) * out_w];
+            uint32_t *p1 = &dst[(sy * 2 + 1) * out_w];
+            for (int sx = 0; sx < hdmi_w; sx++) {
+                uint8_t v = merge ? (l[sx] != t ? l[sx] : s[sx]) : s[sx];
+                uint32_t c = map332[v];
+                *p0++ = c;
+                *p0++ = c;
+                *p1++ = c;
+                *p1++ = c;
+            }
+        }
+    } else if (hdmi_native) {
         // RGB640: native 8bpp RGB332 scan.
         const uint8_t *s = hdmi_fb;
         for (int i = 0; i < out_w * out_h; i++) {

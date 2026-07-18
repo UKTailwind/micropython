@@ -76,6 +76,11 @@
                                // fast game mode: the 150 KB framebuffer is half
                                // the video SRAM, so hdmi.create()'s F buffer
                                // lives in the OTHER half (SRAM, not PSRAM).
+#define HDMI_MODE_RGB320_8 (5) // 320x240 RGB332 (8bpp), pixel+line doubled ->
+                               // 640x480 (MMBasic SCREENMODE5). One buffer is a
+                               // QUARTER of the video SRAM, so N, the layer AND
+                               // the F buffer all live there together (the
+                               // fourth quarter is reserved).
 
 // Largest framebuffer: 640x480x8 = 512x300x2 = 1024*600/2 = 307200 bytes. The
 // RGB121 1024x600x4 framebuffer is an exact fit in this same array.
@@ -87,11 +92,13 @@ extern volatile bool hdmi_running;
 extern int hdmi_mode;
 extern int hdmi_w, hdmi_h;                // logical framebuffer dimensions
 extern int hdmi_transfer_count;           // active pixel words per line
-extern int hdmi_native;                   // 1 = native 8bpp scan (RGB640)
+extern int hdmi_native;                   // 1 = 8bpp RGB332 framebuffer (RGB640
+                                          // scans it directly; RGB320_8 doubles it)
 extern int hdmi_rgb121;                   // 1 = 4bpp packed framebuffer
 extern uint32_t hdmi_clock_khz;
 extern volatile int hdmi_layer_on;        // backend merges the layer when set
-extern volatile uint16_t hdmi_layer_transp; // layer transparent colour (RGB565)
+extern volatile uint16_t hdmi_layer_transp; // layer transparent colour (RGB565;
+                                            // low byte = RGB332 in RGB320_8)
 extern uint16_t hdmi_map256[256];         // RGB121 byte -> 2 RGB332 px
 size_t hdmi_fb_bytes(void);               // bytes in one mode-sized buffer
 

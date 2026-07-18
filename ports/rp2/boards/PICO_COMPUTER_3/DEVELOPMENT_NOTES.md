@@ -2059,6 +2059,66 @@ when it moves, so it floats over any screen content without disturbing it.
   frame loop in try/finally that restores the target and closes F even on
   Ctrl-C.
 
+### 60. hdmi.RGB320_8 — 320×240×8-bit: N + layer + F all in fast SRAM
+
+- **Peter's insight**: a 320×240 RGB332 buffer is 76,800 bytes — a QUARTER
+  of the 307,200-byte video SRAM. So the display, the overlay layer AND the
+  create() double buffer all fit on-chip together, with a quarter still
+  spare (kept in reserve — Peter's call — for a possible second F/triple
+  buffer later). It is the only mode with an overlay *and* a fast double
+  buffer simultaneously; MMBasic precedent is SCREENMODE5 in HDMI.c
+  ("half-res x8bit-colour, line + pixel doubled"), whose byte-wise layer
+  merge the new core1 fill-loop branch replicates verbatim.
+- **Layout**: N at `hdmi_fb`, L at +76,800 (the generic
+  `hdmi_fb + hdmi_fb_bytes()` formula unchanged), F at +153,600
+  (create() special-cases the mode — the generic "second half" rule would
+  have collided with the layer). No first-come-first-served rule here:
+  layer() and create() coexist in any order.
+- **hdmi_native disentangled**: it used to mean both "8bpp RGB332 format"
+  and "scan the framebuffer directly / core1 idles". RGB320_8 is the first
+  mode that is native-format but core1-doubled, so `hdmi_native` stays the
+  FORMAT flag (=1 here: GS8 framebuf, strides, colour conversion, bpp()
+  all follow free), and the backend's two direct-scan checks (DMA IRQ +
+  fill-loop idle) now test `hdmi_mode == HDMI_MODE_RGB640` instead. The
+  emulator compose had the same entanglement, fixed the same way.
+- **hdmi_layer_transp** carries an RGB332 byte in this mode (low byte of
+  the uint16); layer() clears the layer with a plain memset. Transparency
+  matches at 3-3-2 colour resolution — documented in the manual.
+- **Latent bug fixed in passing**: `hdmi_backend_in_blanking()` grouped
+  modes by NAME (RGB640/RGB320 → 640×480 blanking) so RGB640_4 was using
+  the 1024×600 blanking count for vsync()/in_blanking — wrong window,
+  never noticed because both counts are small. Now grouped by timing:
+  only RGB512/RGB1024 use X_BLANKING_COUNT.
+- **Verified (emulator, SDL dummy)**: geometry/bpp/format, RGB332 colour
+  formula, N+L+F coexistence in both orders, independent targets, copy
+  matrix, text+blit on the 8-bit paths, transparent(), close("L")
+  semantics, 30 vsyncs ≈ 494 ms (60 Hz), draw3d, and the RGB320
+  first-come-first-served regression. Full tests/test_all.py: 252 PASS.
+  Firmware compiles clean; needs Peter's hardware pass (real core1
+  merge + monitor lock).
+- **Build-hygiene lesson (cost an hour)**: `rm -rf build-pc3` is NOT a
+  clean build for the emulator. The usermod objects land OUTSIDE the
+  build dir (`micropython/*.o`+`*.P` at the repo root, `ports/lib/` for
+  ulab — py.mk's path for `../`-relative sources). After a change that
+  shifts the QSTR pool (any new MP_QSTR), the surviving stale objects
+  link silently with SHIFTED QSTR INDICES — names scramble at runtime
+  (`import ulab` answered as module 'uint8'; mouse/pccursor misbehaved)
+  with no build error. A real clean is:
+  `rm -f *.o *.P && rm -rf ports/lib ports/unix/build-pc3` from the repo
+  root. (This upgrades the "*.o at repo root" wart from noise to
+  hazard — worth fixing the object paths properly one day.)
+- **Two pre-existing issues found while testing (NOT from this change,
+  both reproduced on an unmodified baseline build)**: (1) test_cursor
+  fails 5 white-pixel checks in RGB1024 only (arrow tip/transparency/
+  repaints; the red cross passes) — looks like white/index-15 colliding
+  with something in pccursor's 4bpp path; may be visible on hardware
+  too. (2) The emulator can segfault DURING PROCESS TEARDOWN (after
+  exit(0), exit status still 0; bash prints "Segmentation fault"
+  intermittently): a helper thread (likely SDL audio) races the exit.
+  Repro: `-c "import emuboot; ...; hdmi.deinit(); hdmi.init(...);
+  pcconsole.console(); input('q')"` with stdin at EOF, ~1 in 2. A
+  proper fix would stop the SDL/audio threads in an atexit hook.
+
 ---
 
 ## Files touched

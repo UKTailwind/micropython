@@ -80,8 +80,10 @@ def screen(mode=None, clock=252):
     the on-screen console. With no arguments, returns the saved (mode, clock).
 
     mode  = hdmi.RGB640 (640x480x8) / RGB320 (320x240x16) / RGB512 (1024x600x16)
-            / RGB1024 (1024x600x4, native 16-colour)
-    clock = 252 / 315 / 378 MHz, and only for RGB640 and RGB320; RGB512 and RGB1024
+            / RGB1024 (1024x600x4, native 16-colour) / RGB640_4 (640x480x4,
+            16-colour fast game mode) / RGB320_8 (320x240x8, layer + double
+            buffer all in fast RAM)
+    clock = 252 / 315 / 378 MHz for the 640x480 modes; RGB512 and RGB1024
             are fixed at 252 MHz."""
     import hdmi
 

@@ -135,15 +135,20 @@ static uint32_t hdmi_gen = 0;             // bumped each init() so the console r
 //
 // Three drawing targets, MMBasic's N / L / F:
 //   N - the normal display framebuffer (hdmi_fb), always available.
-//   L - the LAYER: RGB320 only. Lives in the SECOND HALF of the static video
-//       memory (320x240x2 = 153,600 bytes each, exactly filling the 307,200-
-//       byte buffer). When enabled, core1's fill loop merges it over the main
-//       display per pixel: the layer pixel wins unless it equals the single
-//       transparent colour (MMBasic's HDMI layer merge). Must be SRAM - core1
-//       cannot scan PSRAM (same rule as the framebuffer itself).
-//   F - an off-screen buffer in PSRAM (GC heap), display-sized, never scanned:
-//       a drawing target and copy source/destination only (MMBasic
-//       FRAMEBUFFER CREATE).
+//   L - the LAYER: RGB320 and RGB320_8. Lives directly after the framebuffer
+//       in the static video memory (RGB320: 320x240x2 = 153,600 bytes each,
+//       exactly filling the 307,200-byte buffer; RGB320_8: 76,800 bytes, a
+//       quarter of it). When enabled, core1's fill loop merges it over the
+//       main display per pixel: the layer pixel wins unless it equals the
+//       single transparent colour (MMBasic's HDMI layer merge). Must be SRAM -
+//       core1 cannot scan PSRAM (same rule as the framebuffer itself).
+//   F - an off-screen buffer, display-sized, never scanned: a drawing target
+//       and copy source/destination only (MMBasic FRAMEBUFFER CREATE).
+//       Normally PSRAM (GC heap), but modes with spare video SRAM place it
+//       there instead: RGB640_4/RGB320 use the second half (RGB320 only while
+//       no layer exists), RGB320_8 the THIRD quarter -- so in RGB320_8 the
+//       display, layer and F buffer all live in fast SRAM together (the
+//       fourth quarter is reserved).
 // hdmi.write("N"/"L"/"F") selects where ALL drawing goes: framebuffer()/fb(),
 // fill/scroll/putc/text and (because pcimage passes hdmi.framebuffer()) the
 // image loaders. hdmi.copy(src, dst) block-copies between any two targets.
@@ -233,7 +238,7 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
     int mode = (n_args > 0) ? mp_obj_get_int(args[0]) : HDMI_MODE_RGB640;
     if (mode != HDMI_MODE_RGB640 && mode != HDMI_MODE_RGB320 &&
         mode != HDMI_MODE_RGB512 && mode != HDMI_MODE_RGB1024 &&
-        mode != HDMI_MODE_RGB640_4) {
+        mode != HDMI_MODE_RGB640_4 && mode != HDMI_MODE_RGB320_8) {
         mp_raise_ValueError(MP_ERROR_TEXT("bad mode"));
     }
     // Only 640x480 (RGB640) and 320x240 (RGB320) may vary the clock, and only to
@@ -276,7 +281,7 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
         hdmi_transfer_count = X_H_ACTIVE_PIXELS / 4;   // 256 words (native 1024-wide RGB332 line)
         hdmi_pal_ensure();    // load the default palette on first use
         hdmi_pal_rebuild();   // (re)build the SRAM expansion table from the live palette
-    } else { // RGB640_4: 640x480 in 16 colours, core1-expanded like RGB1024
+    } else if (mode == HDMI_MODE_RGB640_4) { // 640x480 in 16 colours, core1-expanded like RGB1024
         hdmi_w = 640;
         hdmi_h = 480;
         hdmi_native = 0;
@@ -284,6 +289,12 @@ static mp_obj_t hdmi_init(size_t n_args, const mp_obj_t *args) {
         hdmi_transfer_count = MODE_H_ACTIVE_PIXELS / 4; // 160 words (expanded 640-wide RGB332 line)
         hdmi_pal_ensure();
         hdmi_pal_rebuild();
+    } else { // RGB320_8: 320x240 RGB332, core1-doubled (MMBasic SCREENMODE5)
+        hdmi_w = 320;
+        hdmi_h = 240;
+        hdmi_native = 1; // 8bpp format; the backend doubles it (only RGB640 scans directly)
+        hdmi_rgb121 = 0;
+        hdmi_transfer_count = MODE_H_ACTIVE_PIXELS / 4; // 160 words (doubled 640-wide RGB332 line)
     }
     // A mode change invalidates every FRAMEBUFFER-style target (buffer sizes
     // differ per mode): drop the layer, release the F buffer (the GC reclaims
@@ -601,13 +612,15 @@ static mp_obj_t hdmi_gen_fn(void) {
 static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_gen_obj, hdmi_gen_fn);
 
 // True if the framebuffer is 16-bit RGB565 (RGB320/RGB512); False for the RGB332
-// (RGB640) or 4bpp RGB121 (RGB1024) formats. Prefer hdmi.bpp() for a 3-way test.
+// (RGB640/RGB320_8) or 4bpp RGB121 (RGB1024/RGB640_4) formats. Prefer hdmi.bpp()
+// for a 3-way test.
 static mp_obj_t hdmi_rgb565(void) {
     return mp_obj_new_bool(!hdmi_native && !hdmi_rgb121);
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(hdmi_rgb565_obj, hdmi_rgb565);
 
-// Bits per framebuffer pixel: 4 (RGB1024), 8 (RGB640), or 16 (RGB320/RGB512).
+// Bits per framebuffer pixel: 4 (RGB1024/RGB640_4), 8 (RGB640/RGB320_8), or
+// 16 (RGB320/RGB512).
 static mp_obj_t hdmi_bpp(void) {
     return MP_OBJ_NEW_SMALL_INT(hdmi_rgb121 ? 4 : (hdmi_native ? 8 : 16));
 }
@@ -718,32 +731,42 @@ static uint8_t *hdmi_target_ptr_checked(int target) {
     return p;
 }
 
-// hdmi.layer(transparent=0x000000) -- enable the overlay layer (RGB320 only,
-// MMBasic FRAMEBUFFER LAYER). The layer occupies the second half of the video
-// memory and is cleared to the transparent colour (RGB888, converted with the
-// same formula as pcgfx colour(), so fb.colour(c) values match the merge test).
-// Anything drawn in a different colour overlays the main display.
+// hdmi.layer(transparent=0x000000) -- enable the overlay layer (RGB320 and
+// RGB320_8, MMBasic FRAMEBUFFER LAYER). The layer occupies the video memory
+// directly after the framebuffer and is cleared to the transparent colour
+// (RGB888, converted with the same formula as pcgfx colour(), so fb.colour(c)
+// values match the merge test -- at RGB332 resolution in RGB320_8). Anything
+// drawn in a different colour overlays the main display.
 static mp_obj_t hdmi_layer_fn(size_t n_args, const mp_obj_t *args) {
-    if (!hdmi_running || hdmi_mode != HDMI_MODE_RGB320) {
-        mp_raise_ValueError(MP_ERROR_TEXT("layer needs RGB320 mode"));
+    if (!hdmi_running || (hdmi_mode != HDMI_MODE_RGB320 && hdmi_mode != HDMI_MODE_RGB320_8)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("layer needs RGB320 or RGB320_8 mode"));
     }
     if (hdmi_layer_on) {
         mp_raise_ValueError(MP_ERROR_TEXT("layer already exists"));
     }
     if (MP_STATE_PORT(hdmi_framebuf_f) == hdmi_fb + hdmi_fb_bytes()) {
-        // create() ran first and claimed the second half of video SRAM.
+        // RGB320: create() ran first and claimed the second half of video
+        // SRAM. (Can't happen in RGB320_8 -- its F buffer has its own quarter.)
         mp_raise_ValueError(MP_ERROR_TEXT("layer RAM in use by the F framebuffer -- close('F') first"));
     }
     uint32_t rgb = (n_args > 0) ? ((uint32_t)mp_obj_get_int(args[0]) & 0xFFFFFFu) : 0;
-    uint16_t t565 = (uint16_t)((((rgb >> 16) & 0xF8) << 8)
-        | (((rgb >> 8) & 0xFC) << 3) | ((rgb & 0xFF) >> 3));
     // Fill the layer with the transparent colour BEFORE enabling the merge, so
     // it appears atomically (an all-transparent layer is invisible).
-    uint16_t *l = (uint16_t *)(hdmi_fb + hdmi_fb_bytes());
-    for (int i = 0; i < hdmi_w * hdmi_h; i++) {
-        l[i] = t565;
+    if (hdmi_native) {
+        // RGB320_8: byte-wide RGB332 transparent colour (same formula as
+        // hdmi_colour_native), byte-wide merge in the backend.
+        uint8_t t332 = (uint8_t)(((rgb >> 16) & 0xE0) | (((rgb >> 8) & 0xE0) >> 3) | ((rgb & 0xC0) >> 6));
+        memset(hdmi_fb + hdmi_fb_bytes(), t332, hdmi_fb_bytes());
+        hdmi_layer_transp = t332;
+    } else {
+        uint16_t t565 = (uint16_t)((((rgb >> 16) & 0xF8) << 8)
+            | (((rgb >> 8) & 0xFC) << 3) | ((rgb & 0xFF) >> 3));
+        uint16_t *l = (uint16_t *)(hdmi_fb + hdmi_fb_bytes());
+        for (int i = 0; i < hdmi_w * hdmi_h; i++) {
+            l[i] = t565;
+        }
+        hdmi_layer_transp = t565;
     }
-    hdmi_layer_transp = t565;
     hdmi_layer_on = 1;
     return mp_const_none;
 }
@@ -767,7 +790,12 @@ static mp_obj_t hdmi_create(void) {
         mp_raise_ValueError(MP_ERROR_TEXT("framebuffer already exists"));
     }
     uint8_t *p;
-    if (!hdmi_layer_on && hdmi_fb_bytes() * 2 <= sizeof(hdmi_fb)) {
+    if (hdmi_mode == HDMI_MODE_RGB320_8) {
+        // A buffer is a QUARTER of the video SRAM: the layer owns the second
+        // quarter, the F buffer the third -- N, L and F coexist in fast SRAM
+        // in any creation order (the fourth quarter is reserved).
+        p = hdmi_fb + 2 * hdmi_fb_bytes();
+    } else if (!hdmi_layer_on && hdmi_fb_bytes() * 2 <= sizeof(hdmi_fb)) {
         // RGB640_4 -- and RGB320 while no layer exists: the framebuffer is
         // half the video SRAM, so the F buffer takes the OTHER half -- fast
         // SRAM instead of the PSRAM heap, exactly MMBasic's fast-game-mode
@@ -1487,6 +1515,7 @@ static const mp_rom_map_elem_t hdmi_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_RGB512), MP_ROM_INT(HDMI_MODE_RGB512) },
     { MP_ROM_QSTR(MP_QSTR_RGB1024), MP_ROM_INT(HDMI_MODE_RGB1024) },
     { MP_ROM_QSTR(MP_QSTR_RGB640_4), MP_ROM_INT(HDMI_MODE_RGB640_4) },
+    { MP_ROM_QSTR(MP_QSTR_RGB320_8), MP_ROM_INT(HDMI_MODE_RGB320_8) },
 };
 static MP_DEFINE_CONST_DICT(hdmi_module_globals, hdmi_module_globals_table);
 

@@ -174,8 +174,8 @@ anywhere slower). But `hdmi.create()`'s F buffer comes from the heap —
 PSRAM — and in `RGB640` that is ~300,000 bytes crossing the slow bus
 twice every frame: once as you draw, once as the copy reads them back.
 
-The firmware's trick: two modes only *half*-fill the video RAM, and
-`create()` claims the idle half — on-chip — instead of the heap:
+The firmware's trick: three modes don't *fill* the video RAM, and
+`create()` claims the idle space — on-chip — instead of the heap:
 
 - **`hdmi.RGB640_4`** — 640 × 480 in 16 colours: 4 bits a pixel is a
   150 KB frame, half the video RAM, so F takes the other half. (Fewer
@@ -184,6 +184,12 @@ The firmware's trick: two modes only *half*-fill the video RAM, and
   and the same deal applies **if you `create()` before `layer()`**:
   the spare half is first come, first served, and whichever of the
   two asks second is told so (`layer()` raises; close F and it works).
+- **`hdmi.RGB320_8`** — 320 × 240 in 256 colours is a 75 KB frame, a
+  *quarter* of the video RAM — so the screen, the chapter-17 overlay
+  layer **and** the F buffer all fit on-chip *at the same time*, no
+  first-come rule, and a full `copy("F","N")` is half of RGB320's.
+  The only mode that offers an overlay and a fast double buffer
+  together: scenery on N, HUD on L, compose on F.
 
 Numbers, not marketing — this chapter's rule. The port's 3D ship demo
 at 378 MHz went from **19 fps** (8-bit mode, F in PSRAM) to **past

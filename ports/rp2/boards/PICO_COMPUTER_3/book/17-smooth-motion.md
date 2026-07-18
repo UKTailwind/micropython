@@ -226,7 +226,8 @@ talking to the wrong buffer (type `hdmi.write("N")` blind, or RESET).
 ## The overlay: motion without redrawing the world
 
 Double buffering redraws everything, always. The machine offers one
-more deal, philosophically opposite and unique to `RGB320` mode: the
+more deal, philosophically opposite and unique to the two 320 × 240
+modes (`RGB320` and `RGB320_8`): the
 **layer** — a transparent sheet of acetate over the display, merged
 per scanline by core 1 in hardware-speed C. Scenery lives below,
 *untouched*; moving things live on the acetate:
@@ -272,16 +273,19 @@ avoid pure black (or choose another transparent colour —
 `hdmi.layer(transparent=0xFF00FF)`: magenta, chapter 16's masking
 tape, moonlighting again). Score displays, cursors and sprites over
 painted scenery are the natural residents; chapter 18's sprite engine
-composites here in `RGB320` automatically. Note the demo also kept
+composites here in the 320 × 240 modes automatically. Note the demo also kept
 chapter 15's manners — `time.sleep(3)` after the mode change — and
 wore the `finally` collar: the layer redirects the console exactly as
 `"F"` does. When you're done experimenting, `screen(hdmi.RGB640)`
 returns you to the roomy default.
 
-Why `RGB320` only? A pleasing bit of arithmetic: two 320×240 16-bit
+Why only 320 × 240? A pleasing bit of arithmetic: two 320×240 16-bit
 screens exactly fill the video memory — the layer *is* the second
-half. The other modes leave no room, which is why they use the
-F-buffer strategy instead.
+half. The bigger modes leave no room, which is why they use the
+F-buffer strategy instead. And `RGB320_8` goes one better: its
+256-colour screens are half the size again, so the layer *and* the
+F buffer fit on-chip together — the overlay and double buffering
+stop being an either/or (chapter 33 tells that story with numbers).
 
 ## The scenery cheat: blit-scrolling
 
@@ -310,7 +314,7 @@ for _ in range(200):
 |---|---|
 | One or two things over flat colour | eraser trick + `vsync` |
 | Whole scenes, many movers — *the default for games* | F buffer + `vsync` + `copy` |
-| Sprites/HUD over rich static scenery (RGB320) | the layer |
+| Sprites/HUD over rich static scenery (RGB320/RGB320_8) | the layer |
 | Content that slides (tickers, credits, starfields) | `scroll` / blit-shift |
 
 > **Coming from MMBasic:** this is the `FRAMEBUFFER` model with the

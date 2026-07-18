@@ -7,6 +7,8 @@ RGB640 = 0
 RGB320 = 1
 RGB512 = 2
 RGB1024 = 3
+RGB640_4 = 4
+RGB320_8 = 5
 
 # mode -> (width, height, bits-per-pixel)
 _SIZES = {
@@ -14,6 +16,8 @@ _SIZES = {
     RGB320: (320, 240, 16),
     RGB512: (512, 300, 16),
     RGB1024: (1024, 600, 4),
+    RGB640_4: (640, 480, 4),
+    RGB320_8: (320, 240, 8),
 }
 
 _mode = RGB640

@@ -1,0 +1,16 @@
+% PDF-only preamble (pandoc -H). Reader feedback: at 11pt, mono vs serif
+% alone is hard to tell apart for older eyes. Set inline code (and plain
+% verbatim blocks) in a dark blue -- the PicoMite-manual convention -- so
+% commands stand out from body text by colour, not just letterform.
+% Syntax-highlighted (```python) blocks keep their tango colours.
+%
+% The colour is given numerically, not as a named colour: inline code in
+% section titles reaches the running page headers, which the book class
+% passes through \MakeUppercase -- a colour NAME gets uppercased into an
+% undefined one, but digits survive.
+\usepackage{xcolor}
+\let\pcTexttt\texttt
+\renewcommand{\texttt}[1]{\textcolor[RGB]{0,70,160}{\pcTexttt{#1}}}
+\makeatletter
+\def\verbatim@font{\ttfamily\color[RGB]{0,70,160}}
+\makeatother

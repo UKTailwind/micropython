@@ -19,8 +19,8 @@ $(BOOK).html: metadata.yaml $(CHAPTERS)
 $(BOOK).epub: metadata.yaml $(CHAPTERS)
 	$(PANDOC) $(COMMON) -o $@ $(CHAPTERS)
 
-$(BOOK).pdf: metadata.yaml $(CHAPTERS)
-	$(PANDOC) $(COMMON) --pdf-engine=$(PDF_ENGINE) -o $@ $(CHAPTERS)
+$(BOOK).pdf: metadata.yaml preamble.tex $(CHAPTERS)
+	$(PANDOC) $(COMMON) --pdf-engine=$(PDF_ENGINE) -H preamble.tex -o $@ $(CHAPTERS)
 
 $(BOOK).docx: metadata.yaml $(CHAPTERS)
 	$(PANDOC) $(COMMON) -o $@ $(CHAPTERS)

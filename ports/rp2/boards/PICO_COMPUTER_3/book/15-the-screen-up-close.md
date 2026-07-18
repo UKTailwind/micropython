@@ -30,7 +30,7 @@ the two facts that govern all graphics here:
 
 The framebuffer lives in fast memory, and memory is a budget: more
 pixels means fewer bits left per pixel for colour. So the machine
-offers four deals:
+offers five deals:
 
 | Mode | Resolution | Colours | Character |
 |---|---|---|---|
@@ -38,6 +38,7 @@ offers four deals:
 | `hdmi.RGB320` | 320 × 240 | 65,536 | chunky pixels, gorgeous colour — the *games* mode |
 | `hdmi.RGB512` | 512 × 300 | 65,536 | widescreen, doubled to 1024 × 600 |
 | `hdmi.RGB1024` | 1024 × 600 | 16 | maximum crispness, palette colour |
+| `hdmi.RGB640_4` | 640 × 480 | 16 | the *fast game* mode — full detail, half the bytes (chapter 33 explains why that's a superpower) |
 
 Switch with `screen()`, which remembers your choice across power-off:
 

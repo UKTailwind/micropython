@@ -156,6 +156,50 @@ the top:
    clock, which is why it's set together). Honest last resort — it
    speeds bad code and good code equally.
 
+## Where the frame lives: fast RAM versus PSRAM
+
+The ladder's rungs were about *instructions*; there is one more lever,
+and it is about **bytes**. This machine has two kinds of RAM (chapter 1
+mentioned it quietly): 512 KB of **on-chip SRAM** — the processor's
+own, answering in a cycle or two — and the 8 MB of external **PSRAM**
+where the heap lives, reached over a serial bus at several times the
+cost per byte. Palatial, but out of town.
+
+Why a games chapter cares: a double-buffered frame (chapter 17) is,
+before it is anything else, a byte-moving exercise. Fill F, draw the
+scene on F, copy F to the screen — every frame touches every byte of a
+screen or two. The visible screen sits in on-chip video RAM (the
+scanout hardware reads it sixty times a second; it could hardly live
+anywhere slower). But `hdmi.create()`'s F buffer comes from the heap —
+PSRAM — and in `RGB640` that is ~300,000 bytes crossing the slow bus
+twice every frame: once as you draw, once as the copy reads them back.
+
+The firmware's trick: two modes only *half*-fill the video RAM, and
+`create()` claims the idle half — on-chip — instead of the heap:
+
+- **`hdmi.RGB640_4`** — 640 × 480 in 16 colours: 4 bits a pixel is a
+  150 KB frame, half the video RAM, so F takes the other half. (Fewer
+  colours is also *half the bytes to touch* — the saving compounds.)
+- **`hdmi.RGB320`** — 320 × 240 in full colour is also a 150 KB frame,
+  and the same deal applies **if you `create()` before `layer()`**:
+  the spare half is first come, first served, and whichever of the
+  two asks second is told so (`layer()` raises; close F and it works).
+
+Numbers, not marketing — this chapter's rule. The port's 3D ship demo
+at 378 MHz went from **19 fps** (8-bit mode, F in PSRAM) to **past
+MMBasic's 42 fps** (RGB640_4, both buffers on-chip), the two big
+contributors being the engine's single-precision hardware maths and
+this section's change of address. Same algorithm, same drawing code;
+the difference is which RAM the bytes lived in. MMBasic's fastest 3D
+uses exactly this layout — its famous 4-bit game mode — which is why
+the port grew one to match.
+
+So when a drawing-heavy game disappoints, ask *where its bytes live*
+before tuning another loop: at 640 × 480, sixteen colours with both
+buffers on-chip out-runs two hundred and fifty-six with one buffer out
+of town — and for wireframe-and-sprite games sixteen is not even a
+compromise, it is the aesthetic.
+
 ## Memory: the other resource
 
 The heap — where every object lives — is the 8 MB PSRAM (chapter 1),
@@ -290,6 +334,12 @@ loop, and watch a number you can defend go up.
    success? Now pre-allocate that size *first* at a fresh boot and
    note how much further you get. (Chapter 30's "mind the RAM",
    explained at last.)
+6. Fast RAM A/B, one variable changed: in `RGB320`,
+   `close(); create()` (F lands on-chip) versus `close(); layer();
+   create()` (F pushed to PSRAM) — same mode, same bytes — and
+   `ticks_us` around `hdmi.copy("F", "N")`, best of fifty, for each.
+   The ratio you measure is the bus toll from "Where the frame
+   lives", isolated to a single number.
 
 ## Challenges
 

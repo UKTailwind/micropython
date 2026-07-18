@@ -129,7 +129,8 @@ professional answer:
 
 The flicker existed because the monitor could see your workbench. So
 work somewhere it can't. `hdmi.create()` allocates the **F buffer** —
-a second, invisible screen in the big PSRAM — and `hdmi.write("F")`
+a second, invisible screen, usually in the big PSRAM (chapter 33 has a
+trick that parks it somewhere much faster) — and `hdmi.write("F")`
 sends *all* drawing there. Compose the entire frame in private, then
 copy the finished picture over in one fast move:
 

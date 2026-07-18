@@ -172,7 +172,7 @@ on the flash (`/…`) or the SD card (`/sd/…`).
 | `cp(src, dst)` / `mv(src, dst)` | Copy / move (rename) a file. A wildcard in `src` acts on every match, e.g. `cp("*.py", "/sd")` (`dst` must be a directory) |
 | `rm(path)` | Delete a file. Accepts a wildcard: `rm("*.tmp")` |
 | `mkdir(path)` / `rmdir(path)` | Create / remove a directory |
-| `run(path)` | Run a `.py` program (fresh namespace, inherits the REPL helpers) |
+| `run(path, *args)` | Run a `.py` program (fresh namespace, inherits the REPL helpers). Extra arguments become the program's `sys.argv` — `run("convert.py", "in.wav")` gives it `sys.argv == ["convert.py", "in.wav"]`, as on desktop Python (MMBasic's `RUN "prog", cmdline`); restored when it ends |
 | `edit(path)` | Open the full-screen **pye** editor (see below) |
 | `autosave(path)` | Capture what you paste/type at the console into a file (see below) |
 | `fm(path)` | Full-screen file manager — browse, run, play, view, edit (see below) |

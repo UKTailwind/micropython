@@ -74,7 +74,7 @@ def ls(path=None):
     print("%d item%s" % (len(rows), "" if len(rows) == 1 else "s"))
 
 
-def run(path):
+def run(path, *args):
     """Launch a Python program from a file.
 
     Runs with __name__ == "__main__" (so `if __name__ == "__main__":` blocks
@@ -82,8 +82,18 @@ def run(path):
     folder, restored afterwards. The program's namespace is seeded with a COPY
     of the REPL globals, so the injected helpers (touch, ls, play, hdmi, the
     colour palette, ...) are available exactly as at the prompt — but since it's
-    a copy, the program can't clobber the real REPL globals."""
+    a copy, the program can't clobber the real REPL globals.
+
+    Extra arguments become the program's command line, as on desktop Python
+    (and as MMBasic's RUN "prog", cmdline / MM.CMDLINE$):
+
+        run("convert.py", "in.wav", "out.flac")
+
+    The program sees sys.argv == ["convert.py", "in.wav", "out.flac"] —
+    argv[0] is the program path, the rest arrive as strings. sys.argv is
+    restored when the program ends."""
     import __main__
+    import sys
 
     slash = path.rfind("/")
     folder = path[:slash] if slash > 0 else ("/" if slash == 0 else None)
@@ -95,11 +105,15 @@ def run(path):
     g["__name__"] = "__main__"
     g["__file__"] = path
     cwd = os.getcwd()
+    # sys.argv is a fixed list object on builtin modules: swap its CONTENTS
+    argv_saved = list(sys.argv)
     try:
         if folder is not None:
             os.chdir(folder)
+        sys.argv[:] = [path] + [str(a) for a in args]
         exec(code, g)
     finally:
+        sys.argv[:] = argv_saved
         os.chdir(cwd)
         # If the program died (or was Ctrl-C'd) while hdmi.write("F"/"L") was
         # selected, console output would keep going to the invisible buffer and

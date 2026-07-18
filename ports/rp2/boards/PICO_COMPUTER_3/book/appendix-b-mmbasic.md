@@ -64,6 +64,7 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `EOF(#1)` | the `for` loop just ends | 12 |
 | `CLOSE #1` | the `with` block's dedent — unforgettable by design | 12 |
 | `RUN` / `EDIT` | `run("f.py")` / `edit("f.py")` | 5 |
+| `RUN "prog", cmdline` + `MM.CMDLINE$` | `run("f.py", "a", "b")` + `sys.argv` (`argv[0]` = path, rest are the arguments as strings) | 5 |
 | `AUTOSAVE` | `autosave("f.py")`, Ctrl-Z ends | 5 |
 | `XMODEM SEND/RECEIVE` | `xsend()` / `xrecv()` | 5 |
 | `FM` | `fm()` — plus Space multi-select | 4 |

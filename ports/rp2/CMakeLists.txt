@@ -324,6 +324,14 @@ set(PICO_SDK_COMPONENTS
     tinyusb_common
 )
 
+# machine_mem_backup.c includes hardware/powman.h on RP2350. The real compile
+# finds it transitively through the SDK link closure, but the QSTR preprocess
+# only sees include dirs of components listed here -- without this it fails
+# (cosmetically, but loudly) on every build.
+if(PICO_RP2350)
+    list(APPEND PICO_SDK_COMPONENTS hardware_powman)
+endif()
+
 # Link the TinyUSB host or device stack (mutually exclusive on the one controller).
 if(MICROPY_HW_USB_HOST)
     list(APPEND PICO_SDK_COMPONENTS tinyusb_host)

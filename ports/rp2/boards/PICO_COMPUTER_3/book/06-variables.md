@@ -181,6 +181,15 @@ decimal places":
 mini-language back there — appendix E — but `:.2f` covers most of life,
 including every price you will ever print.)
 
+> **Also in MicroPython: the `%` operator.** Older code often formats
+> with `%` instead — `"%.2f pounds" % third`, or `"%s is %d" % (name,
+> age)`. It is terse, it works here, and despite twenty years of
+> predictions that it will be removed, it has not budged. f-strings are
+> the modern default and what this book uses, but you will meet `%` in
+> the wild, so recognise it: `%s` takes any value, `%d` a whole number,
+> `%.2f` a float to two places — the same specs as inside the braces,
+> just written on the outside.
+
 ## Project: a program that chats back
 
 Time to gather everything this chapter has taught — variables, `input()`,

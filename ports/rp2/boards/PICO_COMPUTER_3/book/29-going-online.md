@@ -39,6 +39,11 @@ wifi("MyNetwork", "MyPassword", save=False)
 > way. `tz()` in particular is just a saved hour offset that this machine
 > applies for you; core MicroPython has no timezone support at all.
 
+With Wi-Fi up, one more door opens: the `mip` installer from chapter 11
+can now reach the internet, so `import mip; mip.install("...")` will
+pull libraries onto `/lib`. Getting online is also what puts the whole
+MicroPython library ecosystem within reach.
+
 ## The first fruit: atomic time
 
 Chapter 28 left you setting the clock by hand. Never again:

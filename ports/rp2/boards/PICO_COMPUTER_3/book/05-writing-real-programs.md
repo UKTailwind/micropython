@@ -203,7 +203,7 @@ you write on a PC.
 ## Getting programs in from a PC
 
 You will not type everything on the machine. Programs come from PCs — your
-own, or code from books and the web. Three routes, in order of ceremony:
+own, or code from books and the web. Four routes, in order of ceremony:
 
 **The SD card** — chapter 4's sneakernet. Save the `.py` on the card from
 the PC, walk it over, `run("/sd/prog.py")` (or copy it to flash with `fm`).
@@ -236,9 +236,38 @@ card, the serial console speaks the classic XMODEM protocol:
 Any old-school terminal (TeraTerm, for instance) has these menu items.
 Details in the User Manual, section 13.
 
+**`mpremote` — the standard MicroPython tool.** For real project work —
+copying many files, keeping a backup, editing on the PC and pushing the
+changes over — the MicroPython project's own `mpremote` is the grown-up
+choice. It runs on your PC (`pip install mpremote`), connects over the
+same USB-C serial link, and gives you file copying, whole-folder
+transfer, and even *mounting* the board as a drive so your PC editor
+saves straight onto it:
+
+```text
+mpremote cp game.py :          # copy one file onto the board
+mpremote cp -r mygame/ :       # copy a whole folder, recursively
+mpremote mount .               # show the current PC folder AS the board's drive
+mpremote                       # just the REPL, like a terminal
+```
+
+It is what to graduate to once a project outgrows paste-and-go; the
+MicroPython docs have the full command set. Unlike the first three
+routes, `mpremote` is not a Pico Computer 3 command — it is a standard
+part of the MicroPython world, and the same skills serve any board.
+
 > **Coming from MMBasic:** `autosave()` is `AUTOSAVE` (Ctrl-Z ends it
 > there too), and `xrecv`/`xsend` are `XMODEM RECEIVE`/`SEND`. Old habits
 > transfer directly.
+
+> **A note on PC editors.** Two popular tools — **Thonny** and the
+> MicroPython **VSCode** extensions — talk to boards directly, and many
+> people like them. Be warned, though: they take over the serial console
+> to manage files, and that can quietly interfere with a program that is
+> itself using the console (the screen REPL, `input()`, paste mode). If a
+> program misbehaves *only* while such an editor is connected, disconnect
+> it and try again from a plain terminal — that alone explains a
+> surprising share of mysteries.
 
 ## Making a program run at switch-on
 

@@ -280,6 +280,27 @@ seen behind the curtain. (`from shapes import star, flower` imports
 chosen names *without* the prefix — handy in small programs; the
 prefixed form scales better once several libraries are in play.)
 
+### Optional: type hints
+
+You will see MicroPython code that writes functions like this:
+
+```python
+def area(width: int, height: int) -> float:
+    return width * height
+```
+
+The `: int` and `-> float` are **type hints** — notes about what each
+parameter expects and what the function hands back. For an ordinary
+function MicroPython *ignores* them while the program runs (exactly as
+desktop Python does): they are documentation, for human readers and for
+tools, not rules the machine enforces — `area("a", "b")` still fails only
+when the `*` gives up, not at the door. They earn their keep in two ways.
+First, they make a function's contract obvious when you are reading — or
+debugging — code, your own included. Second, and less obviously, the
+speed-up decorators of chapter 33 (`@micropython.viper` above all) read
+them as *real* type declarations and use them to generate fast machine
+code. Optional everywhere else; a good habit once functions grow.
+
 ### Where `import` looks
 
 Notice what `import shapes` does *not* say: where the file is. An
@@ -322,6 +343,41 @@ anything else. One caution before you build your library empire on the
 SD card: the card is removable, and a shelf that vanishes mid-project
 makes for puzzling `ImportError`s. The reliable homes are the two that
 are always there: next to the program, and `/lib` on flash.
+
+### Libraries the world already wrote
+
+You have written your own modules, and the machine came with dozens
+frozen in. There is a third shelf, and it is vast: the libraries other
+people have written and shared. MicroPython has an installer for exactly
+this — **`mip`**, the small cousin of the `pip` you may have heard of.
+Given Wi-Fi (chapter 29), one line fetches a library from the internet
+and files it under `/lib`, ready to `import`:
+
+```python
+>>> import mip
+>>> mip.install("datetime")     # a fuller date/time library, from micropython-lib
+```
+
+Where do the names come from? Two places worth bookmarking:
+
+- **Awesome MicroPython** (`github.com/mcauser/awesome-micropython`) — a
+  large curated catalogue, sorted by job: sensor and display drivers,
+  file formats, network protocols, helpers of every kind. Many of these
+  install straight from a GitHub address — `mip.install("github:user/repo")`.
+- **`micropython-lib`** — the official bundle of common modules, which is
+  where `mip` looks by default, so a plain `mip.install("name")` often
+  just works.
+
+One honest expectation, and it is `mip`'s doing, not this machine's:
+this is the *MicroPython* ecosystem, not the whole of desktop Python's
+PyPI. A library has to be written or ported for MicroPython — small
+enough to fit, not leaning on desktop-only machinery. Most drivers and
+pure-Python utilities are here; a giant scientific package from the PC
+world usually is not. In doubt, search Awesome MicroPython first.
+
+Unlike the shell commands and `run()`, none of this is Pico Computer 3
+specific: `mip`, `/lib` and `import` work the same on every MicroPython
+board, so a library you learn to install here you can install anywhere.
 
 ### The stale-library gotcha
 

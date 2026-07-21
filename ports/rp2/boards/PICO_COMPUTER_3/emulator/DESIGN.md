@@ -1,7 +1,7 @@
 # Pico Computer 3 Emulator — design and work plan
 
 Goal: a PC application (Windows + Linux) that *is* a Pico Computer 3
-running firmware v0.9 — boots to the banner and `>>>` in an SDL window,
+running firmware v0.10 — boots to the banner and `>>>` in an SDL window,
 runs every program in the book and User Manual, with correct HDMI
 modes, DS3231 backed by the PC clock, and audible sound.
 

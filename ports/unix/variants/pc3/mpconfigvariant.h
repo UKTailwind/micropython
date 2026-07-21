@@ -19,7 +19,7 @@
 #define MICROPY_MEM_STATS (0)
 
 // The REPL banner names the machine, as the firmware's does.
-#define MICROPY_BANNER_MACHINE "PICO COMPUTER 3 v0.9 emulator"
+#define MICROPY_BANNER_MACHINE "PICO COMPUTER 3 v0.10 emulator"
 
 // os.dupterm: pcconsole mirrors REPL output to the display window, and the
 // emulator's combined stream feeds window keystrokes back into the REPL.

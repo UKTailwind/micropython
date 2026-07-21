@@ -2231,10 +2231,13 @@ when it moves, so it floats over any screen content without disturbing it.
   fired `fn(index)` — a small int is allocation-free so scheduling from
   the tuh_task context is safe). Injected at boot as `USBSerial`
   (`_boot_board.py`); emulator gets a no-device `usbserial.py` shim.
-- **Verified**: firmware compiles clean (CDC objects + `USBSerial` QSTR
-  in the tree); emulator shim `connected()=False`/`read()=None`. The USB
-  path needs a hardware pass with a real USB-serial adapter (untestable
-  in the emulator).
+- **Hardware-validated 2026-07-21**: a second RP2 running MMBasic (USB
+  CDC, VID:PID 2e8a:0009) plugged into the host port mounted as
+  `USB serial connected on port 0`. Over the PC3 REPL: `USBSerial(115200)`
+  → `connected() True`; writing `PRINT 6*7\r\n` to it and reading back
+  returned the MMBasic echo + ` 42 ` + prompt — a full write/read
+  round-trip through the link. Enumeration, line coding, write
+  (tuh_cdc_write+flush) and read (rx_cb → ring buffer) all proven.
 - Two build gotchas hit: `MP_REGISTER_ROOT_POINTER` must live in a
   QSTR-scanned file (moved to `usb_cdc_mod.c`, used from `usb_cdc.c` via
   `MP_STATE_PORT`); and `make_new` must use its `type` param, not a

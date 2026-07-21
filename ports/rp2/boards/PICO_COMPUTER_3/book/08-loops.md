@@ -140,7 +140,7 @@ one.
 
 Something new happened in that transcript: after the `:` line the prompt
 changed to `...` and indented for you. You are *inside the block*, and
-knowing how to get out again is a hand skill every Python user learns
+knowing how to get out again is a handy skill every Python user learns
 once. Here it is, keystroke by keystroke:
 
 ```

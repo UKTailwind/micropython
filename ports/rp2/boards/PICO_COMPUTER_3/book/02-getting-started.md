@@ -88,7 +88,7 @@ computer now, not an accessory. The Prog port exists purely for firmware.
 Within a couple of seconds the monitor lights up and shows the banner:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.8 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.10 with RP2350B
 >>>
 ```
 

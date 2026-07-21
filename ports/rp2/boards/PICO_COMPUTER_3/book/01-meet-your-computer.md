@@ -4,7 +4,7 @@ Switch on the Pico Computer 3 and, a moment later, a prompt appears on the
 screen:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.8 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.10 with RP2350B
 >>>
 ```
 

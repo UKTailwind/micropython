@@ -71,10 +71,13 @@ Ch. 28, 32; manual §11.
 **keyboard / `keydown()`** † — live key state, named key constants,
 `on_key`, `on_usb_event`; `keymap()` † for layouts. Ch. 21; manual §6.
 
-**gamepad / `gamepad()`** † — read a USB gamepad (Xbox / PS3 / PS4 /
-generic HID): `"LX" "LY" "RX" "RY"` sticks, `"L" "R"` triggers, `"B"`
-button bitmap, `"H"` hat, `"T"` type; `gamepad.configure()` for an
-unrecognised pad. Manual §7.
+**gamepad / `gamepad()`** † — read a USB gamepad (Xbox, DualShock 3/4,
+and a table of common HID pads — recognised controllers only, so a
+keyboard's stray HID interface is never mistaken for one):
+`"LX" "LY" "RX" "RY"` sticks, `"L" "R"` triggers, `"B"` button bitmap
+(`gamepad.A`…), `"H"` hat, `"T"` type, PS4 gyro/accel;
+`gamepad.monitor()` + `gamepad.configure()` teach it an unrecognised
+pad. Manual §7.
 
 **USBSerial** † — a USB-serial adapter (FTDI/CP210x/CH34x/CDC-ACM) on
 the host port, as a UART-like object: the same `read write readline

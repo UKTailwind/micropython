@@ -175,7 +175,7 @@ a folder of MP3s, a sprite sheet collection — the card is king.
 ## `fm` — the file manager
 
 Typed commands are precise, scriptable (a program can call `cp` too — file
-in that thought for later), and mandatory knowledge. They are also, for a
+that thought for later), and mandatory knowledge. They are also, for a
 morning of reorganising, slow. Enter:
 
 ```python

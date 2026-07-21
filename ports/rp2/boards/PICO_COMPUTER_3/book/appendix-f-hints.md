@@ -3,12 +3,12 @@
 Nudges, not answers — each is the sentence that unsticks. Chapters
 whose challenges need no rescue are absent without shame.
 
-**1.1 (fold to the Moon)** Each fold doubles: after n folds the stack
+**3.1 (fold to the Moon)** Each fold doubles: after n folds the stack
 is `0.1 * 2 ** n` mm. Try n at the prompt until it passes 384,400 km
 in mm (three hundred and eighty-four *billion*). The answer is under
 fifty.
 
-**3 (day of week)** 1,000 % 7 is 6: count six days on from Tuesday.
+**3.2 (day of week)** 1,000 % 7 is 6: count six days on from Tuesday.
 
 **8.3 (the machine guesses)** Keep `low` and `high`; guess
 `(low + high) // 2`; the human's `h`/`l` answer replaces `low` or

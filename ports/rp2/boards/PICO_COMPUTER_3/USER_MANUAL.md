@@ -1036,12 +1036,14 @@ A USB gamepad is detected automatically (`USB gamepad -> slot 3`). Read it with
 A second argument selects the channel — `gamepad("LX", 3)`; the default (`0`)
 reads the first connected gamepad.
 
-The `"B"` bitmap has one bit per button, exposed as `gamepad` module constants
-(`import gamepad`): `gamepad.A`, `.B`, `.X`, `.Y`, `.L`, `.R`, `.L2`, `.R2`,
-`.UP`, `.DOWN`, `.LEFT`, `.RIGHT`, `.START`, `.SELECT`, `.HOME`, `.TOUCH`.
+The `"B"` bitmap has one bit per button, exposed as constants on the `gamepad`
+name itself (no import needed — it is injected at boot): `gamepad.A`, `.B`,
+`.X`, `.Y`, `.L`, `.R`, `.L2`, `.R2`, `.UP`, `.DOWN`, `.LEFT`, `.RIGHT`,
+`.START`, `.SELECT`, `.HOME`, `.TOUCH`. (Don't write `import gamepad` — that
+would rebind `gamepad` to the bare module and it would no longer be callable.)
 
 ```python
-import gamepad, time
+import time
 while True:
     if gamepad("PRESENT"):
         b = gamepad("B")

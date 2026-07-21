@@ -2186,14 +2186,20 @@ when it moves, so it floats over any screen content without disturbing it.
   Now a small `_GamepadProxy` is injected — one `gamepad` that is both
   callable AND delegates attribute access to the module (button
   constants, `configure`, `mask`). Verified in the emulator.
-- **DualShock 3 caveat**: the DS3 enumerates (type 129) and *starts*
-  streaming — D-pad/Start/Select/PS decoded — but then FREEZES (its
-  report, incl. the motion bytes, stops updating), so the shoulder/face
-  buttons (report byte 3) never register. This is the classic DS3
-  "needs a periodic keepalive / SET_REPORT to keep streaming" quirk;
-  MMBasic evidently keeps it alive somehow. TODO if DS3 support is
-  wanted: port MMBasic's DS3 keepalive/output-report handling. Not a
-  core-path bug — the generic decode is proven correct.
+- **DualShock 3 hardware-validated 2026-07-21**: DS3 (type 129) works on
+  this same clean code — Peter used it (LX etc.) on and off over 25
+  minutes with no freeze. IMPORTANT LESSON: an earlier test showed the
+  DS3 report "frozen" and I mistook it for a decode/keepalive bug, then
+  added a DS3 "set operational" SET_REPORT(0xF4) wake + a poll-loop
+  stall-recovery that re-issues requests. BOTH WERE WRONG and made it
+  WORSE (the DS3 stopped streaming even fresh). Root cause of my error:
+  (1) MMBasic's poll model — which this port already copies verbatim —
+  just waits on the outstanding tuh_hid_receive_report and only re-issues
+  after a report arrives; it NEVER re-issues on silence or sends a DS3
+  enable (Peter confirmed). (2) The momentary "freeze" was the DS3 idle,
+  not a bug. All the DS3 experiments were reverted (uncommitted) back to
+  d2160d516. DO NOT re-add a DS3 enable or a stall re-issue — they break
+  it. The verbatim decode + MMBasic wait-for-report poll is correct.
 - NOT ported: the PS4 output report (rumble/lightbar), the
   Wii-nunchuck-over-I2C path, and MMBasic's `GAMEPAD MONITOR` auto-print
   (the `"RAW"` query serves the same mapping-discovery purpose).

@@ -403,10 +403,11 @@ finally:
 
 Flip things, save, EXIT, run again — the switches wake up remembering.
 Two patterns to take away. First, **`setter()` and `chooser()` are
-callback factories** — chapter 11's closures earning serious keep: one
-three-line factory replaces eight hand-written handlers, and each
-callback carries its key sealed inside (no loop-capture trap, because
-the factory's parameter froze it — compare the calculator's `c=ch`).
+callback factories** — a function whose whole job is to *build* a
+callback and hand it back. One three-line factory replaces eight
+hand-written handlers, and each callback carries its key sealed inside
+(no loop-capture trap, because the factory's parameter froze it — the
+same trick as the calculator's `c=ch` earlier in this chapter).
 Second, the **round trip**: `load_prefs()` seeds the controls' initial
 `value=`s; every callback edits the *dict*, not scattered variables;
 SAVE serialises the dict. Controls are a *view*
@@ -414,7 +415,7 @@ of the data, never the home of it — the GUI cousin of chapter 25's
 derive-don't-store. (Note `partition("=")` quietly improving on
 `split` — it never raises on a mangled line — and the `except
 (OSError, ValueError)` making both *no file* and *broken file* into
-Tuesday.) Your games now read `prefs.txt` at boot with ten of these
+non-events.) Your games now read `prefs.txt` at boot with ten of these
 lines, and chapter 26's accessibility flag has a home.
 
 ## Experiments

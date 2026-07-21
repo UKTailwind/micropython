@@ -4,9 +4,9 @@ Three loose threads are dangling. Chapter 15 warned that *nothing
 moves* — motion is redrawing. Chapter 16's robot walked, and smeared.
 And the living clock blinked, ever so slightly, at every erase. This
 chapter picks up all three and ties the knot: by the end, a bouncing
-ball goes from crime scene to silk, in four stages you will reuse in
-every animated program you ever write. The stages *are* the chapter —
-type each one.
+ball goes from a smeared mess to perfectly smooth motion, in four
+stages you will reuse in every animated program you ever write. The
+stages *are* the chapter — type each one.
 
 ## Stage 0: the smear
 
@@ -325,8 +325,8 @@ for _ in range(200):
 
 ## Project: the immortal screensaver
 
-The bouncing logo that graced a million idle DVD players — silk
-edition. `edit("dvd.py")`:
+The bouncing logo that graced a million idle DVD players — the smooth,
+flicker-free version. `edit("dvd.py")`:
 
 ```python
 hdmi.close("F")                    # start clean (rerun-proof)

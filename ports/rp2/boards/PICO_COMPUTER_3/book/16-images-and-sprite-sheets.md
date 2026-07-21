@@ -162,8 +162,9 @@ for i in range(4):                             # four 32x32 cells in a row
 save_image("robot.bmp")
 ```
 
-Four robots, legs alternating — a walk cycle, drawn by loop. Now use
-it like bought art:
+Four robots, legs alternating — a walk cycle, drawn by loop. Now load
+the sheet back and animate it, treating your own drawing exactly as you
+would a sprite sheet bought from an artist:
 
 ```python
 import time

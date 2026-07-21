@@ -148,7 +148,7 @@ wander:
   sibling. The MicroPython docs' "extending in C" pages are the
   path; the port's own C is the worked example.
 
-> **Coming from MMBasic:** the whole arrangement rhymes —
+> **Coming from MMBasic:** the whole arrangement will feel familiar —
 > `settings.json` is your `OPTION`s made visible, `/main.py` is
 > `OPTION AUTORUN`, the UF2 drill is identical, and the community
 > around this board's family (TheBackShed forum, where MMBasic and

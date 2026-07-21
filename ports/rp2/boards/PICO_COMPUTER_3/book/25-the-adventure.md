@@ -364,8 +364,8 @@ itself — a corrupted or hand-edited save (chapter 12, experiment 4!)
 can misplace a shard, but it cannot claim six-of-five.
 
 The mechanics are pure chapter 12 — one `write` per line, `split` on
-the way back, `try/except OSError` making *no save file* a normal
-Tuesday — plus two manners worth copying: the title screen only
+the way back, `try/except OSError` making *no save file* a normal,
+handled case — plus two manners worth copying: the title screen only
 offers *continue* when a save exists, and victory **deletes** the
 save, so the tale, once told, is done.
 

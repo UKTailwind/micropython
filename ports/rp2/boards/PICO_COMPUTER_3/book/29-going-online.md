@@ -8,7 +8,8 @@ MQTT. One theme runs through it all, so let it be said first:
 **networks fail, constantly and normally** — out of range, router
 rebooting, server napping — and the difference between a networked
 gadget and a networked *nuisance* is chapter 13 applied without mercy.
-Every listing here treats failure as Tuesday.
+Every listing here treats failure as routine — something to expect and
+handle quietly, never a surprise that stops the program.
 
 ## Connecting
 
@@ -59,7 +60,7 @@ your phone trusts) and writes *local* time into the battery-backed
 DS3231 — so the machine is correct even offline afterwards, and with
 `auto(True)` the bedside clock of chapter 28 becomes an appliance
 that is simply never wrong. (`auto` fails silently to the DS3231 when
-the network is away — Tuesday, handled.)
+the network is away — an everyday case, quietly handled.)
 
 ## Asking the web a question
 
@@ -218,7 +219,8 @@ Prop it on the shelf. Then read `fetch()` again, because that one
 function is the chapter: *never raises, always closes* — the network
 `try` around `.get()`, the parsing `try` around the rest (a
 half-received reply can be broken JSON; a changed API can drop a
-key — `ValueError` and `KeyError` are both Tuesday too), and the
+key — `ValueError` and `KeyError` are both to be expected here too),
+and the
 `finally: r.close()` that runs whatever happened. The main loop
 consequently never needs to know *why* a refresh failed — `None`
 means "keep the old truth, count it, say so on screen." Graceful

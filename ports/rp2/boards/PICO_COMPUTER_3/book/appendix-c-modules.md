@@ -76,6 +76,11 @@ generic HID): `"LX" "LY" "RX" "RY"` sticks, `"L" "R"` triggers, `"B"`
 button bitmap, `"H"` hat, `"T"` type; `gamepad.configure()` for an
 unrecognised pad. Manual §7.
 
+**USBSerial** † — a USB-serial adapter (FTDI/CP210x/CH34x/CDC-ACM) on
+the host port, as a UART-like object: the same `read write readline
+readinto flush any` stream methods, plus `connected()` and
+`on_change()`. Manual §7.
+
 **xmodem** — `xrecv xsend` †: file transfer over the USB-C serial.
 Ch. 5; manual §13.
 

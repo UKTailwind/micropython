@@ -224,6 +224,8 @@ if(MICROPY_HW_USB_HOST)
         usb_mouse_mod.c
         usb_gamepad.c
         usb_gamepad_mod.c
+        usb_cdc.c
+        usb_cdc_mod.c
     )
 endif()
 
@@ -274,6 +276,7 @@ if(MICROPY_HW_USB_HOST)
         ${MICROPY_PORT_DIR}/usb_touch_mod.c
         ${MICROPY_PORT_DIR}/usb_mouse_mod.c
         ${MICROPY_PORT_DIR}/usb_gamepad_mod.c
+        ${MICROPY_PORT_DIR}/usb_cdc_mod.c
     )
 endif()
 if(MICROPY_HW_ENABLE_XMODEM)

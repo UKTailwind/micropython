@@ -161,6 +161,17 @@
 #define CFG_TUH_HID_EPIN_BUFSIZE    (64)
 #define CFG_TUH_HID_EPOUT_BUFSIZE   (64)
 
+// USB-serial (CDC) host: a USB-serial adapter plugged into the host port shows
+// up as a USBSerial object (UART-like). The vendor drivers cover the common
+// FTDI / CP210x / CH34x chips as well as true CDC-ACM. Matches MMBasic's CDC
+// host config (up to 4 interfaces, default 115200-8-N-1 on enumerate).
+#define CFG_TUH_CDC                 (4)
+#define CFG_TUH_CDC_FTDI            (1)
+#define CFG_TUH_CDC_CP210X          (1)
+#define CFG_TUH_CDC_CH34X           (1)
+#define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM (0x03) // assert DTR|RTS on enumerate
+#define CFG_TUH_CDC_LINE_CODING_ON_ENUM  { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
+
 #endif // MICROPY_HW_USB_HOST
 
 #endif // MICROPY_INCLUDED_SHARED_TINYUSB_TUSB_CONFIG_H

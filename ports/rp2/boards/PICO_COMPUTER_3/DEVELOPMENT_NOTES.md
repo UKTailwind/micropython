@@ -2204,6 +2204,42 @@ when it moves, so it floats over any screen content without disturbing it.
   Wii-nunchuck-over-I2C path, and MMBasic's `GAMEPAD MONITOR` auto-print
   (the `"RAW"` query serves the same mapping-discovery purpose).
 
+### 63. USB CDC (serial) host — `USBSerial` (MMBasic port)
+
+- **Why**: the last USB-host gap. A USB-serial adapter plugged into the
+  host port should read/write like a UART. Ported MMBasic's CDC host
+  (PicoMite Serial.c).
+- **Config** (`shared/tinyusb/tusb_config.h`, under `MICROPY_HW_USB_HOST`
+  so PC3-only): `CFG_TUH_CDC 4` + the vendor bridges
+  `CFG_TUH_CDC_FTDI/CP210X/CH34X` (so FTDI/CP2102/CH340 adapters work, not
+  just true CDC-ACM) + default 115200-8-N-1 line coding on enumerate.
+  Same as MMBasic.
+- **Glue** (`usb_cdc.c`): the `tuh_cdc_mount_cb`/`umount_cb`/`rx_cb`
+  callbacks; `rx_cb` drains `tuh_cdc_read` into a per-interface 512-byte
+  receive ring buffer (`py/ringbuf.h`). Unlike HID, CDC needs no manual
+  polling — `tuh_task()` (already pumped from the event hook) drives it
+  and fires `rx_cb`. Line coding via `tuh_cdc_set_line_coding` with the
+  `set_baudrate` fallback for FTDI/CP210x, + DTR/RTS. Settings kept across
+  a replug (MMBasic's transparent-reconnect behaviour). Init the ring
+  buffers from `mp_usbh_init`.
+- **Presentation** (`usb_cdc_mod.c`): a `USBSerial` class implementing the
+  **same stream protocol as `machine.UART`** (`.read/.write/.ioctl` +
+  `MP_TYPE_FLAG_ITER_IS_STREAM`), so `read/readline/readinto/write/flush/
+  any` all behave like a UART. Constructor/`init`:
+  `baudrate, bits, parity, stop, index, timeout, timeout_char`. Extra:
+  `connected()` and `USBSerial.on_change(fn)` (a single rooted callback,
+  fired `fn(index)` — a small int is allocation-free so scheduling from
+  the tuh_task context is safe). Injected at boot as `USBSerial`
+  (`_boot_board.py`); emulator gets a no-device `usbserial.py` shim.
+- **Verified**: firmware compiles clean (CDC objects + `USBSerial` QSTR
+  in the tree); emulator shim `connected()=False`/`read()=None`. The USB
+  path needs a hardware pass with a real USB-serial adapter (untestable
+  in the emulator).
+- Two build gotchas hit: `MP_REGISTER_ROOT_POINTER` must live in a
+  QSTR-scanned file (moved to `usb_cdc_mod.c`, used from `usb_cdc.c` via
+  `MP_STATE_PORT`); and `make_new` must use its `type` param, not a
+  `static` forward-declared type (clashes with `MP_DEFINE_CONST_OBJ_TYPE`).
+
 ---
 
 ## Files touched

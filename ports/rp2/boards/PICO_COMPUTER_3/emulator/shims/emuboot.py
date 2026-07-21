@@ -99,6 +99,11 @@ class _GamepadProxy:
 
 __main__.gamepad = _GamepadProxy()
 
+# USB serial (CDC host) -- no device in the emulator, but keep the name.
+import usbserial
+
+__main__.USBSerial = usbserial.USBSerial
+
 # Full-screen file manager.
 import pcfm
 

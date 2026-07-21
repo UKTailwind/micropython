@@ -102,6 +102,12 @@ class _GamepadProxy:
 
 __main__.gamepad = _GamepadProxy()
 
+# USB serial (CDC host): a USB-serial adapter plugged into the host port is a
+# UART-like USBSerial object -- USBSerial(115200); .read()/.write()/.any().
+import usbserial
+
+__main__.USBSerial = usbserial.USBSerial
+
 # XMODEM file transfer over the serial console: xrecv("/sd/prog.py") then start
 # an XMODEM *send* in the terminal; xsend("/sd/prog.py") then an XMODEM *receive*.
 import xmodem

@@ -1067,6 +1067,42 @@ above 192). `gamepad.mask(channel, bits)` limits which buttons flag `"CHANGED"`.
 > `GAMEPAD CONFIGURE`. The field codes and the 16-bit button bitmap are
 > identical.
 
+### USB serial — `USBSerial`
+
+A USB-serial adapter plugged into the host port — FTDI, CP2102, CH340, or a
+true CDC-ACM device such as an Arduino with native USB — appears as a
+**`USBSerial`** object that behaves like a `machine.UART`:
+
+```python
+s = USBSerial(115200)            # baud; bits/parity/stop default to 8 / None / 1
+if s.connected():
+    s.write(b"AT\r\n")
+    print(s.read())              # read / readinto / readline / write / any
+```
+
+`USBSerial` implements the **same stream methods as `UART`** — `read([n])`,
+`readline()`, `readinto(buf)`, `write(buf)`, `flush()`, and `any()` (bytes
+waiting) — so code written for a hardware UART works unchanged. The constructor
+(and `init()`) accept `baudrate, bits, parity, stop, index, timeout,
+timeout_char` (parity `None` / `0` even / `1` odd); they apply the line coding
+and assert DTR/RTS.
+
+The one thing a hardware UART can't do is get **unplugged**, so:
+
+| Method | Meaning |
+|---|---|
+| `s.connected()` | `True` while a device is plugged in |
+| `USBSerial.on_change(fn)` | `fn(index)` runs on any connect/disconnect — check `connected()` for the new state |
+
+`read()` returns `None` when no data is waiting (exactly as `UART` does), and a
+`write()` to an unplugged device raises `OSError`. Settings survive a replug —
+pull the adapter and push it back and it resumes at the same baud. Up to four
+adapters are supported through a powered hub: `USBSerial(baud, index=1)` is the
+second, and so on.
+
+> **Coming from MMBasic:** this is the USB-serial host that MMBasic exposes as
+> `COM3`–`COM6`, but presented as a UART object rather than a numbered port.
+
 ---
 
 ## 8. USB touch screen

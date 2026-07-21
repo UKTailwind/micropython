@@ -36,6 +36,7 @@
 #include "usb_touch.h" // USB multi-touch digitizer support (usb_touch.c)
 #include "usb_mouse.h" // USB mouse support (usb_mouse.c)
 #include "usb_gamepad.h" // USB HID gamepad support (usb_gamepad.c)
+#include "usb_cdc.h" // USB CDC (serial) host support (usb_cdc.c)
 
 #include "kbd_decode.h" // the shared HID keyboard decoder
 static void hid_poll(void);
@@ -87,6 +88,7 @@ void mp_usbh_init(void) {
         return;
     }
     tuh_init(0); // native controller, root-hub port 0
+    usb_cdc_init(); // set up the CDC receive ring buffers before enumeration
     add_repeating_timer_us(-1000, usbh_wake_cb, NULL, &usbh_wake_timer);
     usbh_inited = true;
 }

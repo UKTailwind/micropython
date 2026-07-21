@@ -87,9 +87,20 @@ __main__.mouse = _mouse.query
 __main__.mouse_speed = _mouse.speed
 
 # USB gamepad: gamepad("LX"), gamepad("B") & gamepad.A, ... (MMBasic DEVICE(GAMEPAD)).
+# Wrap the C module so the one name `gamepad` is both callable (a reader, like
+# mouse()) AND carries the button-bit constants and configure()/mask().
 import gamepad as _gamepad
 
-__main__.gamepad = _gamepad.query
+
+class _GamepadProxy:
+    def __call__(self, code, chan=0):
+        return _gamepad.query(code, chan)
+
+    def __getattr__(self, name):
+        return getattr(_gamepad, name)
+
+
+__main__.gamepad = _GamepadProxy()
 
 # XMODEM file transfer over the serial console: xrecv("/sd/prog.py") then start
 # an XMODEM *send* in the terminal; xsend("/sd/prog.py") then an XMODEM *receive*.

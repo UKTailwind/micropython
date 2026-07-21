@@ -87,7 +87,17 @@ __main__.load_image = pcimage.load_image
 __main__.mouse = _mouse.query
 __main__.mouse_speed = _mouse.speed
 __main__.touch = _touch.query
-__main__.gamepad = _gamepad.query
+
+
+class _GamepadProxy:
+    def __call__(self, code, chan=0):
+        return _gamepad.query(code, chan)
+
+    def __getattr__(self, name):
+        return getattr(_gamepad, name)
+
+
+__main__.gamepad = _GamepadProxy()
 
 # Full-screen file manager.
 import pcfm

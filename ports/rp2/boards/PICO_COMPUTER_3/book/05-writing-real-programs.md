@@ -52,6 +52,13 @@ I can calculate: 42
 > run, edit again) is the same. There is no `SAVE` command — the editor's
 > Ctrl-S does that — and no line numbers to type, ever.
 
+> **Pico Computer 3 specific.** `edit()`, `run()`, `autosave()` and the
+> `/main.py` auto-run are this machine's own — plain MicroPython has no
+> built-in editor or `run` command. On other boards you write `.py` files
+> in an editor on your PC and copy them across with a tool like `mpremote`,
+> then `import` or `exec()` them. Here the machine is self-contained,
+> editor and all.
+
 ## Getting comfortable in the editor
 
 You already know the survival keys: type, arrows, Backspace, **Ctrl-S**,

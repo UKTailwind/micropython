@@ -49,9 +49,17 @@ is where your keyboard layout from chapter 2 is remembered. Each line
 shows the size in bytes, when the file last changed (the battery-backed
 clock at work), and the name.
 
-One thing before we go on: these commands are Python, so the brackets are
-required, and **file names go in quotes** — they are strings, exactly like
-`"hello"` in chapter 3. `ls` alone names the command; `ls()` runs it.
+One thing before we go on: these commands are MicroPython, so the brackets
+are required, and **file names go in quotes** — they are strings, exactly
+like `"hello"` in chapter 3. `ls` alone names the command; `ls()` runs it.
+
+> **Pico Computer 3 specific.** These shell-style commands — `ls`, `cd`,
+> `pwd`, `cp`, `mv`, `rm`, `mkdir`, `cat`, and the `fm` file manager — are
+> conveniences this machine adds. Standard MicroPython does the same jobs
+> through the `os` module (`os.listdir()`, `os.remove()`, `os.rename()`,
+> `os.mkdir()`, `os.chdir()`…), which works here too if you prefer it. The
+> friendly names are for comfort at the prompt; the `os` names are what
+> travel to other boards.
 
 ## Making some files to practise on
 

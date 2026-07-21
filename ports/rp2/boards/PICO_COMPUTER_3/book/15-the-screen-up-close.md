@@ -5,6 +5,15 @@ chapters hand you the machine — screen, images, sprites, sound, and
 every way a human can poke it. No new Python from here to Part IV:
 just the good stuff, built out of what you know.
 
+> **Pico Computer 3 specific.** Almost everything in Part III — `screen()`,
+> the `hdmi` display, the drawing methods, sprites, tile maps, `beep()`,
+> `tone()`, the sound and image helpers, `keydown()`, `mouse()`, `touch()`
+> — is this machine's hardware, wrapped for you. It is not part of standard
+> MicroPython and won't be found on a bare board. That is the point: this
+> is what turns a chip into a *computer*. The *language* you use to drive
+> it — variables, loops, functions, classes — is the portable part; these
+> chapters are the home hardware it drives.
+
 We start with the screen, because you have been drawing on it for six
 chapters without ever being introduced. The turtle and `plot()` were
 chauffeur-driven graphics; this chapter gives you the keys — every

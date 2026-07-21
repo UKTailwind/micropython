@@ -140,9 +140,23 @@ language:
   professionally for science, artificial intelligence, web services and
   more. Nothing you learn on this machine is a toy skill.
 
-Strictly, the machine runs **MicroPython** — a lean implementation of
-Python built for small computers. For everything in this book the
-difference is invisible; where it ever matters, the book says so.
+Strictly, the machine runs **MicroPython** — a lean, real implementation
+of Python built for small computers. It *is* Python: the language, the
+way of thinking, and almost every program in this book would run
+unchanged on a desktop. But it is not quite *desktop* Python — it trims a
+few corners to fit a machine this size, and those differences, though
+small, can catch you out if you assume they aren't there. This book
+points them out as they arise.
+
+The Pico Computer 3 also **adds** things that plain MicroPython has no
+notion of: friendly one-word commands like `run`, `edit` and `ls`, the
+file manager, and the graphics, sound and input helpers that make this a
+*computer* and not just a chip. These are genuine conveniences — but they
+live on *this* machine, not in MicroPython everywhere. So whenever a
+feature is one of these home comforts, the book flags it **Pico Computer
+3 specific** and, where it helps, shows the standard MicroPython way
+beside it. That way you always know which skills travel to other boards
+and which stay here.
 
 > **Coming from MMBasic:** Python's biggest culture shock is that *layout
 > matters* — where BASIC marks a block with `FOR…NEXT` or `IF…ENDIF`,

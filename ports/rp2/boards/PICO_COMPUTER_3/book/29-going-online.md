@@ -19,16 +19,25 @@ wifi("MyNetwork", "MyPassword")    # connect, and save the credentials
 ```
 
 From then on, plain `wifi()` reconnects with the saved details — after
-a reboot, in a program, anywhere. One honest note from the manual,
-worth repeating in a book for households: the SSID and password are
-stored **in plain text** in `/settings.json` — this machine has no
-secure vault. If that matters where the machine lives, don't save
-them: call the two-argument form each session.
+a reboot, in a program, anywhere. One honest note, worth repeating in a
+book for households: the saved password is **scrambled and tied to this
+board** — not readable at a glance in `/settings.json`, and useless if
+the file is copied to another machine. But that is obfuscation, not real
+security: the board can unscramble its own password, so anyone holding
+the board can too. There is no secure vault on hardware like this. If a
+network's password must not be kept at all, connect without saving it:
 
-(Underneath sits MicroPython's standard `network` module — `wlan =
-network.WLAN(...)` and friends — for the day you need signal strength
-or a static address; the manual points the way. The helper covers
-daily life.)
+```python
+wifi("MyNetwork", "MyPassword", save=False)
+```
+
+> **Pico Computer 3 specific.** `wifi()`, `tz()`, `ntpsync()` and `auto()`
+> are this machine's convenience layer over the radio and clock.
+> Underneath sits MicroPython's standard `network` module (`wlan =
+> network.WLAN(...)` and friends) for the day you need signal strength or
+> a static address, and `ntptime` for the clock — the manual points the
+> way. `tz()` in particular is just a saved hour offset that this machine
+> applies for you; core MicroPython has no timezone support at all.
 
 ## The first fruit: atomic time
 

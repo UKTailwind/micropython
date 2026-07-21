@@ -4,6 +4,13 @@ Everything the firmware offers, with its book chapter and its User
 Manual section for the full API. Names marked † are injected at boot —
 usable without an `import`.
 
+Everything under **"The board's own"** below is **Pico Computer 3
+specific** — these modules are this machine's, not part of standard
+MicroPython, so code that leans on them won't run unchanged on another
+board. Everything under **"The standard library"** travels with you.
+When it matters in the chapters, the book flags the board-specific
+pieces as they appear.
+
 ## The board's own
 
 **pcshell** † — the shell: `ls cd pwd cat cp mv rm mkdir rmdir run

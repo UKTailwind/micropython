@@ -34,6 +34,14 @@ settime(2026, 7, 16, 9, 30, 0)     # year, month, day, hour, minute, second
 needed by hand; and chapter 29 sets the whole thing from the internet
 in one line.)
 
+> **Pico Computer 3 specific.** `gettime()`, `settime()` and `synctime()`
+> are this machine's helpers for its battery-backed DS3231 clock — a chip
+> plain MicroPython knows nothing about. The *system* clock underneath
+> them is standard: `time.localtime()` reads it and `time.time()` gives
+> the epoch seconds, on any MicroPython board. `gettime()` just returns
+> that same eight-number tuple, sourced from the DS3231 so it survives
+> power-off.
+
 ## Anatomy of a time
 
 `gettime()` hands back a **time tuple** — the standard eight-number

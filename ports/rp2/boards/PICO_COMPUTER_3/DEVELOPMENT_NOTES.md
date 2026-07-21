@@ -2173,13 +2173,30 @@ when it moves, so it floats over any screen content without disturbing it.
 - **Emulator**: no USB host, so a `gamepad.py` no-device shim + emuboot
   injection keep `gamepad()` importable/callable there (returns 0 /
   PRESENT=0 / H=0xFF), matching mouse.py/touch.py.
-- **Verified**: firmware compiles clean (new module + QSTRs); emulator
-  build + `gamepad()` callable with correct button constants. The USB
-  decode path itself is UNTESTABLE in the emulator — needs Peter's
-  hardware pass with a real controller. NOT ported: the PS4 output
-  report (rumble/lightbar), the Wii-nunchuck-over-I2C path, and MMBasic's
-  `GAMEPAD MONITOR` auto-print (the `"RAW"` query serves the same
-  mapping-discovery purpose).
+- **Hardware-validated 2026-07-21** (over the COM3 serial REPL, driving a
+  live board): a generic USB gamepad enumerated as type 130 on slot 3 and
+  **all 12 buttons decoded correctly** — D-pad (via the axis-threshold
+  codes 64/192), the four face buttons, Select/Start, L/R — each verified
+  against the raw report bytes. The whole path is proven end to end:
+  mount → poll → `Gamepads[]` match → `process_generic_gamepad` +
+  `checkpush` → the button bitmap → the `gamepad()` query.
+- **API polish** (f4eae35fb): the button-bit constants live on the
+  gamepad MODULE but the injected REPL name was the query FUNCTION, so
+  `gamepad("B") & gamepad.A` (as the manual shows) raised AttributeError.
+  Now a small `_GamepadProxy` is injected — one `gamepad` that is both
+  callable AND delegates attribute access to the module (button
+  constants, `configure`, `mask`). Verified in the emulator.
+- **DualShock 3 caveat**: the DS3 enumerates (type 129) and *starts*
+  streaming — D-pad/Start/Select/PS decoded — but then FREEZES (its
+  report, incl. the motion bytes, stops updating), so the shoulder/face
+  buttons (report byte 3) never register. This is the classic DS3
+  "needs a periodic keepalive / SET_REPORT to keep streaming" quirk;
+  MMBasic evidently keeps it alive somehow. TODO if DS3 support is
+  wanted: port MMBasic's DS3 keepalive/output-report handling. Not a
+  core-path bug — the generic decode is proven correct.
+- NOT ported: the PS4 output report (rumble/lightbar), the
+  Wii-nunchuck-over-I2C path, and MMBasic's `GAMEPAD MONITOR` auto-print
+  (the `"RAW"` query serves the same mapping-discovery purpose).
 
 ---
 

@@ -93,11 +93,21 @@ static mp_obj_t gamepad_mask(mp_obj_t chan_in, mp_obj_t bits_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(gamepad_mask_obj, gamepad_mask);
 
+// gamepad.monitor(on) — discovery mode: while on, ANY protocol-NONE HID device
+// that connects is claimed as a gamepad so its report can be read via
+// gamepad("RAW"). Turn it off once you've mapped the pad with configure().
+static mp_obj_t gamepad_monitor(mp_obj_t on_in) {
+    usb_gamepad_set_monitor(mp_obj_is_true(on_in));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(gamepad_monitor_obj, gamepad_monitor);
+
 static const mp_rom_map_elem_t gamepad_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_gamepad) },
     { MP_ROM_QSTR(MP_QSTR_query), MP_ROM_PTR(&gamepad_query_obj) },
     { MP_ROM_QSTR(MP_QSTR_configure), MP_ROM_PTR(&gamepad_configure_obj) },
     { MP_ROM_QSTR(MP_QSTR_mask), MP_ROM_PTR(&gamepad_mask_obj) },
+    { MP_ROM_QSTR(MP_QSTR_monitor), MP_ROM_PTR(&gamepad_monitor_obj) },
     // Button-bit constants for gamepad("B").
     { MP_ROM_QSTR(MP_QSTR_R), MP_ROM_INT(GP_R) },
     { MP_ROM_QSTR(MP_QSTR_START), MP_ROM_INT(GP_START) },

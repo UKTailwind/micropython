@@ -252,6 +252,22 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
             if (!(hid_slots[3].active && slot != 3)) {
                 slot = 3;
             }
+        } else {
+            // Not a touch panel. Only claim it as a gamepad if it is a RECOGNISED
+            // controller -- otherwise it is some other protocol-NONE HID
+            // collection (e.g. the consumer-control / media-keys interface a
+            // composite keyboard exposes, as on the Raspberry Pi keyboard's
+            // built-in hub) that must NOT be grabbed as a phantom gamepad.
+            // MMBasic filters unknown devices the same way.
+            uint16_t vid = 0, pid = 0;
+            tuh_vid_pid_get(dev_addr, &vid, &pid);
+            if (!usb_gamepad_is_gamepad(vid, pid)) {
+                mp_printf(&mp_plat_print,
+                    "USB HID: ignored addr=%u inst=%u VID:PID=%04x:%04x (not a gamepad)\n",
+                    dev_addr, instance, vid, pid);
+                return; // leave the interface unclaimed; slot stays free
+            }
+            // recognised controller -> type stays HID_PAD
         }
     }
 

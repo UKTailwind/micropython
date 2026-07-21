@@ -38,3 +38,7 @@ def configure(vid, pid, mapping):
 
 def mask(chan, bits):
     pass
+
+
+def monitor(on):
+    pass

@@ -47,6 +47,15 @@ int32_t usb_gamepad_query(int chan, int code);
 // Raw last report for GQ "RAW": returns pointer + length, NULL if none.
 const uint8_t *usb_gamepad_raw(int chan, int *len);
 
+// True only for VID/PID we actually decode (known families + table + the
+// user-configured pad; or any device while monitor mode is on). mp_usbh.c uses
+// this to avoid claiming non-controller protocol-NONE HID interfaces (e.g. a
+// keyboard's media-keys collection) as phantom gamepads.
+bool usb_gamepad_is_gamepad(uint16_t vid, uint16_t pid);
+// Discovery mode: when on, any protocol-NONE HID device mounts as a gamepad so
+// its report can be inspected via "RAW" and mapped with gamepad.configure().
+void usb_gamepad_set_monitor(bool on);
+
 // --- called from the mp_usbh.c HID callbacks (USB / thread context) ---------
 void usb_gamepad_mount(uint8_t dev_addr, uint8_t instance, int slot1);
 void usb_gamepad_on_report(uint8_t dev_addr, uint8_t instance,

@@ -81,6 +81,11 @@ static const struct s_Gamepad Gamepads[] = {
 
 static struct s_Gamepad MyGamepad = {0};
 
+// Discovery mode: when set, ANY protocol-NONE HID device is treated as a
+// gamepad (so an unknown controller can be inspected via "RAW" and then
+// mapped with gamepad.configure). MMBasic's GAMEPAD MONITOR.
+static bool gp_monitor = false;
+
 // Button bit positions in the 16-bit bitmap (verbatim MMBasic p_* values).
 #define p_R GP_R
 #define p_START GP_START
@@ -136,6 +141,33 @@ static inline bool is_sony_ds4(uint16_t vid, uint16_t pid) {
         || (vid == 0x0f0d && pid == 0x005e)
         || (vid == 0x0f0d && pid == 0x00ee)
         || (vid == 0x1f4f && pid == 0x1002));
+}
+
+// Is this VID/PID a controller we actually decode? Only these are claimed as
+// gamepads at mount -- otherwise a protocol-NONE HID interface that is NOT a
+// controller (e.g. a keyboard's consumer-control / media-keys collection, as on
+// the Raspberry Pi keyboard's built-in hub) would be grabbed as a phantom
+// gamepad. MMBasic's is_generic filters unknown devices the same way.
+bool usb_gamepad_is_gamepad(uint16_t vid, uint16_t pid) {
+    if (gp_monitor) {
+        return true; // discovery: claim any protocol-NONE device for inspection
+    }
+    if (is_xbox(vid, pid) || is_sony_ds3(vid, pid) || is_sony_ds4(vid, pid)) {
+        return true;
+    }
+    if (MyGamepad.vid == vid && MyGamepad.pid == pid) {
+        return true; // user-configured mapping
+    }
+    for (int i = 0; Gamepads[i].pid; i++) {
+        if (Gamepads[i].vid == vid && Gamepads[i].pid == pid) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void usb_gamepad_set_monitor(bool on) {
+    gp_monitor = on;
 }
 
 // --- decoders (verbatim MMBasic, nunstruct[n] -> gp[n], nunfoundc -> changed) -

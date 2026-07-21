@@ -14,3 +14,15 @@
 \makeatletter
 \def\verbatim@font{\ttfamily\color[RGB]{0,70,160}}
 \makeatother
+
+% Reader feedback: code listings pasted from the PDF arrived flush-left --
+% their indentation was gone. Cause: xelatex stores verbatim spaces as
+% horizontal positioning, not as characters, so copy/paste (and the REPL)
+% never see them. Fix: make fancyvrb emit a real space glyph (\char"20) for
+% every code-block space. It has the correct monospace width, so the page
+% looks identical, but the spaces are now extractable and listings paste with
+% their indentation intact. (\XeTeXgenerateactualtext alone does NOT fix this
+% -- the spaces are glue between runs, which ActualText spans don't capture.)
+\makeatletter
+\def\FV@Space{\char"20\relax}
+\makeatother

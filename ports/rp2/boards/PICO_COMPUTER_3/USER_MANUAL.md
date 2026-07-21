@@ -1055,13 +1055,20 @@ while True:
 
 **Recognised controllers.** Xbox (D-input), PlayStation 3 and 4 (DualShock 3/4,
 including the PS4 gyroscope and accelerometer), and a table of common generic
-HID gamepads are decoded directly. For an unrecognised controller, use `"RAW"`
-to watch the report bytes while you press each button, then teach the decoder
-its layout with `gamepad.configure(vid, pid, mapping)`: `mapping` is 16
+HID gamepads are decoded directly. Only a **recognised** controller is treated
+as a gamepad — any other HID device that happens to present a "generic" report
+(for example the media-keys interface built into some USB keyboards) is left
+alone rather than showing up as a phantom pad.
+
+For an unrecognised controller, turn on discovery with **`gamepad.monitor(True)`**
+(then plug it in): while monitoring, any such device is claimed so you can use
+`"RAW"` to watch the report bytes as you press each button. Teach the decoder
+its layout with `gamepad.configure(vid, pid, mapping)` — `mapping` is 16
 `(index, code)` pairs (32 ints) in the order R, START, HOME, SELECT, L, DOWN,
-RIGHT, UP, LEFT, R2, X, A, Y, B, L2, TOUCH — `index` is the report byte and
+RIGHT, UP, LEFT, R2, X, A, Y, B, L2, TOUCH, where `index` is the report byte and
 `code` is a bit number 0–7 (pressed if set) or 64 / 192 (axis value below 64 /
-above 192). `gamepad.mask(channel, bits)` limits which buttons flag `"CHANGED"`.
+above 192) — then `gamepad.monitor(False)`. A configured pad is recognised from
+then on. `gamepad.mask(channel, bits)` limits which buttons flag `"CHANGED"`.
 
 > **Coming from MMBasic:** this is `DEVICE(GAMEPAD n, "...")` and
 > `GAMEPAD CONFIGURE`. The field codes and the 16-bit button bitmap are

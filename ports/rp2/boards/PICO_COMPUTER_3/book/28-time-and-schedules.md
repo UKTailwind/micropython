@@ -353,5 +353,5 @@ worth reading twice:
    until you clear it — the hardware does your edge detection), and
    the alarm now fires even if the clock program crashed and was
    restarted overnight. The deeper prize — `ds3231.alarm_pin().irq()`
-   waking code with no polling loop at all — is chapter 32's
+   waking code with no polling loop at all — is chapter 33's
    technique, and this challenge is its perfect rehearsal.

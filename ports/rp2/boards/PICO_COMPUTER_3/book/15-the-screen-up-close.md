@@ -47,8 +47,8 @@ offers six deals:
 | `hdmi.RGB320` | 320 × 240 | 65,536 | chunky pixels, gorgeous colour — the *games* mode |
 | `hdmi.RGB512` | 512 × 300 | 65,536 | widescreen, doubled to 1024 × 600 |
 | `hdmi.RGB1024` | 1024 × 600 | 16 | maximum crispness, palette colour |
-| `hdmi.RGB640_4` | 640 × 480 | 16 | the *fast game* mode — full detail, half the bytes (chapter 33 explains why that's a superpower) |
-| `hdmi.RGB320_8` | 320 × 240 | 256 | chunky pixels whose buffers are so small that *everything* — screen, overlay, backstage copy — fits in fast memory at once (chapters 17 and 33 cash this in) |
+| `hdmi.RGB640_4` | 640 × 480 | 16 | the *fast game* mode — full detail, half the bytes (chapter 34 explains why that's a superpower) |
+| `hdmi.RGB320_8` | 320 × 240 | 256 | chunky pixels whose buffers are so small that *everything* — screen, overlay, backstage copy — fits in fast memory at once (chapters 17 and 34 cash this in) |
 
 Switch with `screen()`, which remembers your choice across power-off:
 

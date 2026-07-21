@@ -1,4 +1,4 @@
-# Chapter 33 — Performance and memory
+# Chapter 34 — Performance and memory
 
 Sooner or later a program of yours will be too slow — the shooter
 stutters at forty rocks, the plot takes eleven seconds, the gadget
@@ -254,7 +254,7 @@ The two taxes, then:
   professional habit: **pre-allocate the big things once, at start-up**
   — `bytearray(4096)` buffers reused forever, the particle list made
   at boot and recycled — which is precisely how the firmware's own
-  buffers behave, and why your uptime-champion gadget (chapter 32)
+  buffers behave, and why your uptime-champion gadget (chapter 33)
   should own all its furniture before the loop begins.
 
 ## The worked session: a swarm, tuned
@@ -316,7 +316,7 @@ loop, and watch a number you can defend go up.
 > **Coming from MMBasic:** the deal hasn't changed — MMBasic was quick
 > *because* its heavy commands were C, and its escape hatch was the
 > CSUB. Here the C commands are `blit`/`tilemap`/ulab and the escape
-> hatches are `native`, `viper` and (chapter 34 points the way) C
+> hatches are `native`, `viper` and (chapter 35 points the way) C
 > modules of your own.
 
 ## Experiments

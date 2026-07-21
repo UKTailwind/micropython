@@ -93,7 +93,7 @@ tm = TileMap(sheet, 16, 16, cols, rows); tm.set(c,r,t); tm.view(x,y); tm.draw()
 tm.set_attr(tile, 1); tm.collide(x, y, w, h, mask=1)
 ```
 
-## Time & system (chapters 28, 34)
+## Time & system (chapters 28, 35)
 
 ```
 gettime() -> tuple      settime(y,mo,d,h,mi,s)      ntpsync()  tz(1)

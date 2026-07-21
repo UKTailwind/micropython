@@ -297,7 +297,7 @@ tools, not rules the machine enforces — `area("a", "b")` still fails only
 when the `*` gives up, not at the door. They earn their keep in two ways.
 First, they make a function's contract obvious when you are reading — or
 debugging — code, your own included. Second, and less obviously, the
-speed-up decorators of chapter 33 (`@micropython.viper` above all) read
+speed-up decorators of chapter 34 (`@micropython.viper` above all) read
 them as *real* type declarations and use them to generate fast machine
 code. Optional everywhere else; a good habit once functions grow.
 
@@ -358,26 +358,13 @@ and files it under `/lib`, ready to `import`:
 >>> mip.install("datetime")     # a fuller date/time library, from micropython-lib
 ```
 
-Where do the names come from? Two places worth bookmarking:
-
-- **Awesome MicroPython** (`github.com/mcauser/awesome-micropython`) — a
-  large curated catalogue, sorted by job: sensor and display drivers,
-  file formats, network protocols, helpers of every kind. Many of these
-  install straight from a GitHub address — `mip.install("github:user/repo")`.
-- **`micropython-lib`** — the official bundle of common modules, which is
-  where `mip` looks by default, so a plain `mip.install("name")` often
-  just works.
-
-One honest expectation, and it is `mip`'s doing, not this machine's:
-this is the *MicroPython* ecosystem, not the whole of desktop Python's
-PyPI. A library has to be written or ported for MicroPython — small
-enough to fit, not leaning on desktop-only machinery. Most drivers and
-pure-Python utilities are here; a giant scientific package from the PC
-world usually is not. In doubt, search Awesome MicroPython first.
-
-Unlike the shell commands and `run()`, none of this is Pico Computer 3
-specific: `mip`, `/lib` and `import` work the same on every MicroPython
-board, so a library you learn to install here you can install anywhere.
+That is the whole idea; the *craft* of it — where the good libraries
+live, how to tell a sound one from a shaky one, and how to wire one to
+real hardware — earns a chapter of its own later on (**chapter 32**).
+Note only that, unlike the shell commands and `run()`, none of this is
+Pico Computer 3 specific: `mip`, `/lib` and `import` work the same on
+every MicroPython board, so a library you learn to install here you can
+install anywhere.
 
 ### The stale-library gotcha
 

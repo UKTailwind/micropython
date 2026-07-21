@@ -15,6 +15,7 @@ Regenerate after editing chapters with:
 
 - `01-hello.py` (3 lines)
 - `02-fanfare.py` (10 lines)
+- `03-countdown.py` (11 lines)
 
 ## ch06 -- Chapter 6 — Variables, numbers and text
 
@@ -69,6 +70,7 @@ Regenerate after editing chapters with:
 - `07-listing.py` (14 lines)
 - `08-shapes.py` (22 lines)
 - `09-gallery.py` (15 lines)
+- `10-listing.py` (2 lines)
 
 ## ch12 -- Chapter 12 — Strings and files
 
@@ -211,11 +213,12 @@ Regenerate after editing chapters with:
 ## ch29 -- Chapter 29 — Going online: Wi-Fi and the internet
 
 - `01-listing.py` (1 lines)
-- `02-listing.py` (3 lines)
-- `03-listing.py` (6 lines)
-- `04-listing.py` (5 lines)
-- `05-weather.py` (99 lines)
-- `06-listing.py` (23 lines)
+- `02-listing.py` (1 lines)
+- `03-listing.py` (3 lines)
+- `04-listing.py` (6 lines)
+- `05-listing.py` (5 lines)
+- `06-weather.py` (99 lines)
+- `07-listing.py` (23 lines)
 
 ## ch30 -- Chapter 30 — Numbers at speed: the maths lab
 
@@ -236,7 +239,14 @@ Regenerate after editing chapters with:
 - `07-fragment.py` (5 lines) -- fragment shown mid-explanation, not standalone
 - `08-fragment.py` (1 lines) -- fragment shown mid-explanation, not standalone
 
-## ch32 -- Chapter 32 — Doing several things at once
+## ch32 -- Chapter 32 — Standing on others' shoulders
+
+- `01-qr.py` (23 lines)
+- `02-gpslook.py` (7 lines)
+- `03-where.py` (18 lines)
+- `04-card.py` (30 lines)
+
+## ch33 -- Chapter 33 — Doing several things at once
 
 - `01-doorbell.py` (28 lines)
 - `02-wake.py` (29 lines)
@@ -244,7 +254,7 @@ Regenerate after editing chapters with:
 - `04-juggler.py` (24 lines)
 - `05-skywatch.py` (87 lines)
 
-## ch33 -- Chapter 33 — Performance and memory
+## ch34 -- Chapter 34 — Performance and memory
 
 - `01-bench.py` (21 lines)
 - `02-speedlab.py` (47 lines)
@@ -252,13 +262,13 @@ Regenerate after editing chapters with:
 - `04-memlab.py` (14 lines)
 - `05-swarm.py` (37 lines)
 
-## ch34 -- Chapter 34 — The system itself
+## ch35 -- Chapter 35 — The system itself
 
 - `01-boot.py` (3 lines)
 - `02-backup.py` (19 lines)
 - `03-listing.py` (2 lines)
 
-Total: 157 programs.
+Total: 164 programs.
 
 ## lib -- the reader's toolkit, under its real names
 
@@ -274,4 +284,4 @@ book instructs.
 - `sfx.py` (from ch20)
 - `initials.py` (from ch26)
 - `gpad.py` (from ch31)
-- `bench.py` (from ch33)
+- `bench.py` (from ch34)

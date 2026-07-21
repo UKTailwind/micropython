@@ -250,7 +250,7 @@ Run all four. The pedagogy hiding in each:
 2. The promised speed race: square 10,000 numbers with a Python
    `for` loop, then as `arr * arr` — `ticks_diff` around each
    (chapter 21). Report the ratio. Then try 100,000 and mind the
-   RAM (chapter 33 will have things to say).
+   RAM (chapter 34 will have things to say).
 3. Chapter 20's beat frequencies, seen at last: build
    `np.sin(2 * math.pi * 440 * t)` plus the same at 444 Hz over a
    tenth of a second, and plot the sum — the wobble you *heard* in

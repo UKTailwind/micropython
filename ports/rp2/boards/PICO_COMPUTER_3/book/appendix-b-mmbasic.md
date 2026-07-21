@@ -34,7 +34,7 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `REM` / `'` | `#` | 5 |
 | `^`, `\`, `MOD` | `**`, `//`, `%` | 3 |
 | `PEEK` / `POKE` | `machine.mem32[...]` — rarely needed; handle with care |  |
-| `CSUB` | `@micropython.native`, `@micropython.viper`, or a C module | 33 |
+| `CSUB` | `@micropython.native`, `@micropython.viper`, or a C module | 34 |
 
 ## Strings
 
@@ -68,14 +68,14 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `AUTOSAVE` | `autosave("f.py")`, Ctrl-Z ends | 5 |
 | `XMODEM SEND/RECEIVE` | `xsend()` / `xrecv()` | 5 |
 | `FM` | `fm()` — plus Space multi-select | 4 |
-| `OPTION AUTORUN` | `/main.py` (and `/boot.py` before it) | 5, 34 |
-| `OPTION`s generally | `/settings.json` — set via `keymap()`, `screen()`, `wifi()`... | 34 |
+| `OPTION AUTORUN` | `/main.py` (and `/boot.py` before it) | 5, 35 |
+| `OPTION`s generally | `/settings.json` — set via `keymap()`, `screen()`, `wifi()`... | 35 |
 
 ## Screen and graphics
 
 | MMBasic | Here | Ch. |
 |---|---|---|
-| `MODE` | `screen(hdmi.RGB640 / RGB320 / RGB512 / RGB1024)` — persisted | 15 |
+| `MODE` | `screen(hdmi.RGB640 / RGB320 / RGB320_8 / RGB512 / RGB1024 / RGB640_4)` — persisted | 15 |
 | `CLS` | `cls()` (console) or `d.fill(c)` (graphics) | 3, 15 |
 | `RGB(r,g,b)` / colour names | `0xRRGGBB` or the same 16 names + extras — **wrap in `d.colour()`** | 15 |
 | `PIXEL LINE BOX RBOX CIRCLE ARC POLYGON` | `Display` methods: `pixel line rect/rbox ellipse arc poly` | 15 |
@@ -109,18 +109,18 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `TIMER` | `time.ticks_ms()` + `ticks_diff()` | 21 |
 | `DATE$` / `TIME$` | `gettime()` tuple + f-strings | 28 |
 | `SETTIME` | `settime(...)`; `ntpsync()` from the internet | 28, 29 |
-| `SETTICK p, sub` / `SETTICK 0` | `machine.Timer(period=p, callback=f)` / `t.deinit()` | 32 |
-| `SETPIN n, INTL/INTH/INTB` | `Pin(n).irq(f, Pin.IRQ_FALLING/RISING/both)` | 32 |
+| `SETTICK p, sub` / `SETTICK 0` | `machine.Timer(period=p, callback=f)` / `t.deinit()` | 33 |
+| `SETPIN n, INTL/INTH/INTB` | `Pin(n).irq(f, Pin.IRQ_FALLING/RISING/both)` | 33 |
 | `SETPIN DOUT/DIN/AIN/PWM` | `Pin` / `Pin(+PULL_UP)` / `machine.ADC` / `machine.PWM` | 31 |
-| `WATCHDOG t` | `machine.WDT(timeout=ms)` + `.feed()` | 32 |
+| `WATCHDOG t` | `machine.WDT(timeout=ms)` + `.feed()` | 33 |
 | `SYNC` | `pcgame.Clock` / `hdmi.vsync()` | 17, 22 |
 | `OPTION CONSOLE` | `console("both"/"serial"/"screen"/"none")` | 2, 17 |
 | `OPTION KEYBOARD` | `keymap("UK")` | 2 |
 | `WEB NTP / GET / MQTT` (WebMite) | `ntpsync()` / `requests.get()` / `umqtt` | 29 |
 | `MATH` verbs (CORREL, CHI, FFT, V_, Q_) | `pcmath` + `ulab.numpy` | 30 |
-| `MM.INFO()` | `os.uname()`, `gc.mem_free()`, `os.statvfs()` | 34 |
+| `MM.INFO()` | `os.uname()`, `gc.mem_free()`, `os.statvfs()` | 35 |
 
 Two things have no MMBasic ancestor and repay early study:
 **dictionaries** (chapter 10) — lookup tables that replace every
-parallel-array trick you own — and **`asyncio`** (chapter 32), a
+parallel-array trick you own — and **`asyncio`** (chapter 33), a
 cleaner shape for programs juggling several activities.

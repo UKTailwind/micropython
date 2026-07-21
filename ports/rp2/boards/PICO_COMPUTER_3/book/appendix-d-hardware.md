@@ -60,16 +60,24 @@ GP10/11/22 audio I2S · GP23/24/25/29 wireless · GP47 PSRAM CS. The
 status LED is `Pin("LED")` (on the wireless chip). Full table:
 manual §2.
 
-## Screen modes (chapter 15)
+## Screen modes (chapter 15; manual §5)
 
-| Mode | Pixels | Colours | Clock |
+| Mode | Pixels | Colours | Clock (MHz) |
 |---|---|---|---|
-| `RGB640` (default) | 640×480 | 256 | 252 / 315 / 378 |
-| `RGB320` | 320×240 (doubled) | 65,536 + overlay layer | 252 / 315 / 378 |
-| `RGB512` | 512×300 (doubled to 1024×600) | 65,536 | 252 |
+| `RGB640` (default) | 640×480 | 256 (8-bit) | 252 / 315 / 378 |
+| `RGB320` | 320×240 (doubled) | 65,536 (16-bit) | 252 / 315 / 378 |
+| `RGB320_8` | 320×240 (doubled) | 256 (8-bit) | 252 / 315 / 378 |
+| `RGB512` | 512×300 (doubled to 1024×600) | 65,536 (16-bit) | 252 |
 | `RGB1024` | 1024×600 native | 16 (palette) | 252 |
+| `RGB640_4` | 640×480 | 16 (palette) | 252 / 315 / 378 |
 
-Allow ~3 s after a mode change for the monitor to lock.
+- The **overlay layer** (`hdmi.layer()`) is available in `RGB320` and
+  `RGB320_8`.
+- `RGB640_4` and `RGB320_8` are the **fast-SRAM modes**: the off-screen
+  `create()` buffer fits in the spare video SRAM rather than the slower
+  PSRAM, for double-buffered composing that never stalls. `RGB320_8` is
+  the only mode offering the overlay *and* a fast double buffer at once.
+- Allow ~3 s after a mode change for the monitor to lock.
 
 ## Notes
 

@@ -1,4 +1,4 @@
-# Chapter 32 — Doing several things at once
+# Chapter 33 — Doing several things at once
 
 Welcome to Part VI: under the hood. Every program so far has been one
 loop doing one thing at a time — and yet keys registered during your

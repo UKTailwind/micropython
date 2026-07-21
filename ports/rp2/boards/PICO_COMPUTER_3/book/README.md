@@ -7,7 +7,7 @@ the beginner-to-advanced course book. The chapter plan is in
 
 ## Layout
 
-- `NN-slug.md` — one file per chapter, numbered `01`–`34`. The number prefix
+- `NN-slug.md` — one file per chapter, numbered `01`–`35`. The number prefix
   fixes the build order.
 - `appendix-X-slug.md` — appendices A–H, built after the chapters.
 - `metadata.yaml` — title page / Pandoc metadata shared by every output.

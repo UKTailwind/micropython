@@ -66,7 +66,7 @@ series, styles. Ch. 8, 30; manual §17.
 
 **ds3231** — the battery clock: `settime gettime synctime` † and the
 daily alarm (`set_alarm alarm_fired clear_alarm alarm_pin`).
-Ch. 28, 32; manual §11.
+Ch. 28, 33; manual §11.
 
 **keyboard / `keydown()`** † — live key state, named key constants,
 `on_key`, `on_usb_event`; `keymap()` † for layouts. Ch. 21; manual §6.
@@ -92,20 +92,20 @@ Ch. 5; manual §13.
 **math** trig, `sqrt`, `pi`, `radians` (ch. 3, 24) · **random**
 `randint choice seed` (ch. 7) · **time** `sleep sleep_ms ticks_ms
 ticks_us ticks_diff localtime mktime` (ch. 5, 21, 28) · **os**
-`listdir mkdir remove statvfs uname` (ch. 16, 34) · **json**
-`load(s)/dump(s)` (ch. 29) · **gc** `mem_free collect` (ch. 33) ·
+`listdir mkdir remove statvfs uname` (ch. 16, 35) · **json**
+`load(s)/dump(s)` (ch. 29) · **gc** `mem_free collect` (ch. 34) ·
 **sys** `path implementation` (ch. 11) · **machine** `Pin ADC PWM I2C
-SPI UART Timer WDT RTC freq` (ch. 31–32) · **micropython** `const
-native viper mem_info` (ch. 33) · **framebuf** (under `Display`;
+SPI UART Timer WDT RTC freq` (ch. 31, 33) · **micropython** `const
+native viper mem_info` (ch. 34) · **framebuf** (under `Display`;
 manual §5) · **network** WLAN (ch. 29) · **requests** HTTP(S)
 (ch. 29) · **umqtt.simple/robust** MQTT (ch. 29) · **ntptime**,
 **mip** (installer), **aioble/bluetooth** (BLE — manual §16) ·
-**asyncio** tasks (ch. 32) · **ulab.numpy / ulab.scipy** arrays, FFT,
+**asyncio** tasks (ch. 33) · **ulab.numpy / ulab.scipy** arrays, FFT,
 linalg (ch. 30).
 
 ## Your own shelf (built through the book)
 
 `shapes.py` (11) · `scorelib.py` (12) · `handy.py` (13, 21) ·
 `sfx.py` (20) · `initials.py` (26) · `gpad.py` (31) · `bench.py`
-(33) · `backup.py` (34). No one can take these away; improving them
+(34) · `backup.py` (35). No one can take these away; improving them
 is the hobby.

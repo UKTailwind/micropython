@@ -1,4 +1,4 @@
-# Chapter 34 — The system itself
+# Chapter 35 — The system itself
 
 The last chapter zooms all the way out. You know the language, the
 screen, the sounds, the games, the gadgets; what remains is to own
@@ -142,7 +142,7 @@ wander:
 - `DEVELOPMENT_NOTES.md`, in the same folder, is the engineering
   diary — every feature's *why* and *how*, including the dead ends.
   Reading other people's engineering diaries is a privilege; take it.
-- The C floor — `hdmi.c` and friends — is where chapter 33's ladder
+- The C floor — `hdmi.c` and friends — is where chapter 34's ladder
   ends: when `viper` isn't enough, this is what "write a C module"
   means, and MMBasic veterans will recognise the CSUB's grown-up
   sibling. The MicroPython docs' "extending in C" pages are the
@@ -231,7 +231,7 @@ Switch it on. The prompt is waiting — and it's yours.
    folders, keeps the last three dated sets (delete the oldest —
    chapter 4's tools), logs to `/backup.log`, and runs from
    cron-junior every Sunday. Boring, bulletproof, priceless —
-   chapter 32's uptime discipline applied to *data*.
+   chapter 33's uptime discipline applied to *data*.
 3. **The gift build.** Prepare a machine for someone you're teaching:
    their `/boot.py`, a `main.py` menu (chapter 10's challenge, full
    circle) of five programs you choose for them, high-score files

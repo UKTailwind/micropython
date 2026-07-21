@@ -2243,6 +2243,42 @@ when it moves, so it floats over any screen content without disturbing it.
   `MP_STATE_PORT`); and `make_new` must use its `type` param, not a
   `static` forward-declared type (clashes with `MP_DEFINE_CONST_OBJ_TYPE`).
 
+### 64. Book chapter 32 "Standing on others' shoulders" — external libraries via `mip`, hardware-validated
+
+- **What**: a new course-book chapter on *finding, judging and installing*
+  the third-party MicroPython libraries `mip` reaches — the craft the old
+  one-paragraph mention in chapter 11 never taught. Chapter 11's library
+  section is slimmed to a forward pointer.
+- **Renumber**: inserting at 32 pushed the three "Under the Hood" chapters
+  down — old 32/33/34 → **33/34/35**. Swept every cross-reference: prose
+  `chapter NN`, the appendices' `ch. NN` / `Ch. NN` / table-column /
+  "your own shelf `(NN)`" forms, `OUTLINE.md`, `README.md`, and the
+  regenerated `examples/` tree. Chapter sequence verified contiguous 1–35.
+- **Examples**: auto-extracted into `examples/ch32/` (`qr.py`, `gpslook.py`,
+  `where.py`, `card.py`) by `extract_examples.py`; its one hard-coded lib
+  ref `bench.py` moved `ch33`→`ch34` to stay correct. Install snippets in
+  the chapter use `>>>` REPL style so the extractor skips them.
+- **Three worked examples across the range** (the transferable method:
+  interface → recognise the data → search → judge → install → bind):
+  QR codes with **uQR** (pure software, no hardware — draws a scannable QR
+  of the project repo on screen), GPS with **micropyGPS** on UART0
+  (GP0/GP1), and an I2C sensor driver. Plus a "is this library any good?"
+  checklist including the single- vs double-precision question.
+- **Hardware-validated 2026-07-21** over COM11 (PC3 on v0.9 firmware). Both
+  libraries installed *on-device* by the **raw-file `mip` method** the
+  chapter teaches — neither has a `package.json`, so
+  `mip.install("https://raw.githubusercontent.com/JASchilz/uQR/master/uQR.py")`
+  and the equivalent `inmcm/micropyGPS` URL → copied to `/lib`. All four
+  examples ran via `run("…")` (real `__main__` guard): QR scanned and
+  opened the repo; `gpslook.py` showed raw NMEA with a **DGPS fix, 13
+  sats**; `where.py` parsed `52.021631666666664N 0.28759E` — the 17-digit
+  latitude is the double-precision advantage made literal (a 32-bit board
+  truncates to ~`52.02163`, losing metres, which is why micropyGPS defaults
+  to `'ddm'`); `card.py` drew the business card from `os.uname().machine`.
+- **Serial-push tip**: `autosave("f.py")` + Ctrl-Z is the reliable way to
+  push a multi-line file over the 115200 console — raw paste mode
+  (Ctrl-E/Ctrl-D) drops characters on long bursts (no flow control).
+
 ---
 
 ## Files touched

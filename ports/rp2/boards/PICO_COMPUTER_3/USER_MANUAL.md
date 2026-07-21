@@ -149,8 +149,8 @@ palette (`RED`, `GREEN`, `BLUE`, `WHITE`, `BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, 
 
 **Images:** `draw_jpg`, `draw_bmp`, `draw_png`, `save_image`, `load_image`.
 
-**Input devices:** `touch`, `mouse`, `mouse_speed`, `keydown`, `pccursor`
-(the visible mouse pointer — section 7).
+**Input devices:** `touch`, `mouse`, `mouse_speed`, `gamepad`, `keydown`,
+`pccursor` (the visible mouse pointer — section 7).
 
 **File transfer:** `xrecv`, `xsend` (XMODEM over the serial console).
 
@@ -953,7 +953,7 @@ quickly. The key still goes to the console/REPL input as normal.
 
 ---
 
-## 7. USB mouse
+## 7. USB mouse and gamepad
 
 A USB mouse is detected automatically (`USB mouse -> slot 2`). It maintains a
 virtual cursor position (accumulated from movement, clamped to the screen,
@@ -1012,6 +1012,58 @@ while True:
 **`pcgui` does all of this for you** (section 5): `GUI.start()` turns the
 pointer on when a mouse is connected, `GUI.poll()` keeps it refreshed, and
 control redraws lift it automatically. Pass `start(cursor=False)` to opt out.
+
+### USB gamepad — `gamepad()`
+
+A USB gamepad is detected automatically (`USB gamepad -> slot 3`). Read it with
+**`gamepad(code)`**, exactly as MMBasic's `DEVICE(GAMEPAD)`:
+
+| `gamepad(code)` | Returns |
+|---|---|
+| `"LX"` / `"LY"` | left analog stick (0–255, centred near 128) |
+| `"RX"` / `"RY"` | right analog stick |
+| `"L"` / `"R"` | left / right analog trigger |
+| `"B"` | button bitmap — AND with the button constants below |
+| `"H"` | hat / d-pad direction (0–7; 255 = idle) |
+| `"GX"`/`"GY"`/`"GZ"` | gyroscope (PS4 only) |
+| `"AX"`/`"AY"`/`"AZ"` | accelerometer (PS4 only) |
+| `"T"` | controller type: 128 PS4, 129 PS3, 130 generic, 131 Xbox |
+| `"CHANGED"` | 1 if a (masked) button changed since last read (clears on read) |
+| `"RAW"` | the raw HID report as `bytes` (for discovering a mapping) |
+| `"PRESENT"` | 1 if a gamepad is connected |
+| `"SLOT"` | the HID slot/channel (3, or 4 for a second pad) |
+
+A second argument selects the channel — `gamepad("LX", 3)`; the default (`0`)
+reads the first connected gamepad.
+
+The `"B"` bitmap has one bit per button, exposed as `gamepad` module constants
+(`import gamepad`): `gamepad.A`, `.B`, `.X`, `.Y`, `.L`, `.R`, `.L2`, `.R2`,
+`.UP`, `.DOWN`, `.LEFT`, `.RIGHT`, `.START`, `.SELECT`, `.HOME`, `.TOUCH`.
+
+```python
+import gamepad, time
+while True:
+    if gamepad("PRESENT"):
+        b = gamepad("B")
+        print(gamepad("LX"), gamepad("LY"),
+              "A" if b & gamepad.A else "-",
+              "START" if b & gamepad.START else "-")
+    time.sleep_ms(100)
+```
+
+**Recognised controllers.** Xbox (D-input), PlayStation 3 and 4 (DualShock 3/4,
+including the PS4 gyroscope and accelerometer), and a table of common generic
+HID gamepads are decoded directly. For an unrecognised controller, use `"RAW"`
+to watch the report bytes while you press each button, then teach the decoder
+its layout with `gamepad.configure(vid, pid, mapping)`: `mapping` is 16
+`(index, code)` pairs (32 ints) in the order R, START, HOME, SELECT, L, DOWN,
+RIGHT, UP, LEFT, R2, X, A, Y, B, L2, TOUCH — `index` is the report byte and
+`code` is a bit number 0–7 (pressed if set) or 64 / 192 (axis value below 64 /
+above 192). `gamepad.mask(channel, bits)` limits which buttons flag `"CHANGED"`.
+
+> **Coming from MMBasic:** this is `DEVICE(GAMEPAD n, "...")` and
+> `GAMEPAD CONFIGURE`. The field codes and the 16-bit button bitmap are
+> identical.
 
 ---
 

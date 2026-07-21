@@ -86,6 +86,11 @@ import mouse as _mouse
 __main__.mouse = _mouse.query
 __main__.mouse_speed = _mouse.speed
 
+# USB gamepad: gamepad("LX"), gamepad("B") & gamepad.A, ... (MMBasic DEVICE(GAMEPAD)).
+import gamepad as _gamepad
+
+__main__.gamepad = _gamepad.query
+
 # XMODEM file transfer over the serial console: xrecv("/sd/prog.py") then start
 # an XMODEM *send* in the terminal; xsend("/sd/prog.py") then an XMODEM *receive*.
 import xmodem

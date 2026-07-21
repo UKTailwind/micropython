@@ -71,6 +71,7 @@ import pcplot
 import pcimage
 import mouse as _mouse
 import touch as _touch
+import gamepad as _gamepad
 
 __main__.Turtle = pcturtle.Turtle
 __main__.TileMap = pctilemap.TileMap
@@ -86,6 +87,7 @@ __main__.load_image = pcimage.load_image
 __main__.mouse = _mouse.query
 __main__.mouse_speed = _mouse.speed
 __main__.touch = _touch.query
+__main__.gamepad = _gamepad.query
 
 # Full-screen file manager.
 import pcfm

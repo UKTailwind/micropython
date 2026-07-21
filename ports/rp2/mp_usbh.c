@@ -35,6 +35,7 @@
 #include "pico/time.h"
 #include "usb_touch.h" // USB multi-touch digitizer support (usb_touch.c)
 #include "usb_mouse.h" // USB mouse support (usb_mouse.c)
+#include "usb_gamepad.h" // USB HID gamepad support (usb_gamepad.c)
 
 #include "kbd_decode.h" // the shared HID keyboard decoder
 static void hid_poll(void);
@@ -271,6 +272,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
         usb_touch_set_slot(slot + 1); // 1-based, for touch("X", 4)
     } else if (type == HID_MOUSE) {
         usb_mouse_set_slot(slot + 1); // 1-based, for mouse("X", 2)
+    } else if (type == HID_PAD) {
+        usb_gamepad_mount(dev_addr, instance, slot + 1); // 1-based channel
     }
     static const char *const type_names[] = { "?", "keyboard", "mouse", "gamepad", "touch" };
     mp_printf(&mp_plat_print, "USB %s -> slot %d\n", type_names[type], slot + 1);
@@ -289,6 +292,8 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
             usb_touch_on_umount(dev_addr, instance);
         } else if (hid_slots[slot].type == HID_MOUSE) {
             usb_mouse_on_umount(dev_addr, instance);
+        } else if (hid_slots[slot].type == HID_PAD) {
+            usb_gamepad_on_umount(dev_addr, instance);
         }
         memset(&hid_slots[slot], 0, sizeof(hid_slots[slot]));
         hid_slots[slot].report_requested = true; // don't poll an empty slot
@@ -308,8 +313,9 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance,
         usb_touch_on_report(dev_addr, instance, report, len);
     } else if (type == HID_MOUSE) {
         usb_mouse_on_report(dev_addr, instance, report, len);
+    } else if (type == HID_PAD) {
+        usb_gamepad_on_report(dev_addr, instance, report, len);
     }
-    // Gamepad slots are polled but not yet decoded.
     // Clear the in-flight flag and reset the timer; hid_poll() re-requests when
     // the timer next reaches report_rate. Deliberately NO re-arm here.
     hid_slots[slot].report_requested = false;

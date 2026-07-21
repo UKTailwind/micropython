@@ -2145,6 +2145,42 @@ when it moves, so it floats over any screen content without disturbing it.
   different key yields undecodable output; empty password round-trips.
   Pure-Python frozen-module change — the user builds the firmware.
 
+### 62. USB gamepad support — `gamepad()` (MMBasic port)
+
+- **Why**: the last big firmware gap; Peter now has a controller to test
+  with. Ported MMBasic's (PicoMite) USB HID gamepad stack.
+- **The seam was ready**: mp_usbh.c already reserved slot 3 (`HID_PAD`)
+  for protocol-NONE HID devices and polled it — reports were just "not
+  yet decoded". Mirrored the existing usb_mouse.c/usb_mouse_mod.c
+  pattern: new `usb_gamepad.c` (decoders + state) + `usb_gamepad.h` +
+  `usb_gamepad_mod.c` (the `gamepad` Python module), wired into the three
+  mp_usbh.c callbacks (mount NONE → usb_gamepad_mount; report → decode;
+  umount → clear).
+- **Decoders ported VERBATIM** from USBKeyboard.c: `checkpush` +
+  `process_generic_gamepad` (the 7-entry known-controller `Gamepads[]`
+  table + a user `MyGamepad` mapping), `process_xbox`, `process_sony_ds3`,
+  `process_sony_ds4` (incl. the `sony_ds4_report_t` bitfield struct and
+  gyro/accel). VID/PID dispatch: DS4 → DS3 → Xbox → generic. State fields
+  mirror MMBasic's `nunstruct` (ax/ay left stick, Z/C right, L/R triggers,
+  x0 button bitmap, imu[6]); the 16-bit button layout and the `p_*` bit
+  positions are the documented MMBasic ones.
+- **API** (`gamepad` module, injected at boot like `mouse`): mirrors
+  MMBasic `DEVICE(GAMEPAD n, "...")` — `gamepad("LX"/"LY"/"RX"/"RY"/"L"/
+  "R"/"B"/"H"/"GX".."AZ"/"T"/"CHANGED"/"RAW"/"PRESENT"/"SLOT" [, chan])`,
+  `gamepad.configure(vid,pid,mapping)` (MMBasic GAMEPAD CONFIGURE, 32
+  ints), `gamepad.mask(chan,bits)`, and button-bit constants `gamepad.A`
+  etc. chan 0 = first connected pad. Channel = 1-based HID slot (3 or 4).
+- **Emulator**: no USB host, so a `gamepad.py` no-device shim + emuboot
+  injection keep `gamepad()` importable/callable there (returns 0 /
+  PRESENT=0 / H=0xFF), matching mouse.py/touch.py.
+- **Verified**: firmware compiles clean (new module + QSTRs); emulator
+  build + `gamepad()` callable with correct button constants. The USB
+  decode path itself is UNTESTABLE in the emulator — needs Peter's
+  hardware pass with a real controller. NOT ported: the PS4 output
+  report (rumble/lightbar), the Wii-nunchuck-over-I2C path, and MMBasic's
+  `GAMEPAD MONITOR` auto-print (the `"RAW"` query serves the same
+  mapping-discovery purpose).
+
 ---
 
 ## Files touched

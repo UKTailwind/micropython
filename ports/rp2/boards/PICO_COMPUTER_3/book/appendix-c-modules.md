@@ -71,6 +71,11 @@ Ch. 28, 32; manual §11.
 **keyboard / `keydown()`** † — live key state, named key constants,
 `on_key`, `on_usb_event`; `keymap()` † for layouts. Ch. 21; manual §6.
 
+**gamepad / `gamepad()`** † — read a USB gamepad (Xbox / PS3 / PS4 /
+generic HID): `"LX" "LY" "RX" "RY"` sticks, `"L" "R"` triggers, `"B"`
+button bitmap, `"H"` hat, `"T"` type; `gamepad.configure()` for an
+unrecognised pad. Manual §7.
+
 **xmodem** — `xrecv xsend` †: file transfer over the USB-C serial.
 Ch. 5; manual §13.
 

@@ -342,7 +342,13 @@ choose the simplest shape that holds what you actually have.
 ## Where to read further
 
 - MicroPython's documentation (differences from CPython included):
-  **https://docs.micropython.org/**
+  https://docs.micropython.org/ — but **read the version that matches
+  your firmware**. Pick the *released* version from the selector at the
+  top (v1.28 as this is written), **not** the `/latest/` pages: those
+  document features that aren't in any release yet, so code copied from
+  them may simply not run. This is the single most common trap for new
+  MicroPython programmers — it is what the pink version banner on every
+  page is warning you about.
 - The full data model — every `__hook__` Python offers — lives in the
   CPython reference; explore it once `__init__` and `__str__` feel like
   old friends.

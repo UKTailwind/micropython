@@ -142,7 +142,10 @@ crowd: `*` stands for "anything here", `?` for "any single character".
 
 `cp` and `mv` with a wildcard need the destination to be a folder (the
 machine cannot copy five files onto one name). Matching ignores capital
-letters, so `*.txt` also finds `NOTES.TXT`.
+letters, so `*.txt` also finds `NOTES.TXT`. (The flash filesystem itself
+is **case-sensitive**, though: `notes.txt` and `NOTES.TXT` would be two
+genuinely different files. It is only the wildcard *matching* that is
+relaxed about case, as a convenience.)
 
 Treat `rm` plus wildcard as the chainsaw it is. `ls` accepts the *same
 patterns*, so the professional habit is: **`ls` the pattern first**, see

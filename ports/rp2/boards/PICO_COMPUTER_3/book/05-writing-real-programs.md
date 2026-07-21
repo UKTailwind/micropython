@@ -142,10 +142,15 @@ conventionally go at the top. Run it: a one-second dramatic pause, three
 rising notes, ta-da. It is five seconds of theatre, and it is *yours* —
 change the notes, the timing, the words.
 
-One more fact about `run()` worth filing away: each run starts fresh.
-When a program finishes, its variables evaporate — nothing it did leaks
-back to your prompt (and nothing stale leaks into the next run). A
-program's output is what it prints, plays, and saves to files.
+One more fact about `run()` worth filing away: each run starts
+*fresh-ish*. Your program's own variables evaporate when it finishes —
+nothing it did leaks back to your prompt, and nothing stale leaks into
+the next run. But "fresh" stops at your program's front door: an
+imported library stays cached (chapter 11 has the gotcha that follows
+from this), hardware you switched on stays on, and settings you saved
+persist — a few things even survive a reset. A program's output is what
+it prints, plays, and saves to files; the machine around it keeps its
+own memory.
 
 ## Passing arguments to a program
 

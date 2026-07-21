@@ -101,6 +101,13 @@ rounded off somewhere. The error is in the seventeenth digit and harmless
 in practice, but remember the lesson: *floats are approximations*. (Whole
 numbers, as `2 ** 100` showed, are exact.)
 
+> **A MicroPython note.** This board is set up for *double-precision*
+> floats, which is why the error shows all the way out at the seventeenth
+> digit. Most MicroPython boards use single precision to save memory, and
+> would print a tidy `0.3` here — the approximation hasn't gone away on
+> them, it's just rounded off a few digits sooner. The lesson holds
+> either way.
+
 ## Words, not just numbers
 
 Put something in quotes and the machine treats it as text — a **string**:
@@ -164,10 +171,13 @@ puts spaces between them:
 2 to the power 100 is 1267650600228229401496703205376
 ```
 
-> **Coming from MMBasic:** `print` must be lower-case. Python is
-> case-sensitive everywhere — `Print` and `PRINT` are *different names*,
-> and neither of them exists. If your fingers have decades of `PRINT` in
-> them, this will bite for a week and then stop.
+> **Coming from MMBasic:** `print` must be lower-case, and its brackets
+> are **not** optional — `print` is a *function*, so it is always
+> `print("hi")`, never `print "hi"` (that last is a syntax error, and it
+> catches BASIC and old-Python hands alike). MicroPython is
+> case-sensitive everywhere, too — `Print` and `PRINT` are *different
+> names*, and neither of them exists. If your fingers have decades of
+> `PRINT "..."` in them, this will bite for a week and then stop.
 
 ## Breaking it on purpose
 

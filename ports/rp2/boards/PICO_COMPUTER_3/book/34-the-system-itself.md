@@ -161,7 +161,11 @@ Four directions from here, all open:
 
 - **Deeper into MicroPython** — https://docs.micropython.org/ is the
   full reference for the language and every `machine.` module; you
-  now read its idiom fluently.
+  now read its idiom fluently. One habit to form at once: read the docs
+  at the *released* version (choose it from the version selector —
+  v1.28 as this is written), **never** the `/latest/` pages, which
+  describe unreleased features that won't run on your firmware. The pink
+  banner across the top of every page is the reminder.
 - **Sideways to big Python** — the language you know *is* Python.
   Install it on any PC (https://python.org) and your skills arrive
   intact — files, classes, `asyncio` and all; even ulab's dialect

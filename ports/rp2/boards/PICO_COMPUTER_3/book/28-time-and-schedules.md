@@ -36,8 +36,10 @@ in one line.)
 
 ## Anatomy of a time
 
-`gettime()` returns the standard Python time tuple — eight numbers,
-and chapter 10 taught you everything needed to take it apart:
+`gettime()` hands back a **time tuple** — the standard eight-number
+shape that `time.localtime()` produces across MicroPython (here it is
+read from the DS3231), and chapter 10 taught you everything needed to
+take it apart:
 
 ```python
 >>> t = gettime()

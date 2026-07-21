@@ -333,6 +333,12 @@ reset" — the machine restarts Python itself, in a second, files
 untouched) and run again: edits picked up. Edit library, Ctrl-D, run —
 let it become a reflex.
 
+This is the exception chapter 5 hinted at when it called each run only
+*fresh-ish*. Your program's own variables really do vanish between
+runs; but an `import` is cached one level deeper — in the interpreter,
+not in your program — so it outlives them. The same soft reset (Ctrl-D)
+clears both.
+
 ## What you now hold
 
 - **`def name(parameters):`** files a recipe; `name(arguments)` cooks

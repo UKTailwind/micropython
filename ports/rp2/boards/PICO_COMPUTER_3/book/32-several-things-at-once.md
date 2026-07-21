@@ -187,11 +187,13 @@ Four rules, each with its because:
 
 1. **Short handlers, always** — they run to completion, delaying the
    main program, the REPL, and *each other*. Set the flag, leave.
-2. **Bursts drop.** Scheduled callbacks queue eight deep; a storm of
-   events past that is silently discarded. This is why *games poll* —
-   `keydown()`, `mouse("X")` read live state and can't lose events
-   they never queued. (Chapter 21's philosophy table, now with its
-   engineering justification.)
+2. **Bursts drop.** The callback queue is finite — **eight deep** on
+   this board (it is MicroPython's `micropython.schedule()` queue, which
+   the firmware sizes at 8; the standard MicroPython default is 4). A
+   storm of events past that is silently discarded. This is why *games
+   poll* — `keydown()`, `mouse("X")` read live state and can't lose
+   events they never queued. (Chapter 21's philosophy table, now with
+   its engineering justification.)
 3. **A handler that raises may die silently** — the exception prints
    once and that callback can stop firing. `try/except` inside any
    handler that does something risky.

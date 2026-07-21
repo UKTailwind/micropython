@@ -6,11 +6,14 @@ hands, and with a breadboard and a fistful of parts your programs
 start moving electrons in the room — lights, buttons, knobs, servos,
 sensors. Part V closes where computing gets physical.
 
-**The shopping list** (a "starter electronics kit" contains all of
+**The shopping list** (a "starter electronics kit" contains most of
 it): a breadboard, jumper wires (male-female for the header), a few
 LEDs, 330 Ω resistors, a couple of push buttons, a 10 kΩ
-potentiometer, a light-dependent resistor (LDR), and — for the
-grand finale — a small hobby servo. Total cost: a pizza.
+potentiometer, a **thermistor** (a resistor whose value changes with
+temperature), and — for the grand finale — a small hobby servo. Total
+cost: a pizza. A couple of the later experiments also use a plug-in
+**QWIIC light sensor** such as the TSL2591; the I2C section below
+introduces it.
 
 **The safety card**, read twice, taped to the desk:
 
@@ -134,10 +137,11 @@ print()
 `read_u16()` returns 0–65535 across 0–3.3 V; everything else is
 scaling. Turn the knob and watch the bar chase your fingers — that's
 a *voltage divider* you built (the wiper taps a fraction of 3.3 V),
-and the same trick reads any resistive sensor: swap the pot for the
-**LDR plus a 10 kΩ fixed resistor** in series (3.3V → LDR → GP40 →
-resistor → GND) and the bar now follows the room's light. One
-circuit, a thousand sensors.
+and the same trick reads any resistive sensor: swap the pot for a
+**thermistor and a 10 kΩ fixed resistor** in series (3.3V →
+thermistor → GP40 → resistor → GND) and the bar now tracks
+temperature — pinch the thermistor and watch it climb with your body
+heat. One circuit, a thousand sensors.
 
 ## PWM: pretending, very fast
 
@@ -194,11 +198,15 @@ print("devices answering:", [hex(a) for a in found])
 Run it bare and one voice answers: `0x68` — the DS3231, this book's
 oldest resident, revealed as just another I2C citizen. Plug a QWIIC
 module into the socket, run again, and its address joins the roll
-call. From there, each module has a MicroPython driver — usually one
-`mip.install(...)` away (the `mip` package tool came aboard in
-chapter 29) or a short datasheet read; the pattern is always
+call: plug in the **TSL2591 ambient-light sensor**, for instance, and
+`0x29` appears. From there, each module has a MicroPython driver —
+usually one `mip.install(...)` away (the `mip` package tool came
+aboard in chapter 29) or a short datasheet read; the pattern is always
 `readfrom_mem`/`writeto_mem` at its address, exactly as `ds3231.py`
 does — and that file, now, is readable to you as a *worked example*.
+For the TSL2591 its driver turns the raw sensor into a plain **lux**
+reading (how bright the room is, in real units) — the light
+experiments below build on it.
 
 (The header also carries everything `machine.UART` and `machine.SPI`
 need, for modules that speak those instead — the MicroPython docs
@@ -288,12 +296,13 @@ ten seconds; a second player will refuse to give the controller back.
 2. The theremin: knob to `tone()` — `tone(gpad.dial(200, 2000))` in a
    loop, `stop()` on the button. Chapter 20 meets copper; expect
    family members to appear and demand a turn.
-3. The night-light: LDR divider on GP40, LED PWM on GP0 — darker room,
-   brighter LED (invert the scale). Then add **hysteresis**: switch on
-   below 30%, off above 40% — and discover why, without it, dusk makes
-   the light *flicker* at the threshold (the sensor answers, the LED
-   changes the light, the sensor answers...). A control-systems lesson
-   in a bedside gadget.
+3. The night-light: the TSL2591's **lux** reading (I2C, from the roll
+   call above) driving an LED on PWM (GP0) — darker room, brighter LED
+   (invert the scale). Then add **hysteresis**: switch the LED on below
+   one lux level and off above a higher one — and discover why, without
+   that gap, dusk makes the light *flicker* at the threshold (the sensor
+   answers, the LED changes the light, the sensor answers...). A
+   control-systems lesson in a bedside gadget.
 4. Servo clock: chapter 28's `gettime()` driving `angle()` — seconds
    sweep 0–180°. A clock with a *hand*, in the physical sense.
 5. Re-run the roll call with your QWIIC module plugged in, then
@@ -311,12 +320,12 @@ ten seconds; a second player will refuse to give the controller back.
    controller: knob aims the crosshair's x, button fires, and a second
    knob (GP41) aims y if you have one. Cardboard cabinet optional but
    traditional.
-3. **The plant sentinel.** LDR (light) on GP40 logged hourly to CSV
-   (chapter 28's cron-junior), plotted daily (chapter 30), with a
-   QWIIC soil-moisture or temperature module joining the log if one's
-   in the drawer. Weeks later: your windowsill, as data.
-4. **The closed loop.** Chapter 30's `pcmath.PID` in the flesh: LED
-   (PWM) pointing at the LDR, and the controller holding the sensor at
-   a *setpoint* brightness — cover the LDR with your hand and watch
-   the LED fight back within a frame. That's a control loop, the idea
-   inside thermostats, drones and rockets, running on your desk.
+3. **The plant sentinel.** The TSL2591's light level logged hourly to
+   CSV (chapter 28's cron-junior), plotted daily (chapter 30), with
+   your thermistor's temperature — or a QWIIC soil-moisture module —
+   joining the log. Weeks later: your windowsill, as data.
+4. **The closed loop.** Chapter 30's `pcmath.PID` in the flesh: an LED
+   (PWM) pointing at the TSL2591, and the controller holding the sensor
+   at a *setpoint* light level — cover the sensor with your hand and
+   watch the LED fight back within a frame. That's a control loop, the
+   idea inside thermostats, drones and rockets, running on your desk.

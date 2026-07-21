@@ -1267,9 +1267,12 @@ auto(True)                     # optional: sync automatically at every boot
 ```
 
 - `wifi("SSID", "pw")` connects and saves the credentials; later `wifi()`
-  reconnects using the saved ones.
+  reconnects using the saved ones. `wifi("SSID", "pw", save=False)` connects
+  **without** saving — for a one-off session on a network you don't want kept.
 - `tz(hours)` sets the timezone offset (may be fractional, e.g. `5.5`); NTP time
   is UTC and this makes the clock show local time. `tz()` returns the setting.
+  (`tz()` is a Pico Computer 3 convenience — a fixed offset, not a full timezone
+  database; core MicroPython has no timezone support.)
 - `ntpsync()` connects (if needed), reads the time, applies `tz`, and writes
   **local** time to both the system clock and the battery-backed DS3231 — so the
   time stays correct even offline afterwards.
@@ -1277,11 +1280,16 @@ auto(True)                     # optional: sync automatically at every boot
   falls back silently to the DS3231 if Wi-Fi/NTP is unavailable). `auto(False)`
   turns it off.
 
-> **Security note:** the Wi-Fi SSID and password are stored in **plaintext** in
-> `/settings.json` on the flash filesystem — this board has no secure storage,
-> so anyone with the board or a firmware/SD image can read them. If that matters,
-> don't save credentials: call `wifi("SSID", "pw")` and `ntpsync()` each session
-> and leave `auto` off. See also section 16 for general Wi-Fi use.
+> **Security note:** the saved Wi-Fi password is **scrambled and tied to this
+> board**. It is combined with the board's `machine.unique_id()` and stored
+> base64 in `/settings.json`, so it is not readable at a glance and will **not
+> work if the settings file is copied to another board**. This is obfuscation,
+> **not** encryption: the board can unscramble its own password, so anyone with
+> the board and a REPL can still recover it — there is no way to truly protect
+> credentials on a device like this. (The SSID is stored in plain text; it is
+> not secret.) For anything genuinely sensitive, connect per-session with
+> `wifi("SSID", "pw", save=False)`, call `ntpsync()` by hand, and leave `auto`
+> off. See also section 16 for general Wi-Fi use.
 
 ---
 

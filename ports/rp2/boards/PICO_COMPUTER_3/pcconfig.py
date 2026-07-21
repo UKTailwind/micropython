@@ -35,6 +35,18 @@ def set(key, value):
         pass
 
 
+def unset(key):
+    """Remove a saved key (no-op if absent), persisting the change."""
+    c = _load()
+    if key in c:
+        del c[key]
+        try:
+            with open(_PATH, "w") as f:
+                json.dump(c, f)
+        except Exception:
+            pass
+
+
 def keymap(name=None):
     """Get the current USB keyboard layout, or set it (persisted across reboots).
     e.g. keymap("UK"); keymaps() lists the choices."""

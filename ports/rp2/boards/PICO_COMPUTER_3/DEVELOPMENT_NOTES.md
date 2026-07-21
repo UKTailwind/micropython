@@ -2119,6 +2119,32 @@ when it moves, so it floats over any screen content without disturbing it.
   pcconsole.console(); input('q')"` with stdin at EOF, ~1 in 2. A
   proper fix would stop the SDL/audio threads in an atexit hook.
 
+### 61. Saved Wi-Fi password: scrambled and board-bound (reviewer feedback)
+
+- **Why**: a book reviewer flagged that `wifi()` stored the password in
+  plaintext in `/settings.json` yet the chapter advised a "per-session,
+  don't save" path that the code didn't actually offer. Peter's steer:
+  add a light obfuscation keyed to the board so the password isn't
+  human-readable and can't be carried to another machine — accepting
+  up front that it's not real protection.
+- **Scheme** (`pcnet.py`): keystream = repeated
+  `sha256(b"pc3-wifi-v1" + machine.unique_id() + counter)`, XORed with
+  the password bytes, stored base64 under `wifi_pw_enc`. Decrypt is the
+  same XOR (`unique_id()` chosen over the WLAN MAC: always available, no
+  radio needed, stable per board). `pcconfig.unset()` added to purge the
+  key; a legacy plaintext `wifi_pw` is migrated to the scrambled form on
+  first read. `wifi(..., save=False)` connects without persisting — the
+  real per-session path the book had promised.
+- **Honest boundary** (documented in the module note + manual §11): this
+  is obfuscation, not encryption. The board unscrambles its own password,
+  so anyone with the board + a REPL recovers it; the value is that it's
+  not readable at a glance and won't decode on a different `unique_id()`.
+  SSID stays plaintext (not secret).
+- **Verified (emulator)**: round-trip; blob never contains the plaintext;
+  settings.json shows only base64; legacy-plaintext migration; a
+  different key yields undecodable output; empty password round-trips.
+  Pure-Python frozen-module change — the user builds the firmware.
+
 ---
 
 ## Files touched

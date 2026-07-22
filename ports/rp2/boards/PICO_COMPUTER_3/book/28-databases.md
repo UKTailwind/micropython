@@ -167,8 +167,8 @@ table without handing you a single row — the **aggregate** functions:
 ```python
 >>> db.execute("SELECT count(*) FROM pets").fetchone()
 (3,)
->>> db.execute("SELECT sum(legs), avg(legs) FROM pets").fetchone()
-(10, 3.333333)
+>>> db.execute("SELECT sum(legs), max(legs) FROM pets").fetchone()
+(10, 4)
 ```
 
 `count`, `sum`, `avg`, `min`, `max` — the questions a spreadsheet
@@ -199,7 +199,8 @@ own table, and link them by an **id**:
 
 To answer a real question you walk the links, and SQL's word for
 walking a link is **`JOIN`**: "match each row here to its row there".
-Which order lines are on order 2, and what are they called?
+Take the Traders tables from the diagram (the project builds them in a
+moment) — which order lines are on order 2, and what are they called?
 
 ```python
 >>> db.execute(
@@ -426,9 +427,9 @@ so read it in three layers:
   missing", grown up. `open_db()` peeks in `sqlite_master` (SQLite's
   private catalogue of tables) to see whether we have built before; if
   not, `build()` creates the five tables and fills them. Note the
-  **`BEGIN` … `COMMIT`** wrapping every insert: instead of saving
-  sixty times, the database saves *once*, at the end — the fast way to
-  load a batch, and the fix promised earlier. (And why a loop of
+  **`BEGIN` … `COMMIT`** wrapping every insert: instead of a separate
+  save after each row, the database saves *once*, at the end — the fast
+  way to load a batch, and the fix promised earlier. (And why a loop of
   `execute`, not one `executemany`? On this machine `executemany`
   runs a multi-statement *script*, not one statement over many rows —
   so parameterised bulk loads use `execute` in a `for`.)
@@ -466,7 +467,7 @@ Everything in this chapter is standing behind that one screen. When
 you click a customer and their orders and totals appear instantly,
 that is a three-table `JOIN` and a `GROUP BY` running on the same
 chip that draws the window — a real database and a real user
-interface, meeting in about four hundred lines of Python. Not bad for
+interface, meeting in a few hundred lines of Python. Not bad for
 a machine that fits in your hand.
 
 ## Experiments
@@ -485,8 +486,9 @@ a machine that fits in your hand.
    totals change on the next click — the database is *live*, not a
    snapshot.
 4. Ask the full Northwind a question of your own at the `>>>` prompt:
-   `import nwdata`, `con = nwdata.open_db("/sd/northwind.db")`, then
-   write a `SELECT` — the busiest month, the customer in the most
+   `import sys; sys.path.append("/sd/northwind")`, then `import nwdata`,
+   `con = nwdata.open_db("/sd/northwind.db")`, and write a
+   `SELECT` — the busiest month, the customer in the most
    countries, whatever you're curious about. This is what a database
    is *for*.
 

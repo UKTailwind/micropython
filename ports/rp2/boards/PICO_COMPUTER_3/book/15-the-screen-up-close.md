@@ -85,6 +85,8 @@ scanning top to bottom, and universal in computer graphics. So in
 than memorising numbers, ask the machine — `hdmi.width()` and
 `hdmi.height()` — and your drawings survive mode changes.
 
+![The screen's coordinate grid in the default `RGB640` mode. The origin `(0, 0)` is the top-left corner; `x` runs right to 639 and `y` runs *down* to 479, so the centre is `(320, 240)`. Any point — here `(200, 150)` — is read across for `x`, then down for `y`.](figs/15-coordinates.png)
+
 ## Colour: mixing light
 
 A colour here is three numbers, 0–255 each, for **red, green and

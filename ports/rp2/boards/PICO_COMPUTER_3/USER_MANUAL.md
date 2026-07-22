@@ -1789,6 +1789,36 @@ The **`pcsprite`** module (the sprite engine — `import pcsprite`, section 5) i
 frozen Python module built on `hdmi`; `pcconfig`, `pcconsole` and `pcaudio` are
 the frozen Python modules behind `screen`/`console`/`play` and friends.
 
+### Database — `usqlite` (SQLite)
+
+This build includes a full **SQLite** database engine (`import usqlite`), so your
+programs can store and query data with real SQL — tables, indexes, transactions —
+instead of hand-rolled files. Databases are ordinary files on the flash disk (`/`)
+or the SD card (`/sd`) and survive a power-cycle.
+
+```python
+import usqlite
+
+db = usqlite.connect("/data.db")               # or "/sd/data.db"
+db.execute("CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY, text TEXT)")
+db.executemany("INSERT INTO notes(text) VALUES (?)",
+               [("hello",), ("world",)])         # parameters avoid SQL injection
+
+for row in db.execute("SELECT id, text FROM notes ORDER BY id"):
+    print(row)                                   # (1, 'hello'), (2, 'world')
+
+print("SQLite", usqlite.sqlite_version)          # 3.47.0
+db.close()
+```
+
+Notes:
+- Use **one connection at a time** — the flash filesystem provides only loose file
+  locking, so concurrent writers are not safe.
+- SQLite works in the shared PSRAM heap; very large queries use more RAM and add
+  garbage-collection pressure. `usqlite.mem_peak()` reports the peak SQLite usage.
+- The API is `usqlite`'s own (close to, but **not** identical to, CPython's
+  `sqlite3` / DB-API 2.0). See the module's own docs for the full surface.
+
 ---
 
 ## Quick reference

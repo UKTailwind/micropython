@@ -75,3 +75,7 @@ freeze("$(BOARD_DIR)", "pcplot.py")
 
 # Full-screen file manager (MMBasic FM): fm() -- browse/run/play/view/edit.
 freeze("$(BOARD_DIR)", "pcfm.py")
+
+# NOTE: SQLite is provided by the `usqlite` C user-module (lib/usqlite, wired in
+# via USER_C_MODULES in mpconfigboard.cmake). It is pure C and self-registers, so
+# there is no .py to freeze here -- `import usqlite` just works.

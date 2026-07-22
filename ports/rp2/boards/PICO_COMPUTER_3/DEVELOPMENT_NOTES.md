@@ -2283,6 +2283,49 @@ when it moves, so it floats over any screen content without disturbing it.
   push a multi-line file over the 115200 console — raw paste mode
   (Ctrl-E/Ctrl-D) drops characters on long bursts (no flow control).
 
+### 65. On-device SQLite — `usqlite` C user-module
+
+- **Library**: usqlite (MIT), a MicroPython **C** user-module wrapping the
+  **SQLite 3.47.0** amalgamation. Vendored as a git submodule at `lib/usqlite`,
+  pointing at our fork **`UKTailwind/usqlite`** (forked from `spatialdude/usqlite`
+  v0.1.8) pinned to **`7399e48`** on branch `pc3-micropython-1.29` — that commit
+  is v0.1.8 plus the one MicroPython-1.29 fix below. Wired in via one
+  `list(APPEND USER_C_MODULES …/lib/usqlite/micropython.cmake)` line in
+  `mpconfigboard.cmake`, next to ulab — its own `micropython.cmake` self-links
+  into `usermod` and registers the module, so there is **no `MICROPY_PY_*`
+  switch and nothing to freeze** (it is pure C; `import usqlite` just works).
+- **Why it fits this board**: SQLite needs a real heap and allocator. usqlite's
+  stock config (`SQLITE_ZERO_MALLOC`, no MEMSYS5) routes SQLite
+  malloc/realloc/free to MicroPython's `gc_alloc`/`gc_realloc`/`gc_free`, i.e.
+  the **8 MB PSRAM GC heap** — automatically, no config. Storage uses
+  `SQLITE_OS_OTHER=1` + usqlite's VFS (`usqlite_vfs.c`/`usqlite_file.c`) over the
+  MicroPython VFS, so DB files live on **LittleFS (`/`) or SD (`/sd`)**.
+  `SQLITE_THREADSAFE=0`, single connection — matches the single-Python model.
+- **Config kept stock**: `usqlite_config.h` already omits ANALYZE / EXPLAIN /
+  UTF16 / load-extension / deprecated / shared-cache etc.; FTS/JSON/RTREE off.
+- **Cost**: adds the ~250k-line `sqlite3.c` to a clean build; firmware flash grew
+  ~0.37 MB (1.26 → **1.62 MB**), still well inside the 4 MB region. Static RAM cost
+  is tiny: `usqlite.c.o` (which `#include`s `sqlite3.c`) is 369 KB flash but only
+  ~6.6 KB data+bss; all usqlite objects ≈ **7 KB RAM**.
+- **Two source-level changes were required** (both recorded in Files touched):
+  - `usqlite_cursor.c`: `mp_obj_is_type(v, &mp_type_float)` → `mp_obj_is_float(v)`.
+    MicroPython 1.29's `mp_obj_is_type` has a compile-time static-assert
+    forbidding `&mp_type_float`; usqlite v0.1.8 predates it. Committed to our fork
+    (`UKTailwind/usqlite` `7399e48`) so clones build reproducibly — the submodule
+    is pinned to that SHA. To pull upstream updates later, rebase the fork branch
+    on a newer usqlite tag and re-pin.
+  - `memmap_rp2350/section_extra_post_platform_end.incl`: SRAM GC-heap floor
+    **64 KB → 56 KB**. This board packs ~300 KB HDMI framebuffer + ~33 KB audio
+    into static SRAM (fast-RAM by design), leaving the SRAM GC arena at 63.57 KB;
+    usqlite's ~7 KB tipped it **444 bytes** under the old 64 KB `ASSERT`. Safe
+    because the real heap is the 8 MB PSRAM (`gc_add` at runtime); the SRAM arena
+    is only the primary/spill block. New floor leaves ~7.5 KB headroom.
+- **ARM-only**: builds for the single `rp2350` (ARM) target; the RISC-V variant
+  was removed (§ board summary), so there is one build to validate.
+- **Caveats**: shared GC heap means large queries raise GC pressure / can
+  fragment (fine at 8 MB); LittleFS gives only loose `fsync`/locking, so use
+  **one connection at a time**. API is usqlite's own, **not** CPython DB-API 2.0.
+
 ---
 
 ## Files touched
@@ -2335,7 +2378,10 @@ when it moves, so it floats over any screen content without disturbing it.
 | `shared/runtime/pyexec.c` | banner uses `MICROPY_BANNER_MACHINE_SEP` |
 | `boards/PICO_COMPUTER_3/mpconfigboard.h` | double floats, UART console, USB off, threads off, SD + HDMI pins, reserved pins, 252 MHz clock + flash cap, MCU name + banner; `PICO_COMPUTER_3_VERSION` folded into board name (shows in banner + `os.uname().machine`) |
 | `boards/PICO_COMPUTER_3/USER_MANUAL.md` | **new** end-user manual (pins, all commands/modules, standard-module list, MicroPython doc reference) — ships with the release |
-| `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1`; 12 MB flash FS; ulab via `USER_C_MODULES`; feature-gate vars `MICROPY_HW_ENABLE_HDMI`/`MICROPY_PY_MACHINE_SDCARD`/`MICROPY_HW_USB_HOST` (§27) |
+| `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1`; 12 MB flash FS; ulab **and usqlite** via `USER_C_MODULES` (§65); feature-gate vars `MICROPY_HW_ENABLE_HDMI`/`MICROPY_PY_MACHINE_SDCARD`/`MICROPY_HW_USB_HOST` (§27) |
+| `lib/usqlite` | **new** git submodule → `UKTailwind/usqlite` `7399e48` (fork of spatialdude v0.1.8 + 1.29 fix) — SQLite 3.47 C user-module; `import usqlite` (§65) |
+| `.gitmodules` | register `lib/usqlite` submodule (url = UKTailwind/usqlite, branch pc3-micropython-1.29) |
+| `ports/rp2/memmap_rp2350/section_extra_post_platform_end.incl` | SRAM GC-heap `ASSERT` floor 64 KB → 56 KB (PSRAM is the real heap) (§65) |
 | `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `_boot_board`/`pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |
 | `boards/PICO_COMPUTER_3/pcsprite.py` | **new** sprite engine: MMBasic collision/layer/scroll semantics on a dirty-rect / overlay-layer compositor (§34) |
 | `boards/PICO_COMPUTER_3/pcnet.py` | **new** Wi-Fi + NTP time: `wifi`/`ntpsync`/`tz`/`auto`; credentials in `pcconfig` (§39) |

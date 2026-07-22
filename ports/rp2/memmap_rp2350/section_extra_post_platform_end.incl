@@ -18,9 +18,13 @@ SECTIONS
     /* Change for MicroPython: expand the C stack down to __GcHeapEnd. */
     __StackBottom = __GcHeapEnd;
 
-    /* Check GC heap is at least 64 KB. This is half the minimum RAM suggested
-       for full-featured MicroPython. This value accounts for large static
-       buffers included in user C or C++ modules, which might significantly
-       reduce the available heap but also lower demand for memory at runtime. */
-    ASSERT((__GcHeapEnd - __GcHeapStart) > 64*1024, "GcHeap is too small")
+    /* Check GC heap is at least 56 KB. Upstream uses 64 KB (half the minimum RAM
+       suggested for full-featured MicroPython). Lowered here for the
+       PICO_COMPUTER_3 fork: this board's real heap is the 8 MB PSRAM added at
+       runtime via gc_add(), so the SRAM arena is only a small primary/spill
+       block. Its ~300 KB HDMI framebuffer + audio buffers (static BSS, in fast
+       SRAM by design) leave the SRAM GC arena just under 64 KB, and baking in
+       usqlite (SQLite, ~7 KB static) tipped it 444 bytes short. 56 KB keeps a
+       safe SRAM arena while allowing large static buffers in user C modules. */
+    ASSERT((__GcHeapEnd - __GcHeapStart) > 56*1024, "GcHeap is too small")
 }

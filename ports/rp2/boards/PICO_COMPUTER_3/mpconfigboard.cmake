@@ -50,6 +50,12 @@ set(MICROPY_PY_BLUETOOTH_CYW43 ON)
 # the `usermod` target, so no MICROPY_PY_ULAB switch is needed. Appended (and
 # de-duplicated) so a USER_C_MODULES passed on the command line is preserved.
 list(APPEND USER_C_MODULES ${MICROPY_DIR}/lib/ulab/code/micropython.cmake)
+# Pull in usqlite (SQLite 3.47 amalgamation) as a user C module. Like ulab it
+# ships its own micropython.cmake that self-links into `usermod` and registers
+# the `usqlite` module -- no MICROPY_PY_* switch and nothing to freeze (it is
+# pure C). SQLite's allocator is routed to MicroPython's GC heap (the 8 MB PSRAM
+# heap on this board) and its VFS onto the mounted filesystem (LittleFS / SD).
+list(APPEND USER_C_MODULES ${MICROPY_DIR}/lib/usqlite/micropython.cmake)
 list(REMOVE_DUPLICATES USER_C_MODULES)
 
 # Board specific version of the frozen manifest

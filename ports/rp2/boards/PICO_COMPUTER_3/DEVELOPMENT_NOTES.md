@@ -2325,6 +2325,22 @@ when it moves, so it floats over any screen content without disturbing it.
 - **Caveats**: shared GC heap means large queries raise GC pressure / can
   fragment (fine at 8 MB); LittleFS gives only loose `fsync`/locking, so use
   **one connection at a time**. API is usqlite's own, **not** CPython DB-API 2.0.
+- **Hardware-validated 2026-07-22** over COM11 (PC3 on the 0.10+usqlite build).
+  Pushed a test via `autosave` and ran it: `import usqlite` → SQLite 3.47.0;
+  `executemany` (multi-statement CREATE in a txn) + parameterized `execute`
+  inserts with **REAL** values (3.14/2.71/42.0) round-tripped, `SUM`=47.85
+  (exercises the patched float-bind path); closed and **reopened** `/sqltest.db`,
+  `WHERE temp > ?` with a float param returned `['alice','carol']` — proving
+  on-flash persistence. `RESULT PASS`.
+- **Emulator parity**: the unix `pc3` emulator variant compiles usqlite too, so
+  `import usqlite` behaves identically there. Wired in `emulator/src/micropython.mk`
+  via the same `USERMOD_DIR`-swap include used for ulab, with the vendored
+  amalgamation's objects given `CWARN := -w` (the unix build's `-Werror` lands
+  after `CFLAGS_USERMOD`); `lib/usqlite` added to the variant's `GIT_SUBMODULES`.
+  Same test run through a headless `emuboot` boot (SDL dummy video) with
+  `/sqltest.db` on the emulator's mounted flash → `RESULT PASS`, byte-identical
+  output to the hardware. usqlite is part of the C-module set (like ulab), so the
+  SDL-less terminal-only fallback build omits it, by design.
 
 ---
 

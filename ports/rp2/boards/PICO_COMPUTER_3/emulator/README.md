@@ -101,6 +101,7 @@ presses a switch programmatically (handy for scripted tests).
 | GPIO / ADC | the Pins panel (or sensible idle values) |
 | Wi-Fi / requests / MQTT | the host's real network |
 | ulab / pcmath / plot | the same ulab the firmware builds |
+| SQLite (`import usqlite`) | the same usqlite the firmware builds, over the host filesystem |
 | Touch panel | reports not-present |
 | XMODEM, Bluetooth, deep sleep | not emulated |
 

@@ -54,6 +54,24 @@ else
 $(warning pc3: lib/ulab submodule not present -- run 'make -C ports/unix VARIANT=pc3 submodules' first (needs a git clone, not a source tarball), then rebuild)
 endif
 
+# usqlite (SQLite 3.47 amalgamation) -- same submodule the firmware bakes in, so
+# `import usqlite` behaves identically in the emulator. Its micropython.mk
+# snapshots USERMOD_DIR, so point it at lib/usqlite for the include (as ulab).
+ifneq ($(wildcard $(TOP)/lib/usqlite/micropython.mk),)
+PC3_SAVED_USERMOD := $(USERMOD_DIR)
+USERMOD_DIR := $(TOP)/lib/usqlite
+include $(TOP)/lib/usqlite/micropython.mk
+USERMOD_DIR := $(PC3_SAVED_USERMOD)
+# Vendored amalgamation: silence warnings for its objects. The unix CWARN
+# (-Werror + strict float/extra checks) lands after CFLAGS_USERMOD, so relax
+# per-object, exactly as the audio decoders above do.
+$(foreach o,usqlite usqlite_module usqlite_connection usqlite_cursor usqlite_row \
+            usqlite_file usqlite_mem usqlite_vfs usqlite_utils,\
+    $(eval $(BUILD)/$(TOP)/lib/usqlite/$(o).o: CWARN := -w))
+else
+$(warning pc3: lib/usqlite submodule not present -- run 'make -C ports/unix VARIANT=pc3 submodules' first, then rebuild)
+endif
+
 # Image loaders (jpeg/bmp/png modules + decoders + dither): pure CPU code,
 # drawing through the shared hdmi core.
 SRC_USERMOD_C += $(PC3_RP2_DIR)/jpeg.c

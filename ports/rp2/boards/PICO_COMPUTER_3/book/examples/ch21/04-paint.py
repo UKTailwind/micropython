@@ -3,13 +3,15 @@ import keyboard
 import pcsprite as sp
 
 screen(hdmi.RGB320)
-time.sleep(3)                       # let the monitor lock the mode
+# let the monitor lock the mode
+time.sleep(3)
 
 d = hdmi.fb()
 W = hdmi.width()
 H = hdmi.height()
 
-PALETTE = [WHITE, RED, ORANGE, YELLOW, GREEN, CYAN, COBALT, MAGENTA]
+PALETTE = [WHITE, RED, ORANGE, YELLOW, GREEN, CYAN, COBALT,
+           MAGENTA]
 BG = d.colour(0x101010)
 d.fill(BG)
 hdmi.text("1-8 colour  [ ] size  c clear  s save  Esc quit",
@@ -45,7 +47,8 @@ try:
 
         mx = mouse("X")
         my = mouse("Y")
-        cursor.x = mx - 8                    # centre the crosshair
+        # centre the crosshair
+        cursor.x = mx - 8
         cursor.y = my - 8
         if mouse("L"):
             d.ellipse(mx, my, size, size, colour, True)
@@ -58,4 +61,5 @@ try:
 finally:
     sp.reset()
     console()
-    screen(hdmi.RGB640)                      # back to the roomy default
+    # back to the roomy default
+    screen(hdmi.RGB640)

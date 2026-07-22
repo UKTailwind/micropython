@@ -25,14 +25,16 @@ def coin():
 
 def siren(times=3):
     for _ in range(times):
-        for f in list(range(600, 1200, 25)) + list(range(1200, 600, -25)):
+        for f in (list(range(600, 1200, 25))
+                  + list(range(1200, 600, -25))):
             sound(3, "B", "S", f, 16)
             time.sleep(0.006)
     sound(3, "B", "O", 1)
 
 if __name__ == "__main__":
     import keyboard
-    print("SFX BOARD -- 1 laser  2 boom  3 jump  4 coin  5 siren  Esc quits")
+    print("SFX BOARD -- 1 laser  2 boom  3 jump  4 coin  5 siren "
+          " Esc quits")
     while True:
         k = keydown(1)
         if k == ord("1"):

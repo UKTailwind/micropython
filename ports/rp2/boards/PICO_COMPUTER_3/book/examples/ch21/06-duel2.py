@@ -7,7 +7,8 @@ def flush():
         time.sleep(0.01)          # wait for all fingers off
 
 print("REACTION DUEL -- player 1: A    player 2: L")
-print("Wait for the GO beep. Too early loses the round. Five rounds.")
+print("Wait for the GO beep. Too early loses the round. Five "
+      "rounds.")
 
 scores = {1: 0, 2: 0}
 
@@ -27,7 +28,8 @@ for rnd in range(1, 6):
             break
     if early:
         winner = 2 if early == 1 else 1
-        print(f"Player {early} jumped the gun! Point to player {winner}.")
+        print(f"Player {early} jumped the gun! Point to player "
+              f"{winner}.")
         scores[winner] += 1
         continue
 

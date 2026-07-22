@@ -15,7 +15,8 @@ disp = g.displaybox(20, 12, 280, 36, "0", font=3)
 entry = ["0"]                       # what's being typed
 acc = [None]                        # the running total
 op = [None]                         # the pending operator
-fresh = [True]                      # next digit starts a new number
+# next digit starts a new number
+fresh = [True]
 
 def show(text):
     disp.value = text[:14]
@@ -58,7 +59,8 @@ def press(c):
             acc[0] = float(entry[0])
         op[0] = c
         fresh[0] = True
-        if acc[0] is None:                      # a division just blew up
+        # a division just blew up
+        if acc[0] is None:
             entry[0], op[0] = "Err", None
     elif c == "=" and op[0] is not None and not fresh[0]:
         acc[0] = calc(acc[0], op[0], float(entry[0]))
@@ -77,7 +79,8 @@ for r, row in enumerate(ROWS):
                  callback=lambda b, c=ch: press(c))
 g.button(236, 184, 62, 32, "=", font=2, bg=COBALT,
          callback=lambda b: press("="))
-g.button(236, 64, 62, 32, "OFF", fg=WHITE, bg=RED, callback=power_off)
+g.button(236, 64, 62, 32, "OFF", fg=WHITE, bg=RED,
+         callback=power_off)
 
 try:
     while not done[0]:

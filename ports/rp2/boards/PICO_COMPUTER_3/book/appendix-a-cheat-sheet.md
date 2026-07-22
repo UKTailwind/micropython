@@ -100,7 +100,7 @@ tm.set(c,r,t); tm.view(x,y); tm.draw()
 tm.set_attr(tile, 1); tm.collide(x, y, w, h, mask=1)
 ```
 
-## Time & system (chapters 28, 35)
+## Time & system (chapters 29, 36)
 
 ```
 gettime() -> tuple   settime(y,mo,d,h,mi,s)   ntpsync() tz(1)
@@ -111,7 +111,7 @@ console("both"/"serial"/"screen"/"none")  keymap("UK")
 rm("/settings.json") = factory reset;  /boot.py then /main.py
 ```
 
-## GPIO (chapter 31)
+## GPIO (chapter 32)
 
 ```
 p = Pin(0, Pin.OUT); p.on()/off()/toggle()

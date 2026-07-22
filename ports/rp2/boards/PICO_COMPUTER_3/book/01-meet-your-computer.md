@@ -96,7 +96,7 @@ the date and time even when the machine is unplugged, so your programs
 always know what day it is.
 
 **Wi-Fi and Bluetooth.** A CYW43 wireless chip connects the machine to your
-network and the internet — chapter 29. (A small status LED also lives on
+network and the internet — chapter 30. (A small status LED also lives on
 this chip; you will blink it in the next chapter.)
 
 **Room to grow.** Like its Raspberry Pi Pico relatives, the board can
@@ -104,7 +104,7 @@ control electronics you add yourself. An I/O header exposes over twenty
 general-purpose input/output (GPIO) pins plus power, for LEDs, buttons,
 sensors and motors you wire up; and a **QWIIC** socket accepts the huge
 family of plug-together I2C modules (SparkFun Qwiic, Adafruit STEMMA QT,
-Pimoroni Qw/ST) with no soldering at all — chapter 31.
+Pimoroni Qw/ST) with no soldering at all — chapter 32.
 
 ![The Pico Computer 3. Along the top: the HEARTBEAT jumper, the wireless
 module, the CR2032 clock battery and the audio jack. Down the right edge:

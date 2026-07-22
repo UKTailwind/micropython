@@ -9,7 +9,8 @@ def held(code):
             return True
     return False
 
-screen(hdmi.RGB640)                      # this game is laid out for 640x480
+# this game is laid out for 640x480
+screen(hdmi.RGB640)
 time.sleep(3)
 
 W = hdmi.width()
@@ -25,7 +26,8 @@ INK = d.colour(WHITE)
 DIM = d.colour(GRAY)
 
 BW, BH = 72, 20                          # brick cell size
-ROWS = [(RED, 50), (ORANGE, 40), (YELLOW, 30), (GREEN, 20), (CYAN, 10)]
+ROWS = [(RED, 50), (ORANGE, 40), (YELLOW, 30), (GREEN, 20), (CYAN,
+        10)]
 PW, PH = 80, 10                          # paddle
 PY = H - 40                              # paddle's fixed height
 BS = 8                                   # ball
@@ -40,8 +42,10 @@ def new_wall():
 
 def serve(level):
     speed = min(200 * (1.0 + 0.15 * (level - 1)), 420)
-    return (W / 2, 200.0,                # from just beneath the wall...
-            random.randint(-100, 100) * 1.0, speed)   # ...a full second out
+    # from just beneath the wall...
+    return (W / 2, 200.0,
+            # ...a full second out
+            random.randint(-100, 100) * 1.0, speed)
 
 state = "title"
 bricks = new_wall()
@@ -87,7 +91,8 @@ try:
                 beep(440, 12)
 
             # the paddle -- only on the way down
-            if bdy > 0 and PY - BS <= by <= PY and px - BS < bx < px + PW:
+            if (bdy > 0 and PY - BS <= by <= PY
+                and px - BS < bx < px + PW):
                 rel = (bx + BS / 2 - px) / PW - 0.5
                 bdx = rel * 2 * 320
                 bdy = -abs(bdy)
@@ -99,22 +104,26 @@ try:
                 if x - BS < bx < x + BW and y - BS < by < y + BH:
                     from_x = min(bx + BS - x, x + BW - bx)
                     from_y = min(by + BS - y, y + BH - by)
-                    if from_x < from_y:            # struck a side face
+                    # struck a side face
+                    if from_x < from_y:
                         bdx = -bdx
-                    else:                          # struck top or bottom
+                    # struck top or bottom
+                    else:
                         bdy = -bdy
                     bricks.remove(b)
                     score += points
                     beep(400 + points * 10, 15)
                     break
 
-            if not bricks:                         # level cleared!
+            # level cleared!
+            if not bricks:
                 level += 1
                 bricks = new_wall()
                 bx, by, bdx, bdy = serve(level)
                 beep(1320, 300)
 
-            if by > H:                             # lost below the paddle
+            # lost below the paddle
+            if by > H:
                 lives -= 1
                 beep(220, 300)
                 if lives == 0:
@@ -138,11 +147,13 @@ try:
         for i in range(lives):
             d.fill_rect(W - 20 - i * 16, 14, 12, 6, INK)
         if state == "title":
-            hdmi.text("B R E A K O U T", W // 2 - 240, 200, INK, -1, 2, 3)
+            hdmi.text("B R E A K O U T", W // 2 - 240, 200, INK,
+                      -1, 2, 3)
             hdmi.text("LEFT/RIGHT to steer -- SPACE to start",
                       W // 2 - 148, 280, DIM)
         elif state == "over":
-            hdmi.text("GAME OVER", W // 2 - 144, 200, INK, -1, 2, 3)
+            hdmi.text("GAME OVER", W // 2 - 144, 200, INK, -1, 2,
+                      3)
             hdmi.text("SPACE to try again", W // 2 - 72, 280, DIM)
         hdmi.copy("F", "N")
 finally:

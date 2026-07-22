@@ -13,7 +13,8 @@ def load_prefs():
                 if key in prefs:
                     prefs[key] = int(val)
     except (OSError, ValueError):
-        pass                        # missing or mangled: defaults stand
+        # missing or mangled: defaults stand
+        pass
     return prefs
 
 def save_prefs(prefs):
@@ -33,13 +34,15 @@ g.start()
 done = [False]
 
 def setter(key):
-    """Make a callback that files a control's value under `key`."""
+    """Make a callback that files a control's value under
+    `key`."""
     def apply(c):
         prefs[key] = c.value
     return apply
 
 def chooser(key, val):
-    """Make a callback that files the fixed `val` (for radio buttons)."""
+    """Make a callback that files the fixed `val` (for radio
+    buttons)."""
     def apply(c):
         prefs[key] = val
     return apply
@@ -58,9 +61,11 @@ g.switch(24, 80, 80, 24, "ON|OFF", value=prefs["flash"],
 g.caption(110, 86, "screen flash")
 
 g.frame(12, 114, 296, 52, "Volume")
-vol = g.slider(24, 134, 200, 20, value=prefs["volume"], lo=0, hi=100,
+vol = g.slider(24, 134, 200, 20, value=prefs["volume"], lo=0,
+               hi=100,
                callback=setter("volume"))
-g.bargauge(240, 134, 56, 20, value=prefs["volume"], lo=0, hi=100, fg=GREEN)
+g.bargauge(240, 134, 56, 20, value=prefs["volume"], lo=0, hi=100,
+           fg=GREEN)
 
 g.frame(12, 172, 200, 60, "Difficulty")
 for i, name in enumerate(("easy", "normal", "fierce")):
@@ -75,7 +80,8 @@ def do_save(b):
     saved.value = "saved!"
     beep(880, 40)
 
-g.button(224, 196, 84, 30, "SAVE", fg=WHITE, bg=COBALT, callback=do_save)
+g.button(224, 196, 84, 30, "SAVE", fg=WHITE, bg=COBALT,
+         callback=do_save)
 g.button(12, 4, 56, 24, "EXIT", callback=quit_app)
 
 try:

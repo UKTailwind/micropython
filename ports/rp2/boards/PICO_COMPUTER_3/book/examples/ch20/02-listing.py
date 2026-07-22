@@ -1,1 +1,2 @@
-play("/sd/music/song.mp3")     # also .wav, .flac, .mod -- by extension
+# also .wav, .flac, .mod -- by extension
+play("/sd/music/song.mp3")

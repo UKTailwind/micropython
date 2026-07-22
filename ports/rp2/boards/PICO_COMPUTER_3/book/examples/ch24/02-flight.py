@@ -36,7 +36,8 @@ stars = [(random.randint(0, W - 1), random.randint(0, H - 1))
 
 x, y = W / 2, H / 2
 vx = vy = 0.0
-a = 0.0                                  # heading, degrees, 0 = up
+# heading, degrees, 0 = up
+a = 0.0
 
 clock = pcgame.Clock(vsync=True)
 console("none")
@@ -52,10 +53,12 @@ try:
         thrusting = held(keyboard.UP)
         if thrusting:
             r = math.radians(a)
-            vx += math.sin(r) * 240 * dt         # thrust adds to VELOCITY
+            # thrust adds to VELOCITY
+            vx += math.sin(r) * 240 * dt
             vy -= math.cos(r) * 240 * dt
 
-        vx *= 1 - 0.3 * dt                       # a whisper of drag
+        # a whisper of drag
+        vx *= 1 - 0.3 * dt
         vy *= 1 - 0.3 * dt
         x = (x + vx * dt) % W                    # space wraps
         y = (y + vy * dt) % H

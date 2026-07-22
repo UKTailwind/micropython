@@ -8,7 +8,8 @@ def held(code):
             return True
     return False
 
-screen(hdmi.RGB640)                 # this game is laid out for 640x480
+# this game is laid out for 640x480
+screen(hdmi.RGB640)
 time.sleep(3)
 
 W = hdmi.width()
@@ -51,28 +52,34 @@ try:
         # --- update
         bx += bdx * dt
         by += bdy * dt
-        if by < 0 or by > H - BS:            # top and bottom walls
+        # top and bottom walls
+        if by < 0 or by > H - BS:
             by = max(0, min(H - BS, by))
             bdy = -bdy
             beep(440, 15)
-        if bx < 0 or bx > W - BS:            # side walls (for now!)
+        # side walls (for now!)
+        if bx < 0 or bx > W - BS:
             bx = max(0, min(W - BS, bx))
             bdx = -bdx
             beep(440, 15)
 
-        # paddle faces: deflect, and steer by where the ball struck
-        if bdx < 0 and 16 <= bx <= 16 + PW and p1y - BS < by < p1y + PH:
+        # paddle faces: deflect, and steer by where the ball
+        # struck
+        if (bdx < 0 and 16 <= bx <= 16 + PW
+            and p1y - BS < by < p1y + PH):
             bdx = -bdx
             bdy = 260 * ((by + BS / 2 - p1y) / PH - 0.5) * 2
             beep(880, 15)
-        if bdx > 0 and W - 24 - BS <= bx <= W - 16 and p2y - BS < by < p2y + PH:
+        if (bdx > 0 and W - 24 - BS <= bx <= W - 16
+            and p2y - BS < by < p2y + PH):
             bdx = -bdx
             bdy = 260 * ((by + BS / 2 - p2y) / PH - 0.5) * 2
             beep(880, 15)
 
         # --- draw
         d.fill(BG)
-        for y in range(0, H, 24):            # the classic dashed net
+        # the classic dashed net
+        for y in range(0, H, 24):
             d.fill_rect(W // 2 - 2, y, 4, 12, INK)
         d.fill_rect(16, int(p1y), PW, PH, INK)
         d.fill_rect(W - 16 - PW, int(p2y), PW, PH, INK)

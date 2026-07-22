@@ -12,10 +12,12 @@ def play_tune(melody, bpm=120):
     beat = 60 / bpm
     for note, beats in melody:
         ms = int(beats * beat * 1000)
-        if note == "R":                        # a rest: silence, same length
+        # a rest: silence, same length
+        if note == "R":
             time.sleep(ms / 1000)
         else:
             tone(NOTES[note], NOTES[note], ms, wait=True)
-        time.sleep(0.02)                       # a breath between notes
+        # a breath between notes
+        time.sleep(0.02)
 
 play_tune(ODE, 140)

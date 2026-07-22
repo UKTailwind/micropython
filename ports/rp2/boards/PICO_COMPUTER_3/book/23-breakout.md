@@ -247,7 +247,7 @@ which of the existing paths runs — down a life and `serve`, or
 engineering note in one number: past a certain speed, a ball can step
 *through* the paddle band between two frames ("tunnelling" — the
 step-per-frame exceeding the paddle's thickness). Capping speed is
-the beginner-honest fix; chapter 34 mentions the grown-up ones.
+the beginner-honest fix; chapter 35 mentions the grown-up ones.
 
 The difficulty ramp is `0.15` per level, and the paddle deflection is
 Pong's formula rotated (relative strike position steering `bdx` now).

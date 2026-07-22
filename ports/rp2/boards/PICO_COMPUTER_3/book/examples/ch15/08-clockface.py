@@ -19,11 +19,14 @@ y0 = cy - 25
 
 while True:
     h, m, s = gettime()[3:6]
-    d.fill_rect(x0, y0, tw, 50, BG)                # erase old digits
+    # erase old digits
+    d.fill_rect(x0, y0, tw, 50, BG)
     hdmi.text(f"{h:02}:{m:02}:{s:02}", x0, y0, DIGITS, -1, 1, 6)
 
-    d.arc(cx, cy, 150, 158, 0, 0, BG)              # erase the ring
+    # erase the ring
+    d.arc(cx, cy, 150, 158, 0, 0, BG)
     if s:
-        d.arc(cx, cy, 150, 158, 0, s * 6, RING)    # sweep: 6 deg per second
+        # sweep: 6 deg per second
+        d.arc(cx, cy, 150, 158, 0, s * 6, RING)
 
     time.sleep(1)

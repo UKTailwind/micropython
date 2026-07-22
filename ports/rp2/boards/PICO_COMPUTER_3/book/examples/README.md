@@ -19,7 +19,7 @@ Regenerate after editing chapters with:
 
 ## ch06 -- Chapter 6 — Variables, numbers and text
 
-- `01-chat.py` (18 lines)
+- `01-chat.py` (21 lines)
 - `02-convert.py` (4 lines)
 
 ## ch07 -- Chapter 7 — Making decisions: `if`
@@ -48,7 +48,7 @@ Regenerate after editing chapters with:
 - `04-listing.py` (6 lines)
 - `05-listing.py` (7 lines)
 - `06-listing.py` (9 lines)
-- `07-square.py` (9 lines)
+- `07-square.py` (10 lines)
 - `08-spiro.py` (19 lines)
 
 ## ch10 -- Chapter 10 — Collections: lists, tuples and dictionaries
@@ -68,17 +68,18 @@ Regenerate after editing chapters with:
 - `05-listing.py` (4 lines)
 - `06-listing.py` (5 lines)
 - `07-listing.py` (14 lines)
-- `08-shapes.py` (22 lines)
+- `08-shapes.py` (23 lines)
 - `09-gallery.py` (15 lines)
 - `10-listing.py` (2 lines)
+- `11-main.py` (3 lines)
 
 ## ch12 -- Chapter 12 — Strings and files
 
 - `01-listing.py` (3 lines)
 - `02-listing.py` (3 lines)
 - `03-diary.py` (22 lines)
-- `04-scorelib.py` (38 lines)
-- `05-listing.py` (15 lines)
+- `04-scorelib.py` (39 lines)
+- `05-listing.py` (17 lines)
 
 ## ch13 -- Chapter 13 — When things go wrong: errors and debugging
 
@@ -107,168 +108,168 @@ Regenerate after editing chapters with:
 - `01-listing.py` (3 lines)
 - `02-listing.py` (1 lines)
 - `03-listing.py` (3 lines)
-- `04-listing.py` (7 lines)
-- `05-listing.py` (4 lines)
-- `06-listing.py` (4 lines)
-- `07-poster.py` (36 lines)
-- `08-clockface.py` (29 lines)
+- `04-listing.py` (11 lines)
+- `05-listing.py` (6 lines)
+- `06-listing.py` (5 lines)
+- `07-poster.py` (38 lines)
+- `08-clockface.py` (32 lines)
 
 ## ch16 -- Chapter 16 — Bitmap images and sprite sheets
 
-- `01-listing.py` (3 lines)
+- `01-listing.py` (5 lines)
 - `02-listing.py` (1 lines)
-- `03-listing.py` (2 lines)
-- `04-listing.py` (5 lines)
+- `03-listing.py` (3 lines)
+- `04-listing.py` (8 lines)
 - `05-listing.py` (5 lines)
-- `06-listing.py` (12 lines)
+- `06-listing.py` (15 lines)
 - `07-listing.py` (11 lines)
-- `08-frame.py` (30 lines)
+- `08-frame.py` (35 lines)
 
 ## ch17 -- Chapter 17 — Smooth motion: buffers and the overlay
 
 - `01-ball0.py` (20 lines)
-- `02-ball1.py` (21 lines)
+- `02-ball1.py` (22 lines)
 - `03-ball2.py` (19 lines)
-- `04-listing.py` (27 lines)
-- `05-layer.py` (27 lines)
+- `04-listing.py` (34 lines)
+- `05-layer.py` (33 lines)
 - `06-listing.py` (6 lines)
-- `07-dvd.py` (43 lines)
+- `07-dvd.py` (45 lines)
 
 ## ch18 -- Chapter 18 — Sprites
 
 - `01-handy.py` (5 lines)
-- `02-duck1.py` (29 lines)
+- `02-duck1.py` (32 lines)
 - `03-listing.py` (2 lines)
-- `04-gallery.py` (99 lines)
+- `04-gallery.py` (105 lines)
 
 ## ch19 -- Chapter 19 — Tile maps: big worlds from small pieces
 
 - `01-maketiles.py` (42 lines)
-- `02-meadow.py` (20 lines)
-- `03-glide.py` (34 lines)
+- `02-meadow.py` (25 lines)
+- `03-glide.py` (37 lines)
 - `04-listing.py` (3 lines)
-- `05-island.py` (96 lines)
+- `05-island.py` (101 lines)
 
 ## ch20 -- Chapter 20 — Sound and music
 
 - `01-listing.py` (2 lines)
-- `02-listing.py` (1 lines)
+- `02-listing.py` (2 lines)
 - `03-listing.py` (4 lines)
-- `04-tunes.py` (21 lines)
-- `05-listing.py` (5 lines)
-- `06-sfx.py` (51 lines)
-- `07-listing.py` (3 lines)
+- `04-tunes.py` (23 lines)
+- `05-listing.py` (6 lines)
+- `06-sfx.py` (53 lines)
+- `07-listing.py` (4 lines)
 
 ## ch21 -- Chapter 21 — Reading the player: keyboard, mouse and touch
 
-- `01-listing.py` (5 lines)
-- `02-listing.py` (6 lines)
+- `01-listing.py` (6 lines)
+- `02-listing.py` (7 lines)
 - `03-listing.py` (7 lines)
-- `04-paint.py` (61 lines)
+- `04-paint.py` (65 lines)
 - `05-listing.py` (4 lines)
-- `06-duel2.py` (51 lines)
+- `06-duel2.py` (53 lines)
 
 ## ch22 -- Chapter 22 — Anatomy of a game
 
-- `01-listing.py` (6 lines)
-- `02-pong1.py` (83 lines)
-- `03-pong.py` (119 lines)
+- `01-listing.py` (7 lines)
+- `02-pong1.py` (90 lines)
+- `03-pong.py` (129 lines)
 
 ## ch23 -- Chapter 23 — Breakout
 
-- `01-breakout.py` (150 lines)
+- `01-breakout.py` (161 lines)
 
 ## ch24 -- Chapter 24 — Asteroids: vectors, crowds and particles
 
 - `01-listing.py` (3 lines)
-- `02-flight.py` (79 lines)
-- `03-asteroids.py` (221 lines)
+- `02-flight.py` (82 lines)
+- `03-asteroids.py` (238 lines)
 
 ## ch25 -- Chapter 25 — The adventure: NPCs, dialogue and saved worlds
 
 - `01-maketiles2.py` (54 lines)
-- `02-adventure.py` (229 lines)
+- `02-adventure.py` (251 lines)
 - `03-listing.py` (3 lines)
 
 ## ch26 -- Chapter 26 — Polish: the last ten percent
 
-- `01-juice.py` (115 lines)
-- `02-initials.py` (46 lines)
+- `01-juice.py` (123 lines)
+- `02-initials.py` (51 lines)
 
 ## ch27 -- Chapter 27 — Building apps: the GUI toolkit
 
-- `01-hello_gui.py` (31 lines)
-- `02-stamper.py` (33 lines)
-- `03-calc.py` (88 lines)
-- `04-prefs.py` (88 lines)
+- `01-hello_gui.py` (35 lines)
+- `02-stamper.py` (36 lines)
+- `03-calc.py` (91 lines)
+- `04-prefs.py` (94 lines)
 
-## ch28 -- Chapter 28 — Time and schedules: the real-time clock
+## ch29 -- Chapter 29 — Time and schedules: the real-time clock
 
-- `01-listing.py` (1 lines)
-- `02-listing.py` (6 lines)
-- `03-timer.py` (58 lines)
-- `04-alarm.py` (96 lines)
-- `05-listing.py` (4 lines)
-
-## ch29 -- Chapter 29 — Going online: Wi-Fi and the internet
-
-- `01-listing.py` (1 lines)
-- `02-listing.py` (1 lines)
-- `03-listing.py` (3 lines)
-- `04-listing.py` (6 lines)
+- `01-listing.py` (2 lines)
+- `02-listing.py` (7 lines)
+- `03-timer.py` (62 lines)
+- `04-alarm.py` (100 lines)
 - `05-listing.py` (5 lines)
-- `06-weather.py` (99 lines)
-- `07-listing.py` (23 lines)
 
-## ch30 -- Chapter 30 — Numbers at speed: the maths lab
+## ch30 -- Chapter 30 — Going online: Wi-Fi and the internet
+
+- `01-listing.py` (2 lines)
+- `02-listing.py` (1 lines)
+- `03-listing.py` (5 lines)
+- `04-listing.py` (7 lines)
+- `05-listing.py` (6 lines)
+- `06-weather.py` (108 lines)
+- `07-listing.py` (24 lines)
+
+## ch31 -- Chapter 31 — Numbers at speed: the maths lab
 
 - `01-listing.py` (1 lines)
 - `02-listing.py` (2 lines)
-- `03-listing.py` (5 lines)
-- `04-listing.py` (2 lines)
-- `05-mathlab.py` (83 lines)
+- `03-listing.py` (6 lines)
+- `04-listing.py` (3 lines)
+- `05-mathlab.py` (89 lines)
 
-## ch31 -- Chapter 31 — Talking to the outside world: GPIO
+## ch32 -- Chapter 32 — Talking to the outside world: GPIO
 
 - `01-blink2.py` (8 lines)
-- `02-pressme.py` (13 lines)
+- `02-pressme.py` (14 lines)
 - `03-knob.py` (11 lines)
-- `04-sweep.py` (18 lines)
+- `04-sweep.py` (19 lines)
 - `05-roll_call.py` (5 lines)
-- `06-gpad.py` (38 lines)
+- `06-gpad.py` (39 lines)
 - `07-fragment.py` (5 lines) -- fragment shown mid-explanation, not standalone
 - `08-fragment.py` (1 lines) -- fragment shown mid-explanation, not standalone
 
-## ch32 -- Chapter 32 — Standing on others' shoulders
+## ch33 -- Chapter 33 — Standing on others' shoulders
 
-- `01-qr.py` (23 lines)
-- `02-gpslook.py` (7 lines)
-- `03-where.py` (18 lines)
-- `04-card.py` (30 lines)
+- `01-qr.py` (28 lines)
+- `02-gpslook.py` (8 lines)
+- `03-where.py` (23 lines)
+- `04-card.py` (33 lines)
 
-## ch33 -- Chapter 33 — Doing several things at once
+## ch34 -- Chapter 34 — Doing several things at once
 
-- `01-doorbell.py` (28 lines)
-- `02-wake.py` (29 lines)
+- `01-doorbell.py` (33 lines)
+- `02-wake.py` (31 lines)
 - `03-listing.py` (11 lines)
 - `04-juggler.py` (24 lines)
-- `05-skywatch.py` (87 lines)
+- `05-skywatch.py` (90 lines)
 
-## ch34 -- Chapter 34 — Performance and memory
+## ch35 -- Chapter 35 — Performance and memory
 
-- `01-bench.py` (21 lines)
-- `02-speedlab.py` (47 lines)
-- `03-memlab.py` (4 lines)
+- `01-bench.py` (23 lines)
+- `02-speedlab.py` (49 lines)
+- `03-memlab.py` (5 lines)
 - `04-memlab.py` (14 lines)
-- `05-swarm.py` (37 lines)
+- `05-swarm.py` (43 lines)
 
-## ch35 -- Chapter 35 — The system itself
+## ch36 -- Chapter 36 — The system itself
 
-- `01-boot.py` (3 lines)
-- `02-backup.py` (19 lines)
+- `01-boot.py` (4 lines)
+- `02-backup.py` (21 lines)
 - `03-listing.py` (2 lines)
 
-Total: 164 programs.
+Total: 165 programs.
 
 ## lib -- the reader's toolkit, under its real names
 
@@ -283,5 +284,5 @@ book instructs.
 - `handy.py` (chapter 13 + chapter 18's held())
 - `sfx.py` (from ch20)
 - `initials.py` (from ch26)
-- `gpad.py` (from ch31)
-- `bench.py` (from ch34)
+- `gpad.py` (from ch32)
+- `bench.py` (from ch35)

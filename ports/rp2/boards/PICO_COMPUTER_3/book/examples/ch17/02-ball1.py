@@ -10,7 +10,8 @@ x, y = 100, 100
 dx, dy = 5, 3
 
 while True:
-    d.ellipse(x, y, 10, 10, d.colour(0x102040), True)   # NEW: erase old
+    # NEW: erase old
+    d.ellipse(x, y, 10, 10, d.colour(0x102040), True)
     x += dx
     y += dy
     if x < 12 or x > W - 12:

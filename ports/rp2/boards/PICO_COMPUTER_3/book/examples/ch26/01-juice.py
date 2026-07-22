@@ -18,7 +18,8 @@ H = hdmi.height()
 hdmi.close("F")
 hdmi.create()
 hdmi.write("N")
-hdmi.fb().fill(0)                  # black margins for the shake to show
+# black margins for the shake to show
+hdmi.fb().fill(0)
 hdmi.write("F")
 d = hdmi.fb()
 
@@ -51,12 +52,15 @@ try:
         if p_pressed:
             paused = not paused
             if not paused:
-                clock.reset()      # don't "catch up" the missed frames
+                # don't "catch up" the missed frames
+                clock.reset()
 
         if paused:
-            pass                   # the world simply isn't updated
+            # the world simply isn't updated
+            pass
         elif freeze > 0:
-            freeze -= 1            # hit-stop: drawn, but not moved
+            # hit-stop: drawn, but not moved
+            freeze -= 1
         else:
             x += dx * dt
             y += dy * dt
@@ -76,9 +80,12 @@ try:
                 for _ in range(14):
                     ang = random.randint(0, 359)
                     particles.append([x, y,
-                                      random.randint(-160, 160) * 1.0,
-                                      random.randint(-160, 160) * 1.0,
-                                      random.randint(15, 40) / 60])
+                                      random.randint(-160,
+                                          160) * 1.0,
+                                      random.randint(-160,
+                                          160) * 1.0,
+                                      random.randint(15,
+                                          40) / 60])
                 beep(150, 60)
 
             for p in particles:
@@ -97,7 +104,8 @@ try:
         hdmi.text("SPACE impact   P pause   ESC quit", 24, H - 40,
                   d.colour(GRAY))
         if paused:
-            hdmi.text("PAUSED", W // 2 - 96, H // 2 - 24, INK, -1, 2, 3)
+            hdmi.text("PAUSED", W // 2 - 96, H // 2 - 24, INK, -1,
+                      2, 3)
         if flash > 0:
             d.fill(d.colour(WHITE))
             flash -= 1

@@ -23,9 +23,12 @@ try:
     while not held(keyboard.ESC):
         pccursor.refresh()
         click_now = mouse("L") == 1
-        if click_now and not click_was:          # just-pressed (ch 25)
-            pccursor.erase()                     # lift it -- no ghosts
-            d.ellipse(mouse("X"), mouse("Y"), 6, 6, d.colour(GOLD), True)
+        # just-pressed (ch 25)
+        if click_now and not click_was:
+            # lift it -- no ghosts
+            pccursor.erase()
+            d.ellipse(mouse("X"), mouse("Y"), 6, 6,
+                      d.colour(GOLD), True)
         click_was = click_now
         time.sleep_ms(10)
 finally:

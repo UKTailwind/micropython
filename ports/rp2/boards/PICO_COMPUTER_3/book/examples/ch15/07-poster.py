@@ -19,8 +19,10 @@ w = len(name) * 16 * 2
 hdmi.text(name, (W - w) // 2, 56, INK, -1, 2, 3)
 
 # a ribbon of two bezier curves
-d.bezier([(40, 200), (W // 4, 140), (3 * W // 4, 260), (W - 40, 190)], GLOW)
-d.bezier([(40, 210), (W // 4, 150), (3 * W // 4, 270), (W - 40, 200)], GLOW)
+d.bezier([(40, 200), (W // 4, 140), (3 * W // 4, 260), (W - 40,
+         190)], GLOW)
+d.bezier([(40, 210), (W // 4, 150), (3 * W // 4, 270), (W - 40,
+         200)], GLOW)
 
 # a row of medals: ring + hanger, spaced by loop arithmetic
 for i in range(5):

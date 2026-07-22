@@ -1,5 +1,5 @@
-r = requests.get("https://api.open-meteo.com/v1/forecast"
-                 "?latitude=51.5&longitude=-0.13&current_weather=true")
-data = r.json()
-r.close()
-print(data["current_weather"]["temperature"])
+import ds3231
+# 07:00, every day, survives resets
+ds3231.set_alarm(7, 0)
+if ds3231.alarm_fired():      # poll this...
+    ds3231.clear_alarm()      # ...and acknowledge

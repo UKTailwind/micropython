@@ -13,7 +13,8 @@ def load():
                 points, name = line.strip().split(",")
                 scores.append((int(points), name))
     except OSError:
-        pass                    # no file yet: first ever run -- empty list
+        # no file yet: first ever run -- empty list
+        pass
     scores.sort(reverse=True)
     return scores
 

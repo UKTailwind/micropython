@@ -300,7 +300,7 @@ tools, not rules the machine enforces — `area("a", "b")` still fails only
 when the `*` gives up, not at the door. They earn their keep in two ways.
 First, they make a function's contract obvious when you are reading — or
 debugging — code, your own included. Second, and less obviously, the
-speed-up decorators of chapter 34 (`@micropython.viper` above all) read
+speed-up decorators of chapter 35 (`@micropython.viper` above all) read
 them as *real* type declarations and use them to generate fast machine
 code. Optional everywhere else; a good habit once functions grow.
 
@@ -367,7 +367,7 @@ You have written your own modules, and the machine came with dozens
 frozen in. There is a third shelf, and it is vast: the libraries other
 people have written and shared. MicroPython has an installer for exactly
 this — **`mip`**, the small cousin of the `pip` you may have heard of.
-Given Wi-Fi (chapter 29), one line fetches a library from the internet
+Given Wi-Fi (chapter 30), one line fetches a library from the internet
 and files it under `/lib`, ready to `import`:
 
 ```python
@@ -378,7 +378,7 @@ and files it under `/lib`, ready to `import`:
 
 That is the whole idea; the *craft* of it — where the good libraries
 live, how to tell a sound one from a shaky one, and how to wire one to
-real hardware — earns a chapter of its own later on (**chapter 32**).
+real hardware — earns a chapter of its own later on (**chapter 33**).
 Note only that, unlike the shell commands and `run()`, none of this is
 Pico Computer 3 specific: `mip`, `/lib` and `import` work the same on
 every MicroPython board, so a library you learn to install here you can

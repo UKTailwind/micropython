@@ -47,8 +47,8 @@ offers six deals:
 | `hdmi.RGB320` | 320 × 240 | 65,536 | chunky pixels, gorgeous colour — the *games* mode |
 | `hdmi.RGB512` | 512 × 300 | 65,536 | widescreen, doubled to 1024 × 600 |
 | `hdmi.RGB1024` | 1024 × 600 | 16 | maximum crispness, palette colour |
-| `hdmi.RGB640_4` | 640 × 480 | 16 | the *fast game* mode — full detail, half the bytes (chapter 34 explains why that's a superpower) |
-| `hdmi.RGB320_8` | 320 × 240 | 256 | chunky pixels whose buffers are so small that *everything* — screen, overlay, backstage copy — fits in fast memory at once (chapters 17 and 34 cash this in) |
+| `hdmi.RGB640_4` | 640 × 480 | 16 | the *fast game* mode — full detail, half the bytes (chapter 35 explains why that's a superpower) |
+| `hdmi.RGB320_8` | 320 × 240 | 256 | chunky pixels whose buffers are so small that *everything* — screen, overlay, backstage copy — fits in fast memory at once (chapters 17 and 35 cash this in) |
 
 Switch with `screen()`, which remembers your choice across power-off:
 
@@ -310,7 +310,7 @@ the *proper* flicker-proof machinery (this one blinks, ever so
 slightly, at each erase — and the console's own cursor photobombs from
 wherever the prompt left it) is exactly chapter 17's subject. Some
 readers will already be planning `/main.py`-ing it beside the bed;
-chapter 28 adds the alarm.
+chapter 29 adds the alarm.
 
 > **Coming from MMBasic:** the whole drawing set maps one-to-one —
 > `CLS` is `d.fill()`, `PIXEL`/`LINE`/`BOX`/`RBOX`/`CIRCLE`/`ARC` are

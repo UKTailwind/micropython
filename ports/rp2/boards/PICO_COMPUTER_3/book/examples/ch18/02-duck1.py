@@ -13,10 +13,12 @@ d.ellipse(10, 9, 9, 7, d.colour(YELLOW), True)       # body
 d.ellipse(20, 5, 5, 4, d.colour(YELLOW), True)       # head
 d.fill_rect(24, 4, 4, 2, d.colour(ORANGE))           # beak
 duck = sp.grab(0, 0, 28, 18, transparent=SKY)
-d.fill_rect(0, 0, 28, 18, SKY)                       # erase the master
+# erase the master
+d.fill_rect(0, 0, 28, 18, SKY)
 
 duck.show(50, 120)
-console("none")                                      # no cursor over the show
+# no cursor over the show
+console("none")
 
 try:
     while True:
@@ -26,4 +28,5 @@ try:
         sp.update(vsync=True)
 finally:
     sp.reset()
-    console()                                        # chapter 17's manners
+    # chapter 17's manners
+    console()

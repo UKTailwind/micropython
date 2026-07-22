@@ -122,5 +122,5 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 
 Two things have no MMBasic ancestor and repay early study:
 **dictionaries** (chapter 10) — lookup tables that replace every
-parallel-array trick you own — and **`asyncio`** (chapter 33), a
+parallel-array trick you own — and **`asyncio`** (chapter 34), a
 cleaner shape for programs juggling several activities.

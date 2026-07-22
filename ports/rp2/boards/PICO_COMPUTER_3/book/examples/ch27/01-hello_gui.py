@@ -3,11 +3,14 @@ import pcgui
 
 screen(hdmi.RGB320)                 # chunky pixels suit fingers
 time.sleep(3)
-console("serial")                   # REPL prints stay off the GUI screen
+# REPL prints stay off the GUI screen
+console("serial")
 
 hdmi.fb().fill(0)
-g = pcgui.GUI()                     # the manager: owns, draws, dispatches
-g.start()                           # borrow the keyboard (for text boxes)
+# the manager: owns, draws, dispatches
+g = pcgui.GUI()
+# borrow the keyboard (for text boxes)
+g.start()
 done = [False]
 
 g.caption(100, 10, "FIRST CONTACT", fg=YELLOW, font=2)
@@ -20,7 +23,8 @@ def quit_app(b):
     done[0] = True
 
 g.switch(120, 66, 90, 28, "ON|OFF", callback=flip)
-g.button(110, 180, 100, 30, "QUIT", fg=WHITE, bg=RED, callback=quit_app)
+g.button(110, 180, 100, 30, "QUIT", fg=WHITE, bg=RED,
+         callback=quit_app)
 
 try:
     while not done[0]:

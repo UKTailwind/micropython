@@ -23,9 +23,11 @@ sheet = load_image("tiles.bmp")
 tm = TileMap(sheet, 16, 16, cols=64, rows=48)     # 1024x768 world
 
 # --- generate the island
-random.seed(12)                                   # the book's island; change me
+# the book's island; change me
+random.seed(12)
 tm.fill(GRASS)
-for col in range(64):                             # ocean border, two deep
+# ocean border, two deep
+for col in range(64):
     for row in (0, 1, 46, 47):
         tm.set(col, row, WATER)
 for row in range(48):
@@ -37,7 +39,8 @@ for _ in range(25):                               # boulders
     tm.set(random.randint(2, 61), random.randint(2, 45), ROCK)
 for _ in range(40):                               # flowers
     tm.set(random.randint(2, 61), random.randint(2, 45), FLOWER)
-for col in (31, 32, 33):                          # clear ground at the start
+# clear ground at the start
+for col in (31, 32, 33):
     for row in (23, 24, 25):
         tm.set(col, row, GRASS)
 
@@ -46,7 +49,8 @@ tm.set_attr(TREE, SOLID)
 tm.set_attr(ROCK, SOLID)
 tm.clamp(W, H)
 
-px, py = 32 * 16, 24 * 16                         # start mid-island
+# start mid-island
+px, py = 32 * 16, 24 * 16
 picked = 0
 BLACK_C = d.colour(BLACK)
 
@@ -87,7 +91,8 @@ try:
         tm.draw()
         tm.blit_tile(HERO, px - max(0, min(vx, 1024 - W)),
                      py - max(0, min(vy, 768 - H)), skip=BLACK_C)
-        hdmi.text(f"flowers: {picked}", 8, 8, d.colour(WHITE), BLACK_C)
+        hdmi.text(f"flowers: {picked}", 8, 8, d.colour(WHITE),
+                  BLACK_C)
         hdmi.write("N")
         hdmi.vsync()
         hdmi.copy("F", "N")

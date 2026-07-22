@@ -1,4 +1,5 @@
-# shapes.py -- turtle shape library. import shapes; shapes.star(t, 5, 100)
+# shapes.py -- turtle shape library. import shapes; shapes.star(t,
+# 5, 100)
 
 def polygon(t, sides, size=60):
     for _ in range(sides):

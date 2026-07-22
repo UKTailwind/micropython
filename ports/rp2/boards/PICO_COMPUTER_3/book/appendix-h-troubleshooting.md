@@ -8,8 +8,8 @@ Symptom → cause → cure. The chapter references hold the fuller story.
 |---|---|
 | Nothing at all | The power switch is push-on/push-*off* — press once more. Then: is the supply 2 A-capable? (ch. 2) |
 | No boot banner, monitor lit | You may be at a running `/main.py` — Ctrl-C. Still nothing: RESET; then serial console (below). |
-| Boot takes ~10 s longer than usual | `auto(True)` NTP sync waiting for Wi-Fi (ch. 29). Normal; `auto(False)` if unwanted. |
-| Machine reboots by itself, ~5 s after Ctrl-C | A watchdog you started is unfed (ch. 33). Reboot clears it. |
+| Boot takes ~10 s longer than usual | `auto(True)` NTP sync waiting for Wi-Fi (ch. 30). Normal; `auto(False)` if unwanted. |
+| Machine reboots by itself, ~5 s after Ctrl-C | A watchdog you started is unfed (ch. 34). Reboot clears it. |
 
 ## Display
 
@@ -56,8 +56,8 @@ Symptom → cause → cure. The chapter references hold the fuller story.
 | Symptom | Try |
 |---|---|
 | `wifi()` fails / no sync | Credentials saved? (`wifi("ssid", "pw")` once.) In range? 2.4 GHz network? |
-| `requests` raises `OSError` | The network's weather — that's why every fetch wears `try/except OSError`. (ch. 29) |
-| Long-running fetcher dies young | A response never closed — audit for `r.close()` / `finally`. (ch. 29) |
+| `requests` raises `OSError` | The network's weather — that's why every fetch wears `try/except OSError`. (ch. 30) |
+| Long-running fetcher dies young | A response never closed — audit for `r.close()` / `finally`. (ch. 30) |
 
 ## Programs
 
@@ -66,15 +66,15 @@ Symptom → cause → cure. The chapter references hold the fuller story.
 | Traceback | Last line = what; deepest line naming *your* file = where. Chapter 13's gallery has the culprit table. |
 | Stuck program | Ctrl-C. Then RESET. Files always survive. (ch. 2) |
 | Runs but wrong | Chapter 13's hunt: reproduce small → print the state → fix the cause → retest. |
-| Stutters every few seconds | Garbage collection — allocate less per frame; `gc.collect()` at quiet moments. (ch. 34) |
-| `MemoryError` with memory seemingly free | Fragmentation — pre-allocate big buffers at start-up. (ch. 34) |
-| Handler/callback stopped firing | It raised once and died — wrap its body in `try/except`. (ch. 33) |
-| Everything froze in an asyncio program | A blocking call in a task (`time.sleep`, `input`, a long loop) — every pause must be an `await`. (ch. 33) |
+| Stutters every few seconds | Garbage collection — allocate less per frame; `gc.collect()` at quiet moments. (ch. 35) |
+| `MemoryError` with memory seemingly free | Fragmentation — pre-allocate big buffers at start-up. (ch. 35) |
+| Handler/callback stopped firing | It raised once and died — wrap its body in `try/except`. (ch. 34) |
+| Everything froze in an asyncio program | A blocking call in a task (`time.sleep`, `input`, a long loop) — every pause must be an `await`. (ch. 34) |
 
 ## When all else fails
 
 Serial console via USB-C (115200) → Ctrl-C → investigate. Factory
 settings: `rm("/settings.json")` + power-cycle. Reflash the firmware
-(files survive). And the test suite (ch. 35) will tell you whether
+(files survive). And the test suite (ch. 36) will tell you whether
 the *machine* is fine and the problem is — as it usually is, for all
 of us — the program.

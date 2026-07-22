@@ -13,8 +13,10 @@ H = hdmi.height()
 
 SKY = d.colour(0x203050)
 d.fill(SKY)
-d.fill_rect(0, H - 60, W, 60, d.colour(MIDGREEN))          # grassy bank
-hdmi.text("SHOOTING GALLERY", 192, H - 40, d.colour(GOLD), -1, 1, 3)
+# grassy bank
+d.fill_rect(0, H - 60, W, 60, d.colour(MIDGREEN))
+hdmi.text("SHOOTING GALLERY", 192, H - 40, d.colour(GOLD), -1, 1,
+          3)
 
 def grab_and_wipe(w, h):
     s = sp.grab(0, 0, w, h, transparent=SKY)
@@ -42,7 +44,8 @@ def make_shot():
 ducks = []
 for i in range(3):
     duck = make_duck()
-    duck.speed = 2 + i                     # objects accept new attributes!
+    # objects accept new attributes!
+    duck.speed = 2 + i
     duck.show(i * 200, 70 + i * 80, layer=1)
     ducks.append(duck)
 
@@ -54,7 +57,8 @@ score = 0
 cooldown = 0
 
 def hud():
-    hdmi.text(f"SCORE {score:3}", 8, 8, d.colour(WHITE), SKY, 1, 3)
+    hdmi.text(f"SCORE {score:3}", 8, 8, d.colour(WHITE), SKY, 1,
+              3)
 
 hud()
 console("none")
@@ -76,7 +80,8 @@ try:
             shot.x = cross.x + 6           # centre the 5x5 shot
             shot.y = cross.y + 6
             shot.show(shot.x, shot.y, layer=1)
-            cooldown = 15                  # quarter-second between shots
+            # quarter-second between shots
+            cooldown = 15
             beep(220, 20)
 
         for duck in ducks:
@@ -93,7 +98,8 @@ try:
                     target.x = -28         # respawn at the left
                     hud()
 
-        shot.hide()                        # the shot exists for one frame
+        # the shot exists for one frame
+        shot.hide()
 finally:
     sp.reset()
     console()

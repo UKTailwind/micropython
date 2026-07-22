@@ -132,7 +132,7 @@ professional answer:
 
 The flicker existed because the monitor could see your workbench. So
 work somewhere it can't. `hdmi.create()` allocates the **F buffer** —
-a second, invisible screen, usually in the big PSRAM (chapter 34 has a
+a second, invisible screen, usually in the big PSRAM (chapter 35 has a
 trick that parks it somewhere much faster) — and `hdmi.write("F")`
 sends *all* drawing there. Compose the entire frame in private, then
 copy the finished picture over in one fast move:
@@ -303,7 +303,7 @@ half. The bigger modes leave no room, which is why they use the
 F-buffer strategy instead. And `RGB320_8` goes one better: its
 256-colour screens are half the size again, so the layer *and* the
 F buffer fit on-chip together — the overlay and double buffering
-stop being an either/or (chapter 34 tells that story with numbers).
+stop being an either/or (chapter 35 tells that story with numbers).
 
 ## The scenery cheat: blit-scrolling
 

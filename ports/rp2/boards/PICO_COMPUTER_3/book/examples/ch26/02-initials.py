@@ -1,4 +1,5 @@
-# initials.py -- arcade name entry.  import initials; name = initials.get()
+# initials.py -- arcade name entry.  import initials; name =
+# initials.get()
 import pcgame
 import keyboard
 
@@ -15,7 +16,8 @@ def get(title="ENTER YOUR INITIALS"):
     W = hdmi.width()
     letters = [0, 0, 0]
     slot = 0
-    l_was = r_was = f_was = True          # keys may still be held (ch 25!)
+    # keys may still be held (ch 25!)
+    l_was = r_was = f_was = True
     clock = pcgame.Clock(vsync=True)
     while True:
         clock.tick()
@@ -34,10 +36,13 @@ def get(title="ENTER YOUR INITIALS"):
 
         x0 = W // 2 - 120
         d.fill_rect(x0 - 20, 150, 280, 160, d.colour(0x101828))
-        hdmi.text(title, W // 2 - len(title) * 4, 165, d.colour(GRAY))
+        hdmi.text(title, W // 2 - len(title) * 4, 165,
+                  d.colour(GRAY))
         for i in range(3):
-            colr = d.colour(GOLD) if i == slot else d.colour(WHITE)
-            hdmi.text(chr(65 + letters[i]), x0 + i * 90, 200, colr, -1, 2, 5)
+            colr = (d.colour(GOLD) if i == slot
+                    else d.colour(WHITE))
+            hdmi.text(chr(65 + letters[i]), x0 + i * 90, 200,
+                      colr, -1, 2, 5)
         d.fill_rect(x0 + slot * 90, 275, 48, 4, d.colour(GOLD))
 
 if __name__ == "__main__":

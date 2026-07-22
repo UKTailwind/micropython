@@ -3,4 +3,5 @@ import keyboard
 def spy(code):
     print("key:", code)
 
-keyboard.on_key(spy)      # ...type at the prompt and watch the report
+# ...type at the prompt and watch the report
+keyboard.on_key(spy)

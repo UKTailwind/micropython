@@ -182,24 +182,24 @@ curves, playtesting your friends.
 laying out a screen; responding to clicks and touch. Project: a calculator
 and a settings screen.
 
-**28. Time and schedules: the real-time clock**
+**29. Time and schedules: the real-time clock**
 The DS3231, reading and setting time, `time` module. Project: an alarm
 clock / kitchen timer with the GUI and sounds.
 
-**29. Going online: Wi-Fi and the internet**
+**30. Going online: Wi-Fi and the internet**
 Connecting to Wi-Fi; setting the clock from NTP; fetching web data with
 HTTPS; a taste of MQTT for talking between machines. Project: a live
 weather display.
 
-**30. Numbers at speed: maths, plotting and science**
+**31. Numbers at speed: maths, plotting and science**
 `pcmath` helpers, `ulab` arrays, `plot()` for graphing functions and data.
 Project: graphing sensor/maths experiments — a maths lab.
 
-**31. Talking to the outside world: GPIO**
+**32. Talking to the outside world: GPIO**
 The spare pins: `machine.Pin`, buttons and LEDs, PWM, I2C/SPI/UART for
 add-on modules. Project: a physical game controller / desk gadget.
 
-**32. Standing on others' shoulders**
+**33. Standing on others' shoulders**
 The vast third shelf: the libraries other people wrote, and how to
 find, judge and install them — `mip`, Awesome MicroPython,
 `micropython-lib`. Worked examples across the range: a QR-code
@@ -212,18 +212,18 @@ Project: a scannable QR code of the project repository on screen.
 
 ## Part VI — Under the Hood (advanced)
 
-**33. Doing several things at once**
+**34. Doing several things at once**
 Timers (`machine.Timer`), pin interrupts (`Pin.irq`), UART events, the
 watchdog; rules for writing safe handlers. `asyncio` for cooperative
 multitasking — a game that animates *while* downloading. When (not) to
 use threads.
 
-**34. Performance and memory**
+**35. Performance and memory**
 Why some code is slow; measuring with `time.ticks_*`; memory and `gc`;
 `ulab` and blitting instead of per-pixel loops; `const`, buffers,
 pre-allocation. Making chapter 24's shooter faster.
 
-**35. The system itself**
+**36. The system itself**
 Boot sequence, `main.py`, persistent settings, `console()` routing,
 the on-device test suite, updating firmware, backing up your work.
 Where to go next: MicroPython docs, contributing, the community.

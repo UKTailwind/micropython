@@ -1,2 +1,7 @@
-y2 = np.sin(2 * x) * 0.5 + 0.1          # scaled, shifted, all at once
-plot([y, y2], x=x)
+import requests
+
+r = requests.get("https://api.github.com")
+print(r.status_code)               # 200 means "here you are"
+print(r.text[:120])                # the reply is text...
+# ALWAYS -- replies hold real memory
+r.close()

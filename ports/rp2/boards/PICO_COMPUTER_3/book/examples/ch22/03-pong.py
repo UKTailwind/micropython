@@ -9,7 +9,8 @@ def held(code):
             return True
     return False
 
-screen(hdmi.RGB640)                 # this game is laid out for 640x480
+# this game is laid out for 640x480
+screen(hdmi.RGB640)
 time.sleep(3)
 
 W = hdmi.width()
@@ -29,7 +30,8 @@ PSPEED = 320.0
 WIN = 5
 
 def serve(direction):
-    """Centre the ball, heading toward `direction` (+1 right, -1 left)."""
+    """Centre the ball, heading toward `direction` (+1 right, -1
+    left)."""
     return (W / 2, H / 2,
             direction * 220.0, random.randint(-140, 140) * 1.0)
 
@@ -71,20 +73,25 @@ try:
                 bdy = -bdy
                 beep(440, 15)
 
-            if bdx < 0 and 16 <= bx <= 16 + PW and p1y - BS < by < p1y + PH:
-                bdx = -bdx * 1.04                 # every return, faster
+            if (bdx < 0 and 16 <= bx <= 16 + PW
+                and p1y - BS < by < p1y + PH):
+                # every return, faster
+                bdx = -bdx * 1.04
                 bdy = 260 * ((by + BS / 2 - p1y) / PH - 0.5) * 2
                 beep(880, 15)
-            if bdx > 0 and W - 24 - BS <= bx <= W - 16 and p2y - BS < by < p2y + PH:
+            if (bdx > 0 and W - 24 - BS <= bx <= W - 16
+                and p2y - BS < by < p2y + PH):
                 bdx = -bdx * 1.04
                 bdy = 260 * ((by + BS / 2 - p2y) / PH - 0.5) * 2
                 beep(880, 15)
 
-            if bx < -BS:                          # past the left edge: P2 scores
+            # past the left edge: P2 scores
+            if bx < -BS:
                 s2 += 1
                 beep(220, 200)
                 bx, by, bdx, bdy = serve(-1)      # loser receives
-            elif bx > W:                          # past the right: P1 scores
+            # past the right: P1 scores
+            elif bx > W:
                 s1 += 1
                 beep(220, 200)
                 bx, by, bdx, bdy = serve(1)
@@ -107,12 +114,15 @@ try:
             d.fill_rect(int(bx), int(by), BS, BS, INK)
         elif state == "title":
             hdmi.text("P O N G", W // 2 - 112, 180, INK, -1, 2, 3)
-            hdmi.text("W/S and UP/DOWN -- first to 5 -- SPACE to start",
+            hdmi.text("W/S and UP/DOWN -- first to 5 -- SPACE to "
+                      "start",
                       W // 2 - 188, 260, DIM)
         elif state == "over":
             champ = "PLAYER 1" if s1 == WIN else "PLAYER 2"
-            hdmi.text(champ + " WINS", W // 2 - 176, 180, INK, -1, 2, 3)
-            hdmi.text("SPACE for a rematch", W // 2 - 76, 260, DIM)
+            hdmi.text(champ + " WINS", W // 2 - 176, 180, INK, -1,
+                      2, 3)
+            hdmi.text("SPACE for a rematch", W // 2 - 76, 260,
+                      DIM)
         hdmi.copy("F", "N")
 finally:
     hdmi.write("N")

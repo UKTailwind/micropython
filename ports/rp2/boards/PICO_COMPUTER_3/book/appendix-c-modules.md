@@ -50,13 +50,13 @@ Ch. 27; manual §7.
 `sound` † (4-voice synth), `mod_sample` †. Ch. 20; manual §9.
 
 **pcnet** — `wifi tz ntpsync auto` †: connection, timezone, NTP.
-Ch. 29; manual §11, §16.
+Ch. 30; manual §11, §16.
 
 **pcplot / `plot()`** † — autoscaled plotting: data, functions,
 series, styles. Ch. 8, 30; manual §17.
 
 **pcmath** — `correl chi_square crossings power_spectrum window`,
-3-D vectors, quaternions, `PID`. Ch. 30; manual §17.
+3-D vectors, quaternions, `PID`. Ch. 31; manual §17.
 
 **pcgame / `Clock`** — drift-free frame timing, `dt`, `vsync=True`,
 `.fps`. Ch. 22; manual §17.
@@ -66,7 +66,7 @@ series, styles. Ch. 8, 30; manual §17.
 
 **ds3231** — the battery clock: `settime gettime synctime` † and the
 daily alarm (`set_alarm alarm_fired clear_alarm alarm_pin`).
-Ch. 28, 33; manual §11.
+Ch. 29, 33; manual §11.
 
 **keyboard / `keydown()`** † — live key state, named key constants,
 `on_key`, `on_usb_event`; `keymap()` † for layouts. Ch. 21; manual §6.
@@ -93,15 +93,15 @@ Ch. 5; manual §13.
 `randint choice seed` (ch. 7) · **time** `sleep sleep_ms ticks_ms
 ticks_us ticks_diff localtime mktime` (ch. 5, 21, 28) · **os**
 `listdir mkdir remove statvfs uname` (ch. 16, 35) · **json**
-`load(s)/dump(s)` (ch. 29) · **gc** `mem_free collect` (ch. 34) ·
+`load(s)/dump(s)` (ch. 30) · **gc** `mem_free collect` (ch. 35) ·
 **sys** `path implementation` (ch. 11) · **machine** `Pin ADC PWM I2C
-SPI UART Timer WDT RTC freq` (ch. 31, 33) · **micropython** `const
-native viper mem_info` (ch. 34) · **framebuf** (under `Display`;
-manual §5) · **network** WLAN (ch. 29) · **requests** HTTP(S)
-(ch. 29) · **umqtt.simple/robust** MQTT (ch. 29) · **ntptime**,
+SPI UART Timer WDT RTC freq` (ch. 32, 33) · **micropython** `const
+native viper mem_info` (ch. 35) · **framebuf** (under `Display`;
+manual §5) · **network** WLAN (ch. 30) · **requests** HTTP(S)
+(ch. 30) · **umqtt.simple/robust** MQTT (ch. 30) · **ntptime**,
 **mip** (installer), **aioble/bluetooth** (BLE — manual §16) ·
-**asyncio** tasks (ch. 33) · **ulab.numpy / ulab.scipy** arrays, FFT,
-linalg (ch. 30) · **usqlite** on-device **SQLite** database —
+**asyncio** tasks (ch. 34) · **ulab.numpy / ulab.scipy** arrays, FFT,
+linalg (ch. 31) · **usqlite** on-device **SQLite** database —
 `connect()`, SQL, cursors, `.db` files on `/` or `/sd` (manual §17).
 
 ## Your own shelf (built through the book)

@@ -36,7 +36,8 @@ POINTS = {3: 20, 2: 50, 1: 100}         # small rocks pay best
 
 def make_rocks(n):
     rocks = []
-    for _ in range(n):                  # spawn on the border: centre is safe
+    # spawn on the border: centre is safe
+    for _ in range(n):
         if random.randint(0, 1):
             rx, ry = random.randint(0, W - 1), 0
         else:
@@ -51,10 +52,12 @@ def burst(x, y, n):
         ang = random.randint(0, 359)
         speed = random.randint(40, 140)
         r = math.radians(ang)
-        particles.append([x, y, math.sin(r) * speed, -math.cos(r) * speed,
+        particles.append([x, y, math.sin(r) * speed,
+                         -math.cos(r) * speed,
                           random.randint(20, 45) / 60])
 
-random.seed()                            # different rocks every game
+# different rocks every game
+random.seed()
 stars = [(random.randint(0, W - 1), random.randint(0, H - 1))
          for _ in range(60)]
 
@@ -69,11 +72,13 @@ score = 0
 lives = 3
 wave = 1
 cooldown = 0.0
-shield = 0.0                             # seconds of respawn safety
+# seconds of respawn safety
+shield = 0.0
 thrusting = False
 
 try:
-    play("/sd/asteroids.mod", loop=True) # soundtrack, if one's aboard
+    # soundtrack, if one's aboard
+    play("/sd/asteroids.mod", loop=True)
 except OSError:
     pass
 
@@ -108,7 +113,8 @@ try:
 
             cooldown = max(0.0, cooldown - dt)
             shield = max(0.0, shield - dt)
-            if held(ord(" ")) and cooldown == 0 and len(bullets) < 4:
+            if (held(ord(" ")) and cooldown == 0
+                and len(bullets) < 4):
                 nx, ny = pt(x, y, a, 11)
                 r = math.radians(a)
                 bullets.append([nx, ny,
@@ -138,20 +144,26 @@ try:
                 p[4] -= dt
             particles = [p for p in particles if p[4] > 0]
 
-            # bullets vs rocks: circle test, no square roots needed
+            # bullets vs rocks: circle test, no square roots
+            # needed
             for b in bullets:
                 for rk in rocks:
                     rr = RADIUS[rk[4]]
-                    if (b[0] - rk[0]) ** 2 + (b[1] - rk[1]) ** 2 < rr * rr:
-                        b[4] = 0                     # bullet spent
+                    if ((b[0] - rk[0]) ** 2 + (b[1] - rk[1]) ** 2
+                        < rr * rr):
+                        # bullet spent
+                        b[4] = 0
                         score += POINTS[rk[4]]
                         burst(rk[0], rk[1], 10)
                         beep(180, 25)
-                        if rk[4] > 1:                # big rocks split in two
+                        # big rocks split in two
+                        if rk[4] > 1:
                             for _ in range(2):
                                 rocks.append([rk[0], rk[1],
-                                              random.randint(-90, 90) * 1.0,
-                                              random.randint(-90, 90) * 1.0,
+                                              random.randint(-90,
+                                                  90) * 1.0,
+                                              random.randint(-90,
+                                                  90) * 1.0,
                                               rk[4] - 1])
                         rocks.remove(rk)
                         break
@@ -161,17 +173,20 @@ try:
             if shield == 0:
                 for rk in rocks:
                     rr = RADIUS[rk[4]] + 6
-                    if (x - rk[0]) ** 2 + (y - rk[1]) ** 2 < rr * rr:
+                    if ((x - rk[0]) ** 2 + (y - rk[1]) ** 2 < rr
+                        * rr):
                         lives -= 1
                         burst(x, y, 24)
                         beep(120, 400)
-                        x, y, vx, vy, a = W / 2, H / 2, 0.0, 0.0, 0.0
+                        x, y = W / 2, H / 2
+                        vx, vy, a = 0.0, 0.0, 0.0
                         shield = 2.0
                         if lives == 0:
                             state = "over"
                         break
 
-            if not rocks:                            # wave cleared
+            # wave cleared
+            if not rocks:
                 wave += 1
                 rocks = make_rocks(3 + wave)
                 shield = 2.0
@@ -188,11 +203,13 @@ try:
         for p in particles:
             d.pixel(int(p[0]) % W, int(p[1]) % H, FLAME)
         for rk in rocks:
-            d.ellipse(int(rk[0]), int(rk[1]), RADIUS[rk[4]], RADIUS[rk[4]],
+            d.ellipse(int(rk[0]), int(rk[1]), RADIUS[rk[4]],
+                      RADIUS[rk[4]],
                       ROCKC)
         for b in bullets:
             d.fill_rect(int(b[0]), int(b[1]), 2, 2, INK)
-        if state == "play" and (shield == 0 or int(shield * 8) % 2 == 0):
+        if (state == "play" and (shield == 0
+            or int(shield * 8) % 2 == 0)):
             nx, ny = pt(x, y, a, 11)
             lx, ly = pt(x, y, a + 140, 9)
             rx2, ry2 = pt(x, y, a - 140, 9)

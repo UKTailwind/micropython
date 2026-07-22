@@ -43,7 +43,7 @@ Almost every idea here is spatial/temporal and currently prose-only.
 - **P2 Video-RAM split** (§Why only 320×240): two 320×240 screens fill video
   RAM; the layer *is* the second half. (Shared with ch34's figure.)
 
-### Ch 34 — Performance & memory
+### Ch 35 — Performance & memory
 - **P1 Where the frame lives** (§Where the frame lives): the video-RAM
   block, showing what fits on-chip per mode — RGB640_4 (frame + F),
   RGB320 (frame + F *or* layer), RGB320_8 (N + L + F all on-chip). This is
@@ -75,7 +75,7 @@ Almost every idea here is spatial/temporal and currently prose-only.
   shipping it 60×/s).
 - **P3 `arc()` angles**: 0° = up, clockwise, `a1`/`a2` sweep.
 
-### Ch 31 — GPIO / talking to the world
+### Ch 32 — GPIO / talking to the world
 Electronics without pictures is the hardest ask in the book.
 - **P1 The I/O-header pinout** (§The header map): labelled pin map (shared
   with Appendix D).
@@ -115,12 +115,12 @@ Electronics without pictures is the hardest ask in the book.
   indices; slice boundaries *between* elements). The classic clarifier.
 - **P3 Dict as key→value** mapping.
 
-### Ch 09 — Turtle graphics
+### Ch 9 — Turtle graphics
 - **P1 The exterior-angle insight**: a polygon with the 360/n turn marked
   (why the square turns 90°, the pentagon 72°); the star's overshoot angle.
   Angles are pure geometry — a figure teaches faster than any sentence.
 
-### Ch 35 — The system itself
+### Ch 36 — The system itself
 - **P1 Boot sequence**: power → bootrom → `_boot` → `_boot_board` →
   `main.py` → REPL (§The five seconds after the switch).
 - **P1 Flash geography** (§The geography): the flash map — firmware region
@@ -134,27 +134,27 @@ Electronics without pictures is the hardest ask in the book.
 
 ## Tier 3 — polish where a small figure lifts a page
 
-- **Ch 01** — labelled board callout (beyond the photo) + a one-box
+- **Ch 1** — labelled board callout (beyond the photo) + a one-box
   system block diagram (CPU · HDMI · USB host · SD · audio · RTC · Wi-Fi).
-- **Ch 02** — a "plug it in here" wiring picture (HDMI, USB, power, SD) and
+- **Ch 2** — a "plug it in here" wiring picture (HDMI, USB, power, SD) and
   a flashing flowchart (HUB switch → Prog → BOOT+RESET → drop `.uf2`).
 - **Ch 13** — anatomy of a traceback (labelled call-stack + arrow) and the
   try/except/finally flow.
 - **Ch 14** — class-as-blueprint → many instances (each with its own
   attributes).
-- **Ch 08** — while vs for flow (small flowcharts), break/continue.
+- **Ch 8** — while vs for flow (small flowcharts), break/continue.
 - **Ch 11** — function call: arguments in → return out; scope as a "sealed
   room".
 - **Ch 20** — waveform (frequency = pitch, amplitude = volume); the four
   voices as parallel channels.
-- **Ch 28** — the 8-field time tuple, labelled; the three clocks (RTC /
+- **Ch 29** — the 8-field time tuple, labelled; the three clocks (RTC /
   system / NTP) and how they sync.
-- **Ch 29** — request→response (device → HTTPS → JSON back); MQTT pub/sub
+- **Ch 30** — request→response (device → HTTPS → JSON back); MQTT pub/sub
   through a broker.
-- **Ch 33** — an interrupt (main flow → handler → resume); asyncio tasks
+- **Ch 34** — an interrupt (main flow → handler → resume); asyncio tasks
   yielding on a timeline.
 - **Ch 25** — the dialogue state machine.
-- **Ch 30** — array-vs-loop (one C op over a row vs a Python loop).
+- **Ch 31** — array-vs-loop (one C op over a row vs a Python loop).
 
 ### Appendices
 - **D (Hardware reference)** — the definitive **full pinout** and a

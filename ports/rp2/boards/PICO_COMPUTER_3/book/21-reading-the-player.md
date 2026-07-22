@@ -14,7 +14,7 @@ bugs in beginner games are really a philosophy chosen wrong:
   with the full story.
 - **Events** — `keyboard.on_key()`. Ask to be *told* when something
   happens, and get on with your life meanwhile. The applications
-  answer — chapter 27's GUI lives on it (and chapter 33 explains the
+  answer — chapter 27's GUI lives on it (and chapter 34 explains the
   machinery underneath).
 
 The mouse and the touch panel are both polling-style, with a garnish
@@ -70,7 +70,7 @@ keyboard.on_key(spy)
 the novelty fades.) Notice the key still *works* normally — the event
 is a copy, not a theft, so the prompt keeps functioning under your
 spy. Your handler runs via the scheduler, between the machine's other
-work: keep it short, set a variable, return — chapter 33 explains the
+work: keep it short, set a variable, return — chapter 34 explains the
 rules in full, and chapter 27's GUI is this mechanism wearing buttons.
 
 ## The mouse

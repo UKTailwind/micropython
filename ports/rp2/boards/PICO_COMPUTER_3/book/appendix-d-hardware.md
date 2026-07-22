@@ -87,5 +87,5 @@ manual §2.
 - **SD cards:** FAT-formatted, hot-swappable, PC-readable — the bridge
   for photos, music and backups.
 - **DS3231:** ±2 ppm-class accuracy; CR2032 keeps it through years of
-  power-off; the daily alarm survives resets (chapter 28).
+  power-off; the daily alarm survives resets (chapter 29).
 - **Wi-Fi credentials** are stored in plain text in `/settings.json`.

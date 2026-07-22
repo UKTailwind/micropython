@@ -12,12 +12,12 @@ OUT = BOOK / "examples"
 
 NAME_RE = re.compile(r"\b([A-Za-z0-9_]+\.py)\b")
 
-# The reader's toolkit (chapter 35's list): modules later programs import.
+# The reader's toolkit (chapter 36's list): modules later programs import.
 # Copied into examples/lib/ under their real names so imports resolve.
 LIBS = [("shapes.py", "ch11"), ("scorelib.py", "ch12"),
         ("handy.py", "ch13"), ("sfx.py", "ch20"),
-        ("initials.py", "ch26"), ("gpad.py", "ch31"),
-        ("bench.py", "ch34")]
+        ("initials.py", "ch26"), ("gpad.py", "ch32"),
+        ("bench.py", "ch35")]
 
 
 def extract(md_path):

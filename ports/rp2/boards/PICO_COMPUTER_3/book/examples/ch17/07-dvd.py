@@ -24,7 +24,8 @@ try:
         y += dy
         hit = False
         if x < 0 or x + LW > W:
-            x = max(0, min(x, W - LW))    # step back inside the edge
+            # step back inside the edge
+            x = max(0, min(x, W - LW))
             dx = -dx
             hit = True
         if y < 0 or y + LH > H:
@@ -35,7 +36,8 @@ try:
             bounces += 1
             ci = (ci + 1) % len(COLOURS)
         hdmi.text(LOGO, x, y, d.colour(COLOURS[ci]), -1, 2, 3)
-        hdmi.text(f"bounces: {bounces}", 8, H - 20, d.colour(GRAY))
+        hdmi.text(f"bounces: {bounces}", 8, H - 20,
+                  d.colour(GRAY))
         hdmi.vsync()
         hdmi.copy("F", "N")
 finally:

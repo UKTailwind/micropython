@@ -6,7 +6,7 @@ your fingers.
 ## The shell (chapter 4)
 
 ```
-ls()  ls("/sd/*.py")        list (wildcards fine)      cls()   clear screen
+ls()  ls("/sd/*.py")        list (wildcards)   cls() clear screen
 cd("/sd")  pwd()            change / show directory
 cat("f.py")                 view, paged (q stops)
 cp("a.py", "b.py")          copy    (wildcards -> dir)
@@ -30,9 +30,10 @@ N new dir · E edit · S stop audio · Q quit.
 ## The editor, `pye` (chapter 5)
 
 ```
-Ctrl-S save        Ctrl-Q quit (y/N/f)     Ctrl-Z / Ctrl-Y  undo / redo
+Ctrl-S save        Ctrl-Q quit (y/N/f)     Ctrl-Z/Y undo/redo
 Ctrl-F find        Ctrl-N find next        Ctrl-G  go to line
-Tab / Shift-Tab    indent / unindent       Ctrl-P  toggle # comment
+# comment
+Tab / Shift-Tab    indent / unindent       Ctrl-P  toggle
 Ctrl-L mark, then  Ctrl-C/X/V copy/cut/paste
 ```
 
@@ -48,18 +49,21 @@ Ctrl-L mark, then  Ctrl-C/X/V copy/cut/paste
 ## Screen (chapters 15–17)
 
 ```
-screen(hdmi.RGB640)             set + persist mode (RGB320/512/1024)
-d = hdmi.fb()                   Display -- take AFTER hdmi.write()!
+screen(hdmi.RGB640)             set + save mode (RGB320/512/1024)
+d = hdmi.fb()                   Display -- AFTER hdmi.write()!
 d.colour(0xRRGGBB)              convert colour FIRST, always
 d.fill(c)  d.pixel(x,y,c)  d.line(x1,y1,x2,y2,c,w)
 d.rect / fill_rect(x,y,w,h,c)   d.ellipse(x,y,rx,ry,c,True)
-d.rbox(x,y,w,h,r,c[,fill])      d.arc(x,y,r1,r2,a1,a2,c)   d.flood(x,y,c)
-hdmi.text(s,x,y,fg,bg,scale,font)     fonts 1..9; 6 = big digits; bg=-1 clear
+d.rbox(x,y,w,h,r,c[,fill]) d.arc(x,y,r1,r2,a1,a2,c) d.flood(x,y,c)
+hdmi.text(s,x,y,fg,bg,scale,font)  fonts 1..9; 6=digits; bg=-1
 draw_jpg/png/bmp(path)          save_image(path)
-sheet = load_image(path, transparent=c);  sheet.cell(col,row,cw,ch,x,y,skip=c)
-hdmi.close("F"); hdmi.create(); hdmi.write("F")     # flip pattern:
-...draw frame... ; hdmi.vsync(); hdmi.copy("F","N") # then finally write("N")
-console("none")                 hide console+cursor; console() restores
+sheet = load_image(path, transparent=c)
+sheet.cell(col,row,cw,ch,x,y,skip=c)
+# flip pattern:
+hdmi.close("F"); hdmi.create(); hdmi.write("F")
+# then finally write("N")
+...draw frame... ; hdmi.vsync(); hdmi.copy("F","N")
+console("none")                 hide it; console() shows again
 ```
 
 ## Input (chapters 18, 21)
@@ -85,23 +89,26 @@ mod_sample(n[, rate=])                        SFX over .mod music
 ## Games (chapters 18, 19, 22)
 
 ```
-clock = pcgame.Clock(vsync=True); dt = clock.tick()   # speeds * dt!
+# speeds * dt!
+clock = pcgame.Clock(vsync=True); dt = clock.tick()
 import pcsprite as sp
-s = sp.grab(x,y,w,h,transparent=c);  s.show(x,y,layer=n);  s.x += 1
-for a, b in sp.update(vsync=True): ...   # collisions; sp.reset() when done
-tm = TileMap(sheet, 16, 16, cols, rows); tm.set(c,r,t); tm.view(x,y); tm.draw()
+s = sp.grab(x,y,w,h,transparent=c); s.show(x,y,layer=n); s.x += 1
+# collisions; sp.reset() when done
+for a, b in sp.update(vsync=True): ...
+tm = TileMap(sheet, 16, 16, cols, rows)
+tm.set(c,r,t); tm.view(x,y); tm.draw()
 tm.set_attr(tile, 1); tm.collide(x, y, w, h, mask=1)
 ```
 
 ## Time & system (chapters 28, 35)
 
 ```
-gettime() -> tuple      settime(y,mo,d,h,mi,s)      ntpsync()  tz(1)
-time.ticks_ms()/ticks_us() + time.ticks_diff(now, t0)    time.sleep_ms(n)
+gettime() -> tuple   settime(y,mo,d,h,mi,s)   ntpsync() tz(1)
+time.ticks_ms() ticks_us() ticks_diff(now,t0) sleep_ms(n)
 ds3231.set_alarm(h, m)  alarm_fired()  clear_alarm()  alarm_pin()
-machine.Timer(period=500, callback=f)     pin.irq(f, Pin.IRQ_FALLING)
+machine.Timer(period=500, callback=f)  pin.irq(f, Pin.IRQ_FALLING)
 console("both"/"serial"/"screen"/"none")  keymap("UK")
-rm("/settings.json") = factory defaults;  /boot.py then /main.py at boot
+rm("/settings.json") = factory reset;  /boot.py then /main.py
 ```
 
 ## GPIO (chapter 31)
@@ -118,8 +125,9 @@ machine.I2C(0, sda=Pin(20), scl=Pin(21)).scan()      QWIIC bus
 
 ```python
 try:
-    ...                      # anything with write("F"/"L"), console("none"),
-finally:                     # sprites, GUI (g.stop()), irq handlers,
+    ...                      # anything using write("F"/"L"),
+# sprites, GUI (g.stop()), irq handlers,
+finally:
     hdmi.write("N")          # mode changes, music (stop())
     console()
 ```

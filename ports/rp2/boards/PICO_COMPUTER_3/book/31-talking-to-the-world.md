@@ -31,7 +31,7 @@ Fifteen pin-pairs, exactly as silk-screened beside the header (the
 board photo in chapter 1 shows it):
 
 ```
-GP21  GND        <- I2C0 SCL (shared with the QWIIC socket + DS3231)
+GP21  GND        <- I2C0 SCL (shared: QWIIC socket + DS3231)
 GP20  +5V        <- I2C0 SDA (shared, 10K pull-ups on board)
 GP45  GP46       \
 GP43  GP44        |  GP40-GP46: also ANALOGUE inputs (machine.ADC)
@@ -94,7 +94,8 @@ print("press the button (Ctrl-C to stop)")
 was = 1
 while True:
     now = button.value()
-    if now == 0 and was == 1:          # just pressed (ch 25, in copper)
+    # just pressed (ch 25, in copper)
+    if now == 0 and was == 1:
         beep()
         print("click!")
     was = now
@@ -153,7 +154,9 @@ A pin that flicks on and off thousands of times a second *averages*
 to something in between — that's PWM, and it dims LEDs and, more
 gloriously, commands servos.
 
-![PWM in one picture: the pin is only ever fully on or fully off, but its *duty* — the fraction of each cycle spent on — sets the average the world feels, dimming an LED or, at 50 Hz, steering a servo.](figs/31-pwm.png) Wire the servo: brown→GND, red→**5V**,
+![PWM in one picture: the pin is only ever fully on or fully off, but its *duty* — the fraction of each cycle spent on — sets the average the world feels, dimming an LED or, at 50 Hz, steering a servo.](figs/31-pwm.png)
+
+Wire the servo: brown→GND, red→**5V**,
 orange (signal)→**GP2**. `edit("sweep.py")`:
 
 ```python
@@ -174,7 +177,8 @@ for _ in range(3):
     for a in range(180, -1, -5):
         angle(a)
         time.sleep_ms(20)
-servo.duty_u16(0)                        # release (stops the hold jitter)
+# release (stops the hold jitter)
+servo.duty_u16(0)
 ```
 
 A thing in the room *moves* because your `for` loop said so — for
@@ -239,7 +243,8 @@ _button = Pin(1, Pin.IN, Pin.PULL_UP)
 _fire_was = 1
 
 def raw():
-    """The knob, 0..65535 (noisy at the edges -- that's analogue life)."""
+    """The knob, 0..65535 (noisy at the edges -- that's analogue
+    life)."""
     return _knob.read_u16()
 
 def dial(lo, hi):

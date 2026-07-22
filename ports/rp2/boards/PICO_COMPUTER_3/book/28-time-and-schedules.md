@@ -27,7 +27,8 @@ makes nonsense). Setting the clock is one call, which also programs
 the DS3231 so the setting *keeps*:
 
 ```python
-settime(2026, 7, 16, 9, 30, 0)     # year, month, day, hour, minute, second
+# year, month, day, hour, minute, second
+settime(2026, 7, 16, 9, 30, 0)
 ```
 
 (`synctime()` re-reads the DS3231 into the system clock — rarely
@@ -61,7 +62,9 @@ take it apart:
 Positions 0–5 are what you'd guess; position **6** is the weekday
 (0 = Monday) and **7** the day-of-year.
 
-![The machine's three clocks — the battery DS3231, the system clock it seeds at boot, and the millisecond ticker — and the eight-number tuple `gettime()` returns: positions 0–5 the date and time, 6 the weekday (0 = Mon), 7 the day of the year.](figs/28-clocks.png) Two idioms cover nearly all
+![The machine's three clocks — the battery DS3231, the system clock it seeds at boot, and the millisecond ticker — and the eight-number tuple `gettime()` returns: positions 0–5 the date and time, 6 the weekday (0 = Mon), 7 the day of the year.](figs/28-clocks.png)
+
+Two idioms cover nearly all
 display work: the `:02` pad (chapter 6's format specs — clocks are
 why they exist) and a name table for weekdays:
 
@@ -81,7 +84,8 @@ arithmetic, and converts back:
 ```python
 import time
 
-t = time.mktime(gettime())              # tuple -> one big seconds count
+# tuple -> one big seconds count
+t = time.mktime(gettime())
 t += 90 * 24 * 60 * 60                  # add 90 days of seconds
 future = time.localtime(t)              # seconds -> tuple again
 print(f"{future[2]:02}/{future[1]:02}/{future[0]}")
@@ -119,13 +123,15 @@ hdmi.fb().fill(0)
 g = pcgui.GUI()
 g.start()
 done = [False]
-running = [None]                    # None, or (start_ms, total_ms)
+# None, or (start_ms, total_ms)
+running = [None]
 
 g.caption(96, 8, "KITCHEN TIMER", fg=GOLD, font=2)
 g.caption(24, 58, "minutes")
 mins = g.spinner(24, 72, 90, 28, value=5, lo=1, hi=120, step=1)
 disp = g.displaybox(150, 56, 146, 44, "05:00", font=3)
-bar = g.bargauge(20, 116, 280, 16, value=0, lo=0, hi=100, fg=GREEN)
+bar = g.bargauge(20, 116, 280, 16, value=0, lo=0, hi=100,
+                 fg=GREEN)
 
 def fmt_ms(ms):
     s = max(0, ms) // 1000
@@ -144,7 +150,8 @@ def cancel(b):
 def quit_app(b):
     done[0] = True
 
-g.button(30, 150, 120, 34, "START", fg=WHITE, bg=COBALT, callback=start)
+g.button(30, 150, 120, 34, "START", fg=WHITE, bg=COBALT,
+         callback=start)
 g.button(170, 150, 120, 34, "CANCEL", callback=cancel)
 g.button(12, 202, 70, 26, "EXIT", callback=quit_app)
 
@@ -155,7 +162,8 @@ try:
             t0, total = running[0]
             left = total - time.ticks_diff(time.ticks_ms(), t0)
             disp.value = fmt_ms(left)
-            bar.value = min(100, 100 * (total - max(0, left)) // total)
+            bar.value = min(100, 100 * (total - max(0,
+                            left)) // total)
             if left <= 0:
                 running[0] = None
                 disp.value = "DING!"
@@ -221,7 +229,8 @@ def save_alarm():
 
 ahh, amm, armed = load_alarm()
 ringing = False
-fired_at = None                      # (hh, mm) already rung this minute
+# (hh, mm) already rung this minute
+fired_at = None
 up_was = dn_was = a_was = True
 
 d.fill(BG)
@@ -268,14 +277,17 @@ try:
                 tone(1318, 1318, 120, wait=True)
 
         d.fill_rect(x0, y0, tw, 50, BG)
-        hdmi.text(f"{h:02}:{m:02}:{s:02}", x0, y0, DIGITS, -1, 1, 6)
+        hdmi.text(f"{h:02}:{m:02}:{s:02}", x0, y0, DIGITS, -1, 1,
+                  6)
         d.arc(cx, cy, 150, 158, 0, 0, BG)
         if s:
             d.arc(cx, cy, 150, 158, 0, s * 6, RING)
-        status = f"alarm {ahh:02}:{amm:02}  " + ("ARMED" if armed else "off")
+        status = (f"alarm {ahh:02}:{amm:02}  "
+                  + ("ARMED" if armed else "off"))
         hdmi.text(status, cx - len(status) * 8, H - 60,
                   RING if armed else DIM, BG, 2)
-        hdmi.text("UP/DOWN set   A arm   ESC quit", cx - 116, H - 24, DIM, BG)
+        hdmi.text("UP/DOWN set   A arm   ESC quit", cx - 116,
+                  H - 24, DIM, BG)
         time.sleep_ms(50)
 finally:
     console()
@@ -345,7 +357,8 @@ worth reading twice:
 
    ```python
    import ds3231
-   ds3231.set_alarm(7, 0)        # 07:00, every day, survives resets
+   # 07:00, every day, survives resets
+   ds3231.set_alarm(7, 0)
    if ds3231.alarm_fired():      # poll this...
        ds3231.clear_alarm()      # ...and acknowledge
    ```

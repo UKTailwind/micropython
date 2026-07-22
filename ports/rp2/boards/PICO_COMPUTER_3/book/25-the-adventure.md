@@ -121,9 +121,11 @@ for _ in range(30):
     tm.set(random.randint(2, 61), random.randint(2, 45), ROCK)
 for _ in range(30):
     tm.set(random.randint(2, 61), random.randint(2, 45), FLOWER)
-for _ in range(5):                                # the five shards
+# the five shards
+for _ in range(5):
     tm.set(random.randint(4, 59), random.randint(4, 43), SHARD)
-for c in range(30, 36):                           # the village clearing
+# the village clearing
+for c in range(30, 36):
     for r in range(22, 27):
         tm.set(c, r, GRASS)
 
@@ -135,11 +137,13 @@ tm.clamp(W, H)
 # --- the cast
 px, py = 32 * 16.0, 25 * 16.0                     # the hero
 ex, ey = 33 * 16.0, 23 * 16.0                     # the elder...
-E_LEFT, E_RIGHT, espeed = 31 * 16.0, 35 * 16.0, 22.0   # ...and her patrol
+# ...and her patrol
+E_LEFT, E_RIGHT, espeed = 31 * 16.0, 35 * 16.0, 22.0
 
 def shards_left():
     return sum(row.count(SHARD) for row in
-               [[tm.get(c, r) for c in range(64)] for r in range(48)])
+               [[tm.get(c,
+                r) for c in range(64)] for r in range(48)])
 
 def save_game():
     with open(SAVE, "w") as f:
@@ -152,18 +156,21 @@ def save_game():
         f.write(";".join(cells) + "\n")
 
 def load_game():
-    """Apply a saved game. Returns the restored (px, py), or None."""
+    """Apply a saved game. Returns the restored (px, py), or
+    None."""
     try:
         with open(SAVE) as f:
             pos = f.readline().strip().split(",")
             cellline = f.readline().strip()
     except OSError:
         return None
-    for r in range(48):                           # strip the fresh shards...
+    # strip the fresh shards...
+    for r in range(48):
         for c in range(64):
             if tm.get(c, r) == SHARD:
                 tm.set(c, r, GRASS)
-    if cellline:                                  # ...and lay the saved ones
+    # ...and lay the saved ones
+    if cellline:
         for cell in cellline.split(";"):
             c, r = cell.split(":")
             tm.set(int(c), int(r), SHARD)
@@ -192,7 +199,8 @@ def elder_lines():
 state = "title"
 talk_lines = []
 talk_i = 0
-space_was = True                                  # held from the title press
+# held from the title press
+space_was = True
 e_was = False
 edir = 1
 
@@ -234,11 +242,14 @@ try:
             if not tm.collide(px, ny, 14, 14, mask=SOLID):
                 py = ny
 
-            if tm.tile_at(px + 7, py + 7) == SHARD:      # pick a shard up
-                tm.set(int(px + 7) // 16, int(py + 7) // 16, GRASS)
+            # pick a shard up
+            if tm.tile_at(px + 7, py + 7) == SHARD:
+                tm.set(int(px + 7) // 16, int(py + 7) // 16,
+                       GRASS)
                 beep(880 + (5 - shards_left()) * 110, 60)
 
-            ex += espeed * edir * dt                     # the elder's patrol
+            # the elder's patrol
+            ex += espeed * edir * dt
             if ex < E_LEFT or ex > E_RIGHT:
                 ex = max(E_LEFT, min(E_RIGHT, ex))
                 edir = -edir
@@ -249,7 +260,8 @@ try:
                 talk_i = 0
                 state = "talk"
 
-            if held(ord("q")):                           # save and rest
+            # save and rest
+            if held(ord("q")):
                 save_game()
                 break
 
@@ -260,7 +272,8 @@ try:
                     if shards_left() == 0:
                         try:
                             import os
-                            os.remove(SAVE)              # the tale is told
+                            # the tale is told
+                            os.remove(SAVE)
                         except OSError:
                             pass
                         state = "win"
@@ -279,29 +292,38 @@ try:
         cvy = max(0, min(vy, 48 * 16 - H))
         hdmi.write("F")
         tm.draw()
-        tm.blit_tile(ELDER, int(ex - cvx), int(ey - cvy), skip=d.colour(BLACK))
-        tm.blit_tile(HERO, int(px - cvx), int(py - cvy), skip=d.colour(BLACK))
+        tm.blit_tile(ELDER, int(ex - cvx), int(ey - cvy),
+                     skip=d.colour(BLACK))
+        tm.blit_tile(HERO, int(px - cvx), int(py - cvy),
+                     skip=d.colour(BLACK))
         hdmi.text(f"shards: {5 - shards_left()}/5", 8, 8,
                   d.colour(WHITE), d.colour(BLACK))
         if state == "title":
-            d.rbox(120, 160, 400, 150, 12, d.colour(GOLD), d.colour(0x102030))
-            hdmi.text("THE FIVE SHARDS", 200, 190, d.colour(GOLD), -1, 1, 3)
+            d.rbox(120, 160, 400, 150, 12, d.colour(GOLD),
+                   d.colour(0x102030))
+            hdmi.text("THE FIVE SHARDS", 200, 190, d.colour(GOLD),
+                      -1, 1, 3)
             if save_exists():
-                hdmi.text("SPACE continue    N new game", 208, 240,
+                hdmi.text("SPACE continue    N new "
+                          "game", 208, 240,
                           d.colour(WHITE))
             else:
                 hdmi.text("N to begin", 280, 240, d.colour(WHITE))
-            hdmi.text("arrows walk  E talk  Q save+quit", 192, 270,
+            hdmi.text("arrows walk  E talk  Q "
+                      "save+quit", 192, 270,
                       d.colour(GRAY))
         elif state == "talk":
             d.rbox(60, H - 120, W - 120, 90, 10,
                    d.colour(GOLD), d.colour(0x102030))
-            hdmi.text(talk_lines[min(talk_i, len(talk_lines) - 1)],
+            hdmi.text(talk_lines[min(talk_i,
+                                     len(talk_lines) - 1)],
                       80, H - 96, d.colour(WHITE))
             hdmi.text("SPACE", W - 130, H - 52, d.colour(GRAY))
         elif state == "win":
-            d.rbox(140, 160, 360, 120, 12, d.colour(GOLD), d.colour(0x102030))
-            hdmi.text("THE AMULET IS WHOLE", 168, 195, d.colour(GOLD), -1, 1, 3)
+            d.rbox(140, 160, 360, 120, 12, d.colour(GOLD),
+                   d.colour(0x102030))
+            hdmi.text("THE AMULET IS WHOLE", 168, 195,
+                      d.colour(GOLD), -1, 1, 3)
             hdmi.text("SPACE to rest", 268, 245, d.colour(WHITE))
         hdmi.write("N")
         hdmi.vsync()

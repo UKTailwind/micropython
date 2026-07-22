@@ -21,11 +21,14 @@ import pcgui
 
 screen(hdmi.RGB320)                 # chunky pixels suit fingers
 time.sleep(3)
-console("serial")                   # REPL prints stay off the GUI screen
+# REPL prints stay off the GUI screen
+console("serial")
 
 hdmi.fb().fill(0)
-g = pcgui.GUI()                     # the manager: owns, draws, dispatches
-g.start()                           # borrow the keyboard (for text boxes)
+# the manager: owns, draws, dispatches
+g = pcgui.GUI()
+# borrow the keyboard (for text boxes)
+g.start()
 done = [False]
 
 g.caption(100, 10, "FIRST CONTACT", fg=YELLOW, font=2)
@@ -38,7 +41,8 @@ def quit_app(b):
     done[0] = True
 
 g.switch(120, 66, 90, 28, "ON|OFF", callback=flip)
-g.button(110, 180, 100, 30, "QUIT", fg=WHITE, bg=RED, callback=quit_app)
+g.button(110, 180, 100, 30, "QUIT", fg=WHITE, bg=RED,
+         callback=quit_app)
 
 try:
     while not done[0]:
@@ -141,9 +145,12 @@ try:
     while not held(keyboard.ESC):
         pccursor.refresh()
         click_now = mouse("L") == 1
-        if click_now and not click_was:          # just-pressed (ch 25)
-            pccursor.erase()                     # lift it -- no ghosts
-            d.ellipse(mouse("X"), mouse("Y"), 6, 6, d.colour(GOLD), True)
+        # just-pressed (ch 25)
+        if click_now and not click_was:
+            # lift it -- no ghosts
+            pccursor.erase()
+            d.ellipse(mouse("X"), mouse("Y"), 6, 6,
+                      d.colour(GOLD), True)
         click_was = click_now
         time.sleep_ms(10)
 finally:
@@ -207,7 +214,8 @@ disp = g.displaybox(20, 12, 280, 36, "0", font=3)
 entry = ["0"]                       # what's being typed
 acc = [None]                        # the running total
 op = [None]                         # the pending operator
-fresh = [True]                      # next digit starts a new number
+# next digit starts a new number
+fresh = [True]
 
 def show(text):
     disp.value = text[:14]
@@ -250,7 +258,8 @@ def press(c):
             acc[0] = float(entry[0])
         op[0] = c
         fresh[0] = True
-        if acc[0] is None:                      # a division just blew up
+        # a division just blew up
+        if acc[0] is None:
             entry[0], op[0] = "Err", None
     elif c == "=" and op[0] is not None and not fresh[0]:
         acc[0] = calc(acc[0], op[0], float(entry[0]))
@@ -269,7 +278,8 @@ for r, row in enumerate(ROWS):
                  callback=lambda b, c=ch: press(c))
 g.button(236, 184, 62, 32, "=", font=2, bg=COBALT,
          callback=lambda b: press("="))
-g.button(236, 64, 62, 32, "OFF", fg=WHITE, bg=RED, callback=power_off)
+g.button(236, 64, 62, 32, "OFF", fg=WHITE, bg=RED,
+         callback=power_off)
 
 try:
     while not done[0]:
@@ -328,7 +338,8 @@ def load_prefs():
                 if key in prefs:
                     prefs[key] = int(val)
     except (OSError, ValueError):
-        pass                        # missing or mangled: defaults stand
+        # missing or mangled: defaults stand
+        pass
     return prefs
 
 def save_prefs(prefs):
@@ -348,13 +359,15 @@ g.start()
 done = [False]
 
 def setter(key):
-    """Make a callback that files a control's value under `key`."""
+    """Make a callback that files a control's value under
+    `key`."""
     def apply(c):
         prefs[key] = c.value
     return apply
 
 def chooser(key, val):
-    """Make a callback that files the fixed `val` (for radio buttons)."""
+    """Make a callback that files the fixed `val` (for radio
+    buttons)."""
     def apply(c):
         prefs[key] = val
     return apply
@@ -373,9 +386,11 @@ g.switch(24, 80, 80, 24, "ON|OFF", value=prefs["flash"],
 g.caption(110, 86, "screen flash")
 
 g.frame(12, 114, 296, 52, "Volume")
-vol = g.slider(24, 134, 200, 20, value=prefs["volume"], lo=0, hi=100,
+vol = g.slider(24, 134, 200, 20, value=prefs["volume"], lo=0,
+               hi=100,
                callback=setter("volume"))
-g.bargauge(240, 134, 56, 20, value=prefs["volume"], lo=0, hi=100, fg=GREEN)
+g.bargauge(240, 134, 56, 20, value=prefs["volume"], lo=0, hi=100,
+           fg=GREEN)
 
 g.frame(12, 172, 200, 60, "Difficulty")
 for i, name in enumerate(("easy", "normal", "fierce")):
@@ -390,7 +405,8 @@ def do_save(b):
     saved.value = "saved!"
     beep(880, 40)
 
-g.button(224, 196, 84, 30, "SAVE", fg=WHITE, bg=COBALT, callback=do_save)
+g.button(224, 196, 84, 30, "SAVE", fg=WHITE, bg=COBALT,
+         callback=do_save)
 g.button(12, 4, 56, 24, "EXIT", callback=quit_app)
 
 try:

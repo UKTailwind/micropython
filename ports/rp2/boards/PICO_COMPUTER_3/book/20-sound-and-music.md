@@ -18,7 +18,8 @@ beep()
 Anything musical you can put on the SD card, the machine plays:
 
 ```python
-play("/sd/music/song.mp3")     # also .wav, .flac, .mod -- by extension
+# also .wav, .flac, .mod -- by extension
+play("/sd/music/song.mp3")
 ```
 
 ...and *keeps playing* while you type, draw, or run a program — audio
@@ -87,11 +88,13 @@ def play_tune(melody, bpm=120):
     beat = 60 / bpm
     for note, beats in melody:
         ms = int(beats * beat * 1000)
-        if note == "R":                        # a rest: silence, same length
+        # a rest: silence, same length
+        if note == "R":
             time.sleep(ms / 1000)
         else:
             tone(NOTES[note], NOTES[note], ms, wait=True)
-        time.sleep(0.02)                       # a breath between notes
+        # a breath between notes
+        time.sleep(0.02)
 
 play_tune(ODE, 140)
 ```
@@ -111,7 +114,8 @@ volume, all changeable *live*:
 
 ```python
 sound(1, "B", "S", 440)        # voice 1: Sine, Both ears, 440 Hz
-sound(2, "L", "Q", 110, 15)    # voice 2: Square wave, Left, quieter
+# voice 2: Square wave, Left, quieter
+sound(2, "L", "Q", 110, 15)
 sound(3, "R", "N", 1000)       # voice 3: white Noise, Right
 sound(2, "L", "O", 1)          # voice 2 Off
 stop()                         # everything off
@@ -160,14 +164,16 @@ def coin():
 
 def siren(times=3):
     for _ in range(times):
-        for f in list(range(600, 1200, 25)) + list(range(1200, 600, -25)):
+        for f in (list(range(600, 1200, 25))
+                  + list(range(1200, 600, -25))):
             sound(3, "B", "S", f, 16)
             time.sleep(0.006)
     sound(3, "B", "O", 1)
 
 if __name__ == "__main__":
     import keyboard
-    print("SFX BOARD -- 1 laser  2 boom  3 jump  4 coin  5 siren  Esc quits")
+    print("SFX BOARD -- 1 laser  2 boom  3 jump  4 coin  5 siren "
+          " Esc quits")
     while True:
         k = keydown(1)
         if k == ord("1"):
@@ -210,7 +216,8 @@ MMBasic-era trick works here:
 
 ```python
 play("/sd/game.mod", loop=True)     # background music, forever
-mod_sample(3)                       # fire instrument 3 as a sound effect
+# fire instrument 3 as a sound effect
+mod_sample(3)
 mod_sample(7, rate=24000)           # instrument 7, pitched up
 ```
 

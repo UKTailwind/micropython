@@ -17,11 +17,13 @@ are famously, reliably wrong — and you own a microsecond stopwatch.
 ```python
 # bench.py -- measure before you optimise.
 #   import bench
-#   bench.it(my_function)          # prints and returns best-of microseconds
+# bench.it(my_function)          # prints and returns best-of
+# microseconds
 import time
 
 def it(fn, repeat=5):
-    """Time fn() five times; report the BEST run in microseconds."""
+    """Time fn() five times; report the BEST run in
+    microseconds."""
     best = None
     for _ in range(repeat):
         t0 = time.ticks_us()
@@ -73,7 +75,8 @@ def locals_loop():
 def dotted():
     total = 0.0
     for i in range(N):
-        total += math.sin(0.5)      # module.name looked up N times
+        # module.name looked up N times
+        total += math.sin(0.5)
 
 def hoisted():
     total = 0.0
@@ -98,7 +101,8 @@ bench.it(dotted)
 bench.it(hoisted)
 bench.it(churner)
 n = bench.it(native_loop)
-print(f"\nlocals beat globals by {g / l:.1f}x; native beats plain "
+print(f"\nlocals beat globals by {g / l:.1f}x; native beats "
+      f"plain "
       f"by {l / n:.1f}x")
 ```
 
@@ -219,7 +223,8 @@ by accident; you *will* meet its two subtler taxes. First, the meter:
 ```python
 import gc
 print(gc.mem_free())               # bytes available right now
-gc.collect()                       # take out the recycling, on demand
+# take out the recycling, on demand
+gc.collect()
 print(gc.mem_free())               # ...usually more
 ```
 
@@ -274,7 +279,8 @@ import bench
 W, H, N = 640, 480, 400
 
 def make_stars():
-    return [[i * 1.6 % W, (i * 7.3) % H, 40.0 + (i % 5) * 30] for i in range(N)]
+    return [[i * 1.6 % W, (i * 7.3) % H,
+            40.0 + (i % 5) * 30] for i in range(N)]
 
 # --- version 1: innocent
 def naive(stars, dt):
@@ -282,24 +288,29 @@ def naive(stars, dt):
         s[1] = s[1] + s[2] * dt
         if s[1] > H:
             s[1] = s[1] - H
-        label = "stars: " + str(len(stars))      # a string, every frame,
+        # a string, every frame,
+        label = "stars: " + str(len(stars))
     return label                                 # for no one
 
 # --- version 2: this chapter applied
 def tuned(stars, dt, _H=H):
     for s in stars:
-        y = s[1] + s[2] * dt                     # locals, one calculation
+        # locals, one calculation
+        y = s[1] + s[2] * dt
         if y > _H:
             y -= _H
         s[1] = y
-    return None                                  # the HUD can update ITSELF
-                                                 # when the count CHANGES
+    # the HUD can update ITSELF
+    return None
+                                                 # when the count
+                                                 # CHANGES
 
 stars = make_stars()
 f1 = bench.it(lambda: naive(stars, 0.016), repeat=9)
 stars = make_stars()
 f2 = bench.it(lambda: tuned(stars, 0.016), repeat=9)
-print(f"\ntuned is {f1 / f2:.2f}x quicker -- same stars, same physics")
+print(f"\ntuned is {f1 / f2:.2f}x quicker -- same stars, same "
+      f"physics")
 
 budget = 16667
 print(f"frame budget at 60 fps: {budget} us")

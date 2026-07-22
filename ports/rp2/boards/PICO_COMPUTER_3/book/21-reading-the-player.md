@@ -26,7 +26,8 @@ of latched events. All of it, MMBasic users will find, is home ground.
 keydown()      # or keydown(0): how many keys are held (0-6)
 keydown(1)     # code of the most recent key held (0 = none)
 keydown(2)     # ...the one before it, up to keydown(6)
-keydown(7)     # modifier bitmap: Shift/Ctrl/Alt/GUI, left and right
+# modifier bitmap: Shift/Ctrl/Alt/GUI, left and right
+keydown(7)
 keydown(8)     # lock bitmap: Caps=1, Num=2, Scroll=4
 ```
 
@@ -61,7 +62,8 @@ import keyboard
 def spy(code):
     print("key:", code)
 
-keyboard.on_key(spy)      # ...type at the prompt and watch the report
+# ...type at the prompt and watch the report
+keyboard.on_key(spy)
 ```
 
 (And `keyboard.on_key()` — no argument — removes it. Do that before
@@ -129,13 +131,15 @@ import keyboard
 import pcsprite as sp
 
 screen(hdmi.RGB320)
-time.sleep(3)                       # let the monitor lock the mode
+# let the monitor lock the mode
+time.sleep(3)
 
 d = hdmi.fb()
 W = hdmi.width()
 H = hdmi.height()
 
-PALETTE = [WHITE, RED, ORANGE, YELLOW, GREEN, CYAN, COBALT, MAGENTA]
+PALETTE = [WHITE, RED, ORANGE, YELLOW, GREEN, CYAN, COBALT,
+           MAGENTA]
 BG = d.colour(0x101010)
 d.fill(BG)
 hdmi.text("1-8 colour  [ ] size  c clear  s save  Esc quit",
@@ -171,7 +175,8 @@ try:
 
         mx = mouse("X")
         my = mouse("Y")
-        cursor.x = mx - 8                    # centre the crosshair
+        # centre the crosshair
+        cursor.x = mx - 8
         cursor.y = my - 8
         if mouse("L"):
             d.ellipse(mx, my, size, size, colour, True)
@@ -184,7 +189,8 @@ try:
 finally:
     sp.reset()
     console()
-    screen(hdmi.RGB640)                      # back to the roomy default
+    # back to the roomy default
+    screen(hdmi.RGB640)
 ```
 
 Painting with a *held* button is polling at its most natural — state,
@@ -234,7 +240,8 @@ def flush():
         time.sleep(0.01)          # wait for all fingers off
 
 print("REACTION DUEL -- player 1: A    player 2: L")
-print("Wait for the GO beep. Too early loses the round. Five rounds.")
+print("Wait for the GO beep. Too early loses the round. Five "
+      "rounds.")
 
 scores = {1: 0, 2: 0}
 
@@ -254,7 +261,8 @@ for rnd in range(1, 6):
             break
     if early:
         winner = 2 if early == 1 else 1
-        print(f"Player {early} jumped the gun! Point to player {winner}.")
+        print(f"Player {early} jumped the gun! Point to player "
+              f"{winner}.")
         scores[winner] += 1
         continue
 

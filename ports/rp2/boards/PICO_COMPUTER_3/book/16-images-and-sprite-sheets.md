@@ -13,8 +13,10 @@ Three decoders, one per format, all injected and ready:
 
 ```python
 draw_jpg("/sd/holiday.jpg")          # JPEG -- photos
-draw_bmp("/sd/logo.bmp")             # BMP  -- simple, huge, dependable
-draw_png("/sd/ghost.png")            # PNG  -- artwork, with transparency
+# BMP  -- simple, huge, dependable
+draw_bmp("/sd/logo.bmp")
+# PNG  -- artwork, with transparency
+draw_png("/sd/ghost.png")
 ```
 
 Each takes `x=`, `y=` to place the top-left corner (default: the
@@ -48,7 +50,8 @@ and does nothing in the 65,536-colour modes, which don't need it. And
 that leads to this machine's best photographic surprise:
 
 ```python
-screen(hdmi.RGB1024)                          # 1024x600... 16 colours?!
+# 1024x600... 16 colours?!
+screen(hdmi.RGB1024)
 draw_jpg("/sd/holiday.jpg", dither=True)
 ```
 
@@ -90,10 +93,13 @@ memory, and any cell stampable by grid position:
 
 ```python
 d = hdmi.fb()
-sheet = load_image("/sd/invaders.png", transparent=d.colour(MAGENTA))
+sheet = load_image("/sd/invaders.png",
+                   transparent=d.colour(MAGENTA))
 
-sheet.cell(0, 0, 16, 16, 100, 80, skip=d.colour(MAGENTA))   # col 0, row 0
-sheet.cell(3, 1, 16, 16, 200, 80, skip=d.colour(MAGENTA))   # col 3, row 1
+# col 0, row 0
+sheet.cell(0, 0, 16, 16, 100, 80, skip=d.colour(MAGENTA))
+# col 3, row 1
+sheet.cell(3, 1, 16, 16, 200, 80, skip=d.colour(MAGENTA))
 ```
 
 `load_image(path)` decodes into an **`Image`** object (`img.w` and
@@ -154,12 +160,15 @@ d = hdmi.fb()
 MASK = d.colour(MAGENTA)
 d.fill(MASK)                                   # transparent-to-be
 
-for i in range(4):                             # four 32x32 cells in a row
+# four 32x32 cells in a row
+for i in range(4):
     x = i * 32
     d.fill_rect(x + 4, 10, 24, 18, d.colour(GOLD))       # body
     d.fill_rect(x + 8, 4, 16, 8, d.colour(LITEGRAY))     # head
-    d.fill_rect(x + 6, 28, 4, 4 - i % 2 * 2, d.colour(RED))   # left leg
-    d.fill_rect(x + 22, 28, 4, 2 + i % 2 * 2, d.colour(RED))  # right leg
+    # left leg
+    d.fill_rect(x + 6, 28, 4, 4 - i % 2 * 2, d.colour(RED))
+    # right leg
+    d.fill_rect(x + 22, 28, 4, 2 + i % 2 * 2, d.colour(RED))
 
 save_image("robot.bmp")
 ```
@@ -203,7 +212,8 @@ def photo_list():
         files = os.listdir("/sd")
     except OSError:
         return []
-    return sorted(f for f in files if f.lower().endswith((".jpg", ".jpeg")))
+    return sorted(f for f in files if f.lower().endswith((".jpg",
+                  ".jpeg")))
 
 d = hdmi.fb()
 
@@ -211,16 +221,20 @@ while True:
     photos = photo_list()
     if not photos:
         d.fill(d.colour(BLACK))
-        hdmi.text("no photos -- insert SD card", 40, 40, d.colour(GRAY))
+        hdmi.text("no photos -- insert SD card", 40, 40,
+                  d.colour(GRAY))
         time.sleep(3)
         continue
     pick = random.choice(photos)
     try:
         draw_jpg("/sd/" + pick, dither=True)
     except OSError:
-        continue                         # card pulled mid-read: just retry
-    caption = pick.lower().replace(".jpeg", "").replace(".jpg", "")
-    hdmi.text(caption, 8, hdmi.height() - 16, d.colour(LITEGRAY), d.colour(BLACK))
+        # card pulled mid-read: just retry
+        continue
+    caption = pick.lower().replace(".jpeg", "").replace(".jpg",
+                         "")
+    hdmi.text(caption, 8, hdmi.height() - 16, d.colour(LITEGRAY),
+              d.colour(BLACK))
     time.sleep(DELAY)
 ```
 

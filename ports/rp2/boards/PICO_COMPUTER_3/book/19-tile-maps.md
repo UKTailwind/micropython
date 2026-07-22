@@ -85,18 +85,23 @@ you build inherits them.)
 import time
 from pcimage import load_image
 
-screen(hdmi.RGB640)                 # the maps below are sized for 640x480
+# the maps below are sized for 640x480
+screen(hdmi.RGB640)
 time.sleep(3)
 
 d = hdmi.fb()
 sheet = load_image("tiles.bmp")
 
-tm = TileMap(sheet, 16, 16, cols=40, rows=30)   # exactly one 640x480 screen
+# exactly one 640x480 screen
+tm = TileMap(sheet, 16, 16, cols=40, rows=30)
 tm.fill(1)                                      # grass everywhere
-tm.set(5, 3, 3)                                 # a tree at column 5, row 3
+# a tree at column 5, row 3
+tm.set(5, 3, 3)
 tm.set(6, 3, 3)                                 # and a neighbour
-tm.set(20, 12, 5)                               # flowers mid-meadow
-for col in range(40):                           # a river along row 20
+# flowers mid-meadow
+tm.set(20, 12, 5)
+# a river along row 20
+for col in range(40):
     tm.set(col, 20, 2)
 
 tm.view(0, 0)
@@ -143,11 +148,13 @@ sheet = load_image("tiles.bmp")
 tm = TileMap(sheet, 16, 16, cols=80, rows=60)     # 1280x960 world
 tm.fill(1)
 random.seed(7)
-for _ in range(120):                              # scatter scenery
+# scatter scenery
+for _ in range(120):
     tm.set(random.randint(0, 79), random.randint(0, 59),
            random.randint(2, 5))
 
-tm.clamp(hdmi.width(), hdmi.height())             # camera stays on the map
+# camera stays on the map
+tm.clamp(hdmi.width(), hdmi.height())
 
 hdmi.close("F")
 hdmi.create()
@@ -155,7 +162,8 @@ console("none")
 
 try:
     vx = 0
-    for vy in range(0, 960 - 480 + 1, 2):         # a slow southward drift
+    # a slow southward drift
+    for vy in range(0, 960 - 480 + 1, 2):
         vx = min(vx + 1, 1280 - 640)
         tm.view(vx, vy)
         hdmi.write("F")
@@ -237,9 +245,11 @@ sheet = load_image("tiles.bmp")
 tm = TileMap(sheet, 16, 16, cols=64, rows=48)     # 1024x768 world
 
 # --- generate the island
-random.seed(12)                                   # the book's island; change me
+# the book's island; change me
+random.seed(12)
 tm.fill(GRASS)
-for col in range(64):                             # ocean border, two deep
+# ocean border, two deep
+for col in range(64):
     for row in (0, 1, 46, 47):
         tm.set(col, row, WATER)
 for row in range(48):
@@ -251,7 +261,8 @@ for _ in range(25):                               # boulders
     tm.set(random.randint(2, 61), random.randint(2, 45), ROCK)
 for _ in range(40):                               # flowers
     tm.set(random.randint(2, 61), random.randint(2, 45), FLOWER)
-for col in (31, 32, 33):                          # clear ground at the start
+# clear ground at the start
+for col in (31, 32, 33):
     for row in (23, 24, 25):
         tm.set(col, row, GRASS)
 
@@ -260,7 +271,8 @@ tm.set_attr(TREE, SOLID)
 tm.set_attr(ROCK, SOLID)
 tm.clamp(W, H)
 
-px, py = 32 * 16, 24 * 16                         # start mid-island
+# start mid-island
+px, py = 32 * 16, 24 * 16
 picked = 0
 BLACK_C = d.colour(BLACK)
 
@@ -301,7 +313,8 @@ try:
         tm.draw()
         tm.blit_tile(HERO, px - max(0, min(vx, 1024 - W)),
                      py - max(0, min(vy, 768 - H)), skip=BLACK_C)
-        hdmi.text(f"flowers: {picked}", 8, 8, d.colour(WHITE), BLACK_C)
+        hdmi.text(f"flowers: {picked}", 8, 8, d.colour(WHITE),
+                  BLACK_C)
         hdmi.write("N")
         hdmi.vsync()
         hdmi.copy("F", "N")

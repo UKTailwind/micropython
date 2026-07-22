@@ -45,7 +45,8 @@ one:
 import ulab.numpy as np
 
 x = np.linspace(0, 2 * math.pi, 128)    # 128 evenly spaced values
-y = np.sin(x)                           # sin of ALL of them, at once
+# sin of ALL of them, at once
+y = np.sin(x)
 plot(y, x=x)
 ```
 
@@ -55,7 +56,8 @@ That is the whole philosophy: **operations apply to every element at
 once**, and they compose like ordinary arithmetic:
 
 ```python
-y2 = np.sin(2 * x) * 0.5 + 0.1          # scaled, shifted, all at once
+# scaled, shifted, all at once
+y2 = np.sin(2 * x) * 0.5 + 0.1
 plot([y, y2], x=x)
 ```
 
@@ -152,7 +154,8 @@ def grapher():
     zoo = {"sin": math.sin,
            "cos": math.cos,
            "damped": lambda t: math.exp(-t / 4) * math.sin(3 * t),
-           "squarish": lambda t: (math.sin(t) + math.sin(3 * t) / 3 +
+           "squarish": lambda t: (math.sin(t)
+                                  + math.sin(3 * t) / 3 +
                                   math.sin(5 * t) / 5)}
     print("the zoo:", ", ".join(zoo))
     name = input("which function? ").strip()
@@ -182,17 +185,22 @@ def detective():
     sig = [math.sin(2 * math.pi * hz * i / rate) +
            random.randint(-80, 80) / 100 for i in range(rate)]
     plot(sig)
-    input("\none second of signal, drowning in noise. [Enter] to analyse ")
+    input("\none second of signal, drowning in noise. [Enter] to "
+          "analyse ")
     p = pcmath.power_spectrum(sig)
-    peak = int(np.argmax(p[1:])) + 1        # skip slot 0 (the average)
+    # skip slot 0 (the average)
+    peak = int(np.argmax(p[1:])) + 1
     plot(p, style="bar")
-    print(f"\nloudest slot: {peak} -> {peak} Hz   (the truth: {hz} Hz)")
-    print("caught it!" if peak == hz else "noise won this round -- rerun me")
+    print(f"\nloudest slot: {peak} -> {peak} Hz   (the truth: "
+          f"{hz} Hz)")
+    print("caught it!" if peak == hz else "noise won this round "
+                                          "-- rerun me")
     pause()
 
 def kinship():
     n = 40
-    heights = [150 + random.randint(0, 400) / 10 for _ in range(n)]
+    heights = [150 + random.randint(0,
+               400) / 10 for _ in range(n)]
     weights = [(h - 100) * 0.9 + random.randint(-120, 120) / 10
                for h in heights]
     r = pcmath.correl(heights, weights)

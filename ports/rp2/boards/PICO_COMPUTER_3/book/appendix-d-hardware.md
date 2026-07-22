@@ -35,7 +35,7 @@ back to **ENABLE**. Files and settings survive reflashing.
 GP21  GND        I2C0 SCL (bus shared with QWIIC + DS3231)
 GP20  +5V        I2C0 SDA
 GP45  GP46   \
-GP43  GP44    |  GP40-GP46 are also the ANALOGUE inputs (machine.ADC)
+GP43  GP44    |  GP40-GP46 are ANALOGUE inputs (machine.ADC)
 GP41  GP42    |
 GP39  GP40   /
 GP37  GP38
@@ -45,7 +45,7 @@ GP07  GP06
 GP05  GP04
 GP03  GP02
 GP01  GP00
-VCC   VCC        3.3 V out  (logic level: 3.3 V -- 5 V pin powers, never signals)
+VCC   VCC        3.3 V out  (3.3 V logic; 5 V powers, never GPIO)
 GND   GND
 ```
 

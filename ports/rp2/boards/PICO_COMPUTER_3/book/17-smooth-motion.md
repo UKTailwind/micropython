@@ -62,7 +62,8 @@ x, y = 100, 100
 dx, dy = 5, 3
 
 while True:
-    d.ellipse(x, y, 10, 10, d.colour(0x102040), True)   # NEW: erase old
+    # NEW: erase old
+    d.ellipse(x, y, 10, 10, d.colour(0x102040), True)
     x += dx
     y += dy
     if x < 12 or x > W - 12:
@@ -137,30 +138,37 @@ sends *all* drawing there. Compose the entire frame in private, then
 copy the finished picture over in one fast move:
 
 ```python
-hdmi.close("F")                   # clear away any previous workbench
+# clear away any previous workbench
+hdmi.close("F")
 hdmi.create()                     # the invisible workbench
-hdmi.write("F")                   # all drawing now lands off-screen
-d = hdmi.fb()                     # a Display over F -- AFTER write()!
+# all drawing now lands off-screen
+hdmi.write("F")
+# a Display over F -- AFTER write()!
+d = hdmi.fb()
 W = hdmi.width()
 H = hdmi.height()
 
 x, y = 100, 100
 dx, dy = 5, 3
 
-console("none")                   # and no console cursor over the show
+# and no console cursor over the show
+console("none")
 
 try:
     while True:
-        d.fill(d.colour(0x102040))                      # fresh canvas
+        # fresh canvas
+        d.fill(d.colour(0x102040))
         x += dx
         y += dy
         if x < 12 or x > W - 12:
             dx = -dx
         if y < 12 or y > H - 12:
             dy = -dy
-        d.ellipse(x, y, 10, 10, d.colour(GOLD), True)   # scene, unseen
+        # scene, unseen
+        d.ellipse(x, y, 10, 10, d.colour(GOLD), True)
         hdmi.vsync()
-        hdmi.copy("F", "N")                             # one clean reveal
+        # one clean reveal
+        hdmi.copy("F", "N")
 finally:
     hdmi.write("N")               # ALWAYS hand the screen back...
     console()                     # ...and the console with it
@@ -242,15 +250,18 @@ per scanline by core 1 in hardware-speed C. Scenery lives below,
 import time
 
 screen(hdmi.RGB320)
-time.sleep(3)                      # let the monitor lock the new mode
+# let the monitor lock the new mode
+time.sleep(3)
 
 d = hdmi.fb()                      # the display (320x240 now)
 d.fill(d.colour(0x104060))         # "rich scenery": a sea...
 for i in range(8):                 # ...with waves, drawn ONCE
-    d.line(0, 120 + i * 14, 319, 126 + i * 14, d.colour(CERULEAN), 2)
+    d.line(0, 120 + i * 14, 319, 126 + i * 14, d.colour(CERULEAN),
+           2)
 
 hdmi.close("L")                    # start clean (rerun-proof)
-hdmi.layer()                       # acetate on. black = see-through
+# acetate on. black = see-through
+hdmi.layer()
 hdmi.write("L")
 s = hdmi.fb()                      # a Display over the LAYER
 
@@ -258,11 +269,14 @@ console("none")
 
 try:
     s.text("SCORE 100", 8, 8, s.colour(YELLOW))
-    for x in range(0, 280, 4):                       # a sprite crosses...
+    # a sprite crosses...
+    for x in range(0, 280, 4):
         s.fill_rect(x, 150, 16, 16, s.colour(RED))
         hdmi.vsync()
-        s.fill_rect(x, 150, 16, 16, 0)               # erase = draw black
-    s.fill(0)                      # wipe the acetate -- scenery unharmed
+        # erase = draw black
+        s.fill_rect(x, 150, 16, 16, 0)
+    # wipe the acetate -- scenery unharmed
+    s.fill(0)
 finally:
     hdmi.write("N")
     console()
@@ -361,7 +375,8 @@ try:
         y += dy
         hit = False
         if x < 0 or x + LW > W:
-            x = max(0, min(x, W - LW))    # step back inside the edge
+            # step back inside the edge
+            x = max(0, min(x, W - LW))
             dx = -dx
             hit = True
         if y < 0 or y + LH > H:
@@ -372,7 +387,8 @@ try:
             bounces += 1
             ci = (ci + 1) % len(COLOURS)
         hdmi.text(LOGO, x, y, d.colour(COLOURS[ci]), -1, 2, 3)
-        hdmi.text(f"bounces: {bounces}", 8, H - 20, d.colour(GRAY))
+        hdmi.text(f"bounces: {bounces}", 8, H - 20,
+                  d.colour(GRAY))
         hdmi.vsync()
         hdmi.copy("F", "N")
 finally:

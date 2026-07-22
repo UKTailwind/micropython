@@ -42,7 +42,8 @@ H = hdmi.height()
 hdmi.close("F")
 hdmi.create()
 hdmi.write("N")
-hdmi.fb().fill(0)                  # black margins for the shake to show
+# black margins for the shake to show
+hdmi.fb().fill(0)
 hdmi.write("F")
 d = hdmi.fb()
 
@@ -75,12 +76,15 @@ try:
         if p_pressed:
             paused = not paused
             if not paused:
-                clock.reset()      # don't "catch up" the missed frames
+                # don't "catch up" the missed frames
+                clock.reset()
 
         if paused:
-            pass                   # the world simply isn't updated
+            # the world simply isn't updated
+            pass
         elif freeze > 0:
-            freeze -= 1            # hit-stop: drawn, but not moved
+            # hit-stop: drawn, but not moved
+            freeze -= 1
         else:
             x += dx * dt
             y += dy * dt
@@ -100,9 +104,12 @@ try:
                 for _ in range(14):
                     ang = random.randint(0, 359)
                     particles.append([x, y,
-                                      random.randint(-160, 160) * 1.0,
-                                      random.randint(-160, 160) * 1.0,
-                                      random.randint(15, 40) / 60])
+                                      random.randint(-160,
+                                          160) * 1.0,
+                                      random.randint(-160,
+                                          160) * 1.0,
+                                      random.randint(15,
+                                          40) / 60])
                 beep(150, 60)
 
             for p in particles:
@@ -121,7 +128,8 @@ try:
         hdmi.text("SPACE impact   P pause   ESC quit", 24, H - 40,
                   d.colour(GRAY))
         if paused:
-            hdmi.text("PAUSED", W // 2 - 96, H // 2 - 24, INK, -1, 2, 3)
+            hdmi.text("PAUSED", W // 2 - 96, H // 2 - 24, INK, -1,
+                      2, 3)
         if flash > 0:
             d.fill(d.colour(WHITE))
             flash -= 1
@@ -181,7 +189,8 @@ library (chapter 20's dual-career pattern — demo under `__main__`).
 `edit("initials.py")`:
 
 ```python
-# initials.py -- arcade name entry.  import initials; name = initials.get()
+# initials.py -- arcade name entry.  import initials; name =
+# initials.get()
 import pcgame
 import keyboard
 
@@ -198,7 +207,8 @@ def get(title="ENTER YOUR INITIALS"):
     W = hdmi.width()
     letters = [0, 0, 0]
     slot = 0
-    l_was = r_was = f_was = True          # keys may still be held (ch 25!)
+    # keys may still be held (ch 25!)
+    l_was = r_was = f_was = True
     clock = pcgame.Clock(vsync=True)
     while True:
         clock.tick()
@@ -217,10 +227,13 @@ def get(title="ENTER YOUR INITIALS"):
 
         x0 = W // 2 - 120
         d.fill_rect(x0 - 20, 150, 280, 160, d.colour(0x101828))
-        hdmi.text(title, W // 2 - len(title) * 4, 165, d.colour(GRAY))
+        hdmi.text(title, W // 2 - len(title) * 4, 165,
+                  d.colour(GRAY))
         for i in range(3):
-            colr = d.colour(GOLD) if i == slot else d.colour(WHITE)
-            hdmi.text(chr(65 + letters[i]), x0 + i * 90, 200, colr, -1, 2, 5)
+            colr = (d.colour(GOLD) if i == slot
+                    else d.colour(WHITE))
+            hdmi.text(chr(65 + letters[i]), x0 + i * 90, 200,
+                      colr, -1, 2, 5)
         d.fill_rect(x0 + slot * 90, 275, 48, 4, d.colour(GOLD))
 
 if __name__ == "__main__":

@@ -29,10 +29,11 @@ backslash.
 ## Collections (10)
 
 ```
-lst = [1, 2]; lst[0]; lst[-1]; lst[a:b]; lst.append(x); lst.remove(x)
-lst.pop(); lst.insert(i, x); lst.sort(reverse=..., key=fn); x in lst
+lst=[1,2]; lst[0]; lst[-1]; lst[a:b]; lst.append(x); lst.remove(x)
+lst.pop(); lst.insert(i,x); lst.sort(reverse=.., key=fn); x in lst
 tup = (score, name)            # fixed; unpack: s, n = tup
-d = {"key": v}; d["key"]; "key" in d; d.items(); d.keys()   # no order!
+# no order!
+d = {"key": v}; d["key"]; "key" in d; d.items(); d.keys()
 ```
 Empty containers are `False` (`while cards:`). Comprehension (24):
 `[b for b in bullets if b[4] > 0]`.
@@ -42,7 +43,7 @@ Empty containers are `False` (`while cards:`). Comprehension (24):
 ```
 if c:  ... elif c2:  ... else: ...
 while c: ...                        while True: + break
-for x in seq: ...                   for i in range(start, stop, step):
+for x in seq: ...       for i in range(start, stop, step):
 break  continue                     for i, x in enumerate(seq):
 ```
 Indentation *is* the block — 4 spaces.
@@ -76,10 +77,12 @@ h = Hero("Ada"); h.hit(3); print(h)
 ```
 try:
     risky()
-except ValueError as e:      # catch precisely -- never bare except:
+# catch precisely -- never bare except:
+except ValueError as e:
     ...
 finally:
-    tidy_up()                # runs on ANY exit, Ctrl-C included (17)
+    # runs on ANY exit, Ctrl-C included (17)
+    tidy_up()
 raise ValueError("why")      # guard your own functions
 ```
 The gallery: `SyntaxError IndentationError NameError TypeError
@@ -90,8 +93,10 @@ bottom-up; deepest line naming *your* file.
 ## Files (12)
 
 ```
-with open(path) as f:            # "r" read / "w" WIPE+write / "a" append
-    for line in f:               # "r+" update-in-place (+ seek/tell)
+# "r" read / "w" WIPE+write / "a" append
+with open(path) as f:
+    # "r+" update-in-place (+ seek/tell)
+    for line in f:
         line.strip()
     f.read()   f.write(s + "\n")
 ```

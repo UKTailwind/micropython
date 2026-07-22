@@ -57,7 +57,9 @@ timers at once, against MMBasic's four.) This is also chapter 21's
 Chapter 31 polled its button sixty times a second. The interrupt way
 inverts it: the *pin* calls *you*.
 
-![An interrupt is a tap on the shoulder: when the pin (or timer) fires, its handler runs between two statements of your main program, then the program resumes exactly where it paused.](figs/33-interrupt.png) Wire the chapter 31 button (GP1 to
+![An interrupt is a tap on the shoulder: when the pin (or timer) fires, its handler runs between two statements of your main program, then the program resumes exactly where it paused.](figs/33-interrupt.png)
+
+Wire the chapter 31 button (GP1 to
 GND) and `edit("doorbell.py")`:
 
 ```python
@@ -70,25 +72,30 @@ def held(code):
             return True
     return False
 
-presses = [0]                        # the flag the handler is allowed to touch
+# the flag the handler is allowed to touch
+presses = [0]
 
 def ring(pin):
-    presses[0] += 1                  # note it and LEAVE -- no real work here
+    # note it and LEAVE -- no real work here
+    presses[0] += 1
 
 button = Pin(1, Pin.IN, Pin.PULL_UP)
-button.irq(ring, Pin.IRQ_FALLING)    # call ring() on each high -> low edge
+# call ring() on each high -> low edge
+button.irq(ring, Pin.IRQ_FALLING)
 
 print("busy doing something else entirely...")
 announced = 0
 try:
     while not held(keyboard.ESC):
-        time.sleep_ms(200)           # deep in important work, clearly
+        # deep in important work, clearly
+        time.sleep_ms(200)
         if presses[0] != announced:
             announced = presses[0]
             print(f"doorbell rang! ({announced} so far)")
             beep(880, 40)
 finally:
-    button.irq(None)                 # always disconnect your handlers
+    # always disconnect your handlers
+    button.irq(None)
 ```
 
 The main loop sleeps 200 ms at a stretch, yet no press is ever
@@ -121,7 +128,8 @@ m += 1
 if m == 60:
     m, h = 0, (h + 1) % 24
 ds3231.set_alarm(h, m)
-print(f"alarm set for {h:02}:{m:02} -- doing nothing whatsoever...")
+print(f"alarm set for {h:02}:{m:02} -- doing nothing "
+      f"whatsoever...")
 
 rang = [False]
 def wake(pin):
@@ -132,7 +140,8 @@ pin.irq(wake, Pin.IRQ_FALLING)       # the chip pulls the line low
 
 try:
     while not rang[0]:
-        time.sleep_ms(500)           # could be days; costs nothing
+        # could be days; costs nothing
+        time.sleep_ms(500)
     print("WAKE UP")
     for _ in range(3):
         tone(880, 880, 150, wait=True)
@@ -289,16 +298,19 @@ BG = d.colour(0x080814)
 INK = d.colour(GOLD)
 DIM = d.colour(GRAY)
 
-report = ["fetching..."]             # shared freely: asyncio's gift
+# shared freely: asyncio's gift
+report = ["fetching..."]
 
 async def fetcher():
     while True:
         try:
-            r = requests.get(URL)            # blocking! see the prose
+            # blocking! see the prose
+            r = requests.get(URL)
             try:
                 if r.status_code == 200:
                     wx = r.json()["current_weather"]
-                    report[0] = f"{wx['temperature']:.0f} C outside"
+                    report[0] = (f"{wx['temperature']:.0f} "
+                                  f"C outside")
                 else:
                     report[0] = "sky unavailable"
             finally:

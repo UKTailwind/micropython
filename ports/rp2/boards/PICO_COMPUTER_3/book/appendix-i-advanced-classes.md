@@ -26,12 +26,14 @@ class Hero:
     def describe(self):
         return f"{self.name} ({self.health} HP)"
 
-class Goblin(Hero):                      # a Goblin IS a Hero, plus...
+# a Goblin IS a Hero, plus...
+class Goblin(Hero):
     def __init__(self, name):
         super().__init__(name, health=8)  # run Hero's setup first
         self.loot = 3
 
-    def describe(self):                   # ...and describes differently
+    # ...and describes differently
+    def describe(self):
         return super().describe() + " [goblin]"
 
 g = Goblin("Grumble")
@@ -178,7 +180,8 @@ class Deck:
 
 d = Deck(["ace", "two", "three"])
 print(len(d), d[1])       # 3 two
-for card in d:            # yes -- __getitem__ alone makes it loopable
+# yes -- __getitem__ alone makes it loopable
+for card in d:
     print(card)
 ```
 
@@ -196,7 +199,8 @@ shared:
 
 ```python
 class Counter:
-    made = 0                     # class attribute: one for ALL Counters
+    # class attribute: one for ALL Counters
+    made = 0
 
     def __init__(self):
         Counter.made += 1
@@ -228,7 +232,8 @@ class Circle:
         return 3.14159 * self._r ** 2
 
 c = Circle(2)
-print(c.area)            # 12.56636 -- no brackets; computed on demand
+# 12.56636 -- no brackets; computed on demand
+print(c.area)
 ```
 
 The `@property` line is a **decorator** — an annotation that changes
@@ -276,7 +281,8 @@ class Score:
     def valid(line):
         return "," in line
 
-s = Score.from_line("91,Ada")     # called on the CLASS, not an object
+# called on the CLASS, not an object
+s = Score.from_line("91,Ada")
 ```
 
 `Score.from_line(...)` reads beautifully next to `Score(91, "Ada")` —
@@ -307,12 +313,14 @@ the right kind of object? Python's answer — it doesn't check; it
 
 ```python
 class NullTurtle:
-    """Draws nothing -- for testing shape code without a screen."""
+    """Draws nothing -- for testing shape code without a
+    screen."""
     def forward(self, d): pass
     def right(self, a=90): pass
     def pencolor(self, c): pass
 
-shapes.flower(NullTurtle(), 12, 70)    # runs happily; draws nowhere
+# runs happily; draws nowhere
+shapes.flower(NullTurtle(), 12, 70)
 ```
 
 `flower` never demanded a genuine `Turtle` — only something that walks

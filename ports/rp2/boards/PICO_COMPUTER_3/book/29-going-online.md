@@ -16,7 +16,8 @@ handle quietly, never a surprise that stops the program.
 The board helper does the ceremony and remembers:
 
 ```python
-wifi("MyNetwork", "MyPassword")    # connect, and save the credentials
+# connect, and save the credentials
+wifi("MyNetwork", "MyPassword")
 ```
 
 From then on, plain `wifi()` reconnects with the saved details — after
@@ -50,8 +51,10 @@ MicroPython library ecosystem within reach.
 Chapter 28 left you setting the clock by hand. Never again:
 
 ```python
-tz(1)              # your offset from UTC, in hours (fractions allowed)
-ntpsync()          # fetch the time, apply tz, set system clock AND DS3231
+# your offset from UTC, in hours (fractions allowed)
+tz(1)
+# fetch the time, apply tz, set system clock AND DS3231
+ntpsync()
 auto(True)         # ...and do that automatically at every boot
 ```
 
@@ -73,7 +76,8 @@ import requests
 r = requests.get("https://api.github.com")
 print(r.status_code)               # 200 means "here you are"
 print(r.text[:120])                # the reply is text...
-r.close()                          # ALWAYS -- replies hold real memory
+# ALWAYS -- replies hold real memory
+r.close()
 ```
 
 Three habits, stated once and kept forever. **Check `status_code`** —
@@ -93,7 +97,8 @@ lists wearing quotes*. `r.json()` parses it straight into chapter 10:
 
 ```python
 r = requests.get("https://api.open-meteo.com/v1/forecast"
-                 "?latitude=51.5&longitude=-0.13&current_weather=true")
+                 "?latitude=51.5&longitude=-0.13"
+                 "&current_weather=true")
 data = r.json()
 r.close()
 print(data["current_weather"]["temperature"])
@@ -124,18 +129,22 @@ def held(code):
             return True
     return False
 
-LAT, LON = 51.5, -0.13             # London -- point it at YOUR sky
-URL = ("https://api.open-meteo.com/v1/forecast?latitude=" + str(LAT) +
+# London -- point it at YOUR sky
+LAT, LON = 51.5, -0.13
+URL = ("https://api.open-meteo.com/v1/forecast"
+       "?latitude=" + str(LAT) +
        "&longitude=" + str(LON) + "&current_weather=true")
 REFRESH_MS = 10 * 60 * 1000
 
 SKIES = {0: "clear sky", 1: "mostly clear", 2: "partly cloudy",
-         3: "overcast", 45: "fog", 51: "drizzle", 61: "light rain",
+         3: "overcast", 45: "fog", 51: "drizzle", 61: "light "
+             "rain",
          63: "rain", 65: "heavy rain", 71: "snow", 80: "showers",
          95: "thunderstorm"}
 
 def fetch():
-    """The current weather dict, or None. Never raises, always closes."""
+    """The current weather dict, or None. Never raises, always
+    closes."""
     try:
         r = requests.get(URL)
     except OSError:
@@ -172,20 +181,25 @@ def redraw():
         hdmi.text("asking the sky...", 200, 220, INK, -1, 1, 3)
     else:
         t = f"{wx['temperature']:.0f}"
-        x = hdmi.text(t, 60, 120, BIG, -1, 3, 5)     # 72x96 digits
-        d.ellipse(x + 18, 132, 10, 10, BIG)          # the degree ring
+        # 72x96 digits
+        x = hdmi.text(t, 60, 120, BIG, -1, 3, 5)
+        # the degree ring
+        d.ellipse(x + 18, 132, 10, 10, BIG)
         sky = SKIES.get(wx["weathercode"], "sky doing something")
         hdmi.text(sky, 60, 260, INK, -1, 1, 3)
-        hdmi.text(f"wind {wx['windspeed']:.0f} km/h", 60, 300, INK)
+        hdmi.text(f"wind {wx['windspeed']:.0f} km/h", 60, 300,
+                  INK)
         status = "updated " + stamp
         if failures:
-            status += f"  --  offline, showing last good (x{failures})"
+            status += (f"  --  offline, showing last good "
+                       f"(x{failures})")
         hdmi.text(status, 16, H - 24, DIM)
     hdmi.text("R refresh   ESC quit", W - 176, 12, DIM)
 
 try:
     wifi()                         # saved credentials, if any
-except Exception:                  # none saved? the fetch loop copes
+# none saved? the fetch loop copes
+except Exception:
     pass
 console("none")
 
@@ -244,7 +258,8 @@ import time
 from umqtt.simple import MQTTClient
 
 wifi()
-ME = "pc3-ada"                     # every client needs a UNIQUE name
+# every client needs a UNIQUE name
+ME = "pc3-ada"
 
 c = MQTTClient(ME, "test.mosquitto.org")
 c.connect()

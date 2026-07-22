@@ -30,7 +30,8 @@ code* each stage is:
 
    ```python
    # /boot.py -- every start-up, before main.py
-   tz(1)                # clock offset ready before any clock program
+   # clock offset ready before any clock program
+   tz(1)
    volume(60)           # house rules
    ```
 
@@ -81,7 +82,8 @@ thirty-three chapters it is *four lines of review*.
 `edit("backup.py")`:
 
 ```python
-# backup.py -- every .py on the flash, to a dated folder on the SD card.
+# backup.py -- every .py on the flash, to a dated folder on the SD
+# card.
 import os
 
 y, mo, d = gettime()[:3]
@@ -89,7 +91,8 @@ dest = f"/sd/backup-{y:04}-{mo:02}-{d:02}"
 try:
     os.mkdir(dest)
 except OSError:
-    pass                             # already there today -- refresh it
+    # already there today -- refresh it
+    pass
 
 count = 0
 for name in os.listdir("/"):

@@ -229,7 +229,8 @@ arrive byte-perfect, or for getting files *off* the machine without an SD
 card, the serial console speaks the classic XMODEM protocol:
 
 ```python
->>> xrecv("game.py")     # then File > Transfer > XMODEM > Send in the terminal
+>>> # then File > Transfer > XMODEM > Send in the terminal
+>>> xrecv("game.py")
 >>> xsend("game.py")     # then File > Transfer > XMODEM > Receive
 ```
 
@@ -247,7 +248,8 @@ saves straight onto it:
 ```text
 mpremote cp game.py :          # copy one file onto the board
 mpremote cp -r mygame/ :       # copy a whole folder, recursively
-mpremote mount .               # show the current PC folder AS the board's drive
+# show the current PC folder AS the board's drive
+mpremote mount .
 mpremote                       # just the REPL, like a terminal
 ```
 

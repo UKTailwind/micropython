@@ -145,10 +145,10 @@ once. Here it is, keystroke by keystroke:
 
 ```
 >>> for i in range(5):          you type the for line, press Enter
-...     print("I will not...")  the indent appears BY ITSELF; type the body, Enter
-...                             now press Backspace (the indent vanishes), then Enter
+...     print("I will not...")  indent is automatic; then Enter
+...                             Backspace clears it, then Enter
 (the loop runs, five lines print)
->>>                             a fresh prompt -- ready for your NEXT command
+>>>                             fresh prompt for the next command
 ```
 
 Two rules, worth committing to memory:

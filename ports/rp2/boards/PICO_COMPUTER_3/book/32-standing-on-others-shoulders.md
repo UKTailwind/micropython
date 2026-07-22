@@ -43,7 +43,8 @@ at the raw file. Wi-Fi up (chapter 29), then:
 ```python
 >>> wifi("MySSID", "MyPassword")
 >>> import mip
->>> mip.install("https://raw.githubusercontent.com/JASchilz/uQR/master/uQR.py")
+>>> mip.install("https://raw.githubusercontent.com/JASchilz/"
+...             "uQR/master/uQR.py")
 ```
 
 One file lands in `/lib`. From now on `import uQR` works, forever,
@@ -54,22 +55,27 @@ offline. Now use it — `edit("qr.py")`:
 from uQR import QRCode
 
 def show_qr(text):
-    qr = QRCode(border=2)          # a 2-cell quiet zone (the white margin)
+    # a 2-cell quiet zone (the white margin)
+    qr = QRCode(border=2)
     qr.add_data(text)
-    grid = qr.get_matrix()         # a square grid of True/False; True = a black cell
+    # a square grid of True/False; True = a black cell
+    grid = qr.get_matrix()
     n = len(grid)
 
     d = hdmi.fb()
-    d.fill(d.colour(WHITE))        # a QR MUST sit on light -- readers need the contrast
+    # a QR MUST sit on light -- readers need the contrast
+    d.fill(d.colour(WHITE))
     black = d.colour(BLACK)
 
-    scale = 440 // n               # fill most of the 480-tall screen
+    # fill most of the 480-tall screen
+    scale = 440 // n
     x0 = (640 - n * scale) // 2    # ...centred
     y0 = (480 - n * scale) // 2
     for row in range(n):
         for col in range(n):
             if grid[row][col]:
-                d.fill_rect(x0 + col * scale, y0 + row * scale, scale, scale, black)
+                d.fill_rect(x0 + col * scale, y0 + row * scale,
+                            scale, scale, black)
 
 if __name__ == "__main__":
     show_qr("https://github.com/UKTailwind/micropython")
@@ -128,7 +134,8 @@ at what turns up — `edit("gpslook.py")`:
 from machine import UART, Pin
 import time
 
-uart = UART(0, 9600, tx=Pin(0), rx=Pin(1))    # most GPS modules default to 9600 baud
+# most GPS modules default to 9600 baud
+uart = UART(0, 9600, tx=Pin(0), rx=Pin(1))
 for _ in range(5):
     time.sleep(1)
     print(uart.read())
@@ -145,7 +152,8 @@ MicroPython.
 Install it (a single file again, no `package.json`):
 
 ```python
->>> mip.install("https://raw.githubusercontent.com/inmcm/micropyGPS/master/micropyGPS.py")
+>>> mip.install("https://raw.githubusercontent.com/inmcm/"
+...             "micropyGPS/master/micropyGPS.py")
 ```
 
 Then bind it: the parser eats the serial stream one character at a
@@ -158,15 +166,20 @@ from micropyGPS import MicropyGPS
 import time
 
 uart = UART(0, 9600, tx=Pin(0), rx=Pin(1))
-gps = MicropyGPS(location_formatting='dd')     # 'dd' = plain decimal degrees
+# 'dd' = plain decimal degrees
+gps = MicropyGPS(location_formatting='dd')
 
-print("waiting for a fix -- a clear view of the sky helps (Ctrl-C stops)")
+print("waiting for a fix -- a clear view of the sky helps "
+      "(Ctrl-C stops)")
 while True:
     while uart.any():
-        gps.update(chr(uart.read(1)[0]))       # feed each character in
+        # feed each character in
+        gps.update(chr(uart.read(1)[0]))
     if gps.satellites_in_use:
-        lat = gps.latitude                     # e.g. [51.5074, 'N']
-        lon = gps.longitude                    # e.g. [0.1278, 'W']
+        # e.g. [51.5074, 'N']
+        lat = gps.latitude
+        # e.g. [0.1278, 'W']
+        lon = gps.longitude
         print(f"\r{lat[0]}{lat[1]}  {lon[0]}{lon[1]}   "
               f"({gps.satellites_in_use} sats)   ", end="")
     time.sleep_ms(200)
@@ -238,7 +251,8 @@ Computer 3 — its name and firmware version, beside a QR code anyone can
 scan to build their own. `edit("card.py")`:
 
 ```python
-# card.py -- an about-screen with a scannable QR of the project repo.
+# card.py -- an about-screen with a scannable QR of the project
+# repo.
 from uQR import QRCode
 import os
 
@@ -260,11 +274,13 @@ def card():
     for r in range(n):
         for c in range(n):
             if grid[r][c]:
-                d.fill_rect(x0 + c * scale, y0 + r * scale, scale, scale, black)
+                d.fill_rect(x0 + c * scale, y0 + r * scale, scale,
+                            scale, black)
 
     # the words, upper-left
     hdmi.text("PICO COMPUTER 3", 30, 50, black, -1, 4)      # big
-    hdmi.text(os.uname().machine, 30, 110, black, -1, 1)    # full name + version
+    # full name + version
+    hdmi.text(os.uname().machine, 30, 110, black, -1, 1)
     hdmi.text("Scan to build your own", 30, 430, black, -1, 2)
 
 card()

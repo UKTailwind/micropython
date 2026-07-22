@@ -228,7 +228,8 @@ def load():
                 points, name = line.strip().split(",")
                 scores.append((int(points), name))
     except OSError:
-        pass                    # no file yet: first ever run -- empty list
+        # no file yet: first ever run -- empty list
+        pass
     scores.sort(reverse=True)
     return scores
 
@@ -305,7 +306,8 @@ overwrite it in place, without touching the rest of the file:
 REC = 20                             # 12 name + 7 score + newline
 
 def format_rec(name, points):
-    return f"{name:12}{points:7}\n"  # padding makes EVERY record 20 bytes
+    # padding makes EVERY record 20 bytes
+    return f"{name:12}{points:7}\n"
 
 # read record number 2 directly -- no loop, no loading the file
 with open("scores.dat") as f:
@@ -313,7 +315,8 @@ with open("scores.dat") as f:
     line = f.read(REC)
     name, points = line[:12].strip(), int(line[12:19])
 
-# update record number 1 in place, leaving its neighbours untouched
+# update record number 1 in place, leaving its neighbours
+# untouched
 with open("scores.dat", "r+") as f:
     f.seek(1 * REC)
     f.write(format_rec("Grace", 999))

@@ -115,7 +115,8 @@ is a folder, the copy lands inside; if it is a name, the copy takes that
 name:
 
 ```python
->>> cp("notes.txt", "lists")            # a copy inside the lists folder
+>>> # a copy inside the lists folder
+>>> cp("notes.txt", "lists")
 >>> cp("notes.txt", "backup.txt")       # a second copy, new name
 ```
 
@@ -144,7 +145,8 @@ crowd: `*` stands for "anything here", `?` for "any single character".
 
 ```python
 >>> ls("*.txt")                 # only the .txt files
->>> cp("*.py", "/sd/backup")    # copy every Python program to the SD card
+>>> # copy every Python program to the SD card
+>>> cp("*.py", "/sd/backup")
 >>> rm("*.tmp")                 # delete all the .tmp files
 ```
 

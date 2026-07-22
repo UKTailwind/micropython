@@ -151,10 +151,14 @@ Try a build-up at the prompt — a landscape in six lines:
 d = hdmi.fb()
 d.fill(d.colour(0x87CEEB))                              # sky
 d.fill_rect(0, 380, 640, 100, d.colour(MIDGREEN))       # ground
-d.arc(500, 90, 0, 40, 0, 0, d.colour(YELLOW))           # sun (full disc)
-d.line(0, 380, 240, 200, d.colour(GRAY), 4)             # mountain, left slope
-d.line(240, 200, 480, 380, d.colour(GRAY), 4)           # right slope
-d.flood(240, 300, d.colour(LITEGRAY))                   # snow... whole mountain
+# sun (full disc)
+d.arc(500, 90, 0, 40, 0, 0, d.colour(YELLOW))
+# mountain, left slope
+d.line(0, 380, 240, 200, d.colour(GRAY), 4)
+# right slope
+d.line(240, 200, 480, 380, d.colour(GRAY), 4)
+# snow... whole mountain
+d.flood(240, 300, d.colour(LITEGRAY))
 ```
 
 Note the working style: shapes for structure, `flood` to colour
@@ -172,8 +176,10 @@ MMBasic's own, same numbers — selected with `font=`, enlarged with
 ```python
 d = hdmi.fb()
 d.text("Hello", 20, 20, d.colour(WHITE), font=3)           # 16x24
-d.text("BIG", 20, 60, d.colour(YELLOW), font=1, scale=4)   # 8x12, 4x size
-hdmi.text("12:04", 20, 130, d.colour(GREEN), -1, 1, 6)     # the digits font
+# 8x12, 4x size
+d.text("BIG", 20, 60, d.colour(YELLOW), font=1, scale=4)
+# the digits font
+hdmi.text("12:04", 20, 130, d.colour(GREEN), -1, 1, 6)
 ```
 
 The ones you will actually reach for: **1** (8×12, the console font),
@@ -192,7 +198,8 @@ an art:
 d = hdmi.fb()
 msg = "GAME OVER"
 w = len(msg) * 16 * 2                      # font 3, scale 2
-hdmi.text(msg, (hdmi.width() - w) // 2, 200, d.colour(RED), -1, 2, 3)
+hdmi.text(msg, (hdmi.width() - w) // 2, 200, d.colour(RED), -1, 2,
+          3)
 ```
 
 ## Project: the poster
@@ -223,8 +230,10 @@ w = len(name) * 16 * 2
 hdmi.text(name, (W - w) // 2, 56, INK, -1, 2, 3)
 
 # a ribbon of two bezier curves
-d.bezier([(40, 200), (W // 4, 140), (3 * W // 4, 260), (W - 40, 190)], GLOW)
-d.bezier([(40, 210), (W // 4, 150), (3 * W // 4, 270), (W - 40, 200)], GLOW)
+d.bezier([(40, 200), (W // 4, 140), (3 * W // 4, 260), (W - 40,
+         190)], GLOW)
+d.bezier([(40, 210), (W // 4, 150), (3 * W // 4, 270), (W - 40,
+         200)], GLOW)
 
 # a row of medals: ring + hanger, spaced by loop arithmetic
 for i in range(5):
@@ -275,12 +284,15 @@ y0 = cy - 25
 
 while True:
     h, m, s = gettime()[3:6]
-    d.fill_rect(x0, y0, tw, 50, BG)                # erase old digits
+    # erase old digits
+    d.fill_rect(x0, y0, tw, 50, BG)
     hdmi.text(f"{h:02}:{m:02}:{s:02}", x0, y0, DIGITS, -1, 1, 6)
 
-    d.arc(cx, cy, 150, 158, 0, 0, BG)              # erase the ring
+    # erase the ring
+    d.arc(cx, cy, 150, 158, 0, 0, BG)
     if s:
-        d.arc(cx, cy, 150, 158, 0, s * 6, RING)    # sweep: 6 deg per second
+        # sweep: 6 deg per second
+        d.arc(cx, cy, 150, 158, 0, s * 6, RING)
 
     time.sleep(1)
 ```

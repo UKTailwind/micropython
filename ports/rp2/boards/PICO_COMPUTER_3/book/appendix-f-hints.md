@@ -3,6 +3,13 @@
 Nudges, not answers — each is the sentence that unsticks. Chapters
 whose challenges need no rescue are absent without shame.
 
+**1.1 (BBC Micro speed)** Rule of thumb: the ARM core runs about *one*
+instruction per clock, while the 6502 took roughly *four* cycles per
+instruction. So 252 MHz is ~252 million instructions a second, and 2 MHz
+is ~½ million — a ratio near 500×. A BBC Micro's full second of work
+therefore lands in about 2 ms here. All very approximate — the estimating
+*is* the exercise.
+
 **3.1 (fold to the Moon)** Each fold doubles: after n folds the stack
 is `0.1 * 2 ** n` mm. Try n at the prompt until it passes 384,400 km
 in mm (three hundred and eighty-four *billion*). The answer is under

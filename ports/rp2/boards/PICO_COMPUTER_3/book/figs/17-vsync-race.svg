@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#23272e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="900" height="430" fill="#ffffff"/>
+  <text x="450" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">Why it flickers — and how vsync fixes it</text>
+  <text x="820" y="66" text-anchor="end" font-size="12" fill="#5b6b7f">time →</text>
+  <line x1="110" y1="72" x2="825" y2="72" stroke="#8a94a3" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+  <!-- ================= Row A: without vsync ================= -->
+  <text x="110" y="100" font-size="15" font-weight="bold" fill="#b3402e">Without vsync</text>
+  <!-- monitor strip -->
+  <g>
+    <rect x="110" y="110" width="210" height="38" fill="#cfe6fb"/>
+    <rect x="320" y="110" width="55"  height="38" fill="#f0f2f5"/>
+    <rect x="375" y="110" width="210" height="38" fill="#cfe6fb"/>
+    <rect x="585" y="110" width="55"  height="38" fill="#f0f2f5"/>
+    <rect x="640" y="110" width="180" height="38" fill="#cfe6fb"/>
+    <rect x="110" y="110" width="710" height="38" fill="none" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="215" y="134" text-anchor="middle" font-size="11" fill="#3a5a80">scanout</text>
+    <text x="480" y="134" text-anchor="middle" font-size="11" fill="#3a5a80">scanout</text>
+    <text x="730" y="134" text-anchor="middle" font-size="11" fill="#3a5a80">scanout</text>
+    <text x="347" y="133" text-anchor="middle" font-size="9"  fill="#8a94a3">blank</text>
+    <text x="612" y="133" text-anchor="middle" font-size="9"  fill="#8a94a3">blank</text>
+  </g>
+  <text x="92" y="134" text-anchor="end" font-size="11" fill="#5b6b7f">monitor</text>
+  <!-- your loop erase/draw -->
+  <line x1="430" y1="160" x2="430" y2="192" stroke="#cc3a3a" stroke-width="2.5"/>
+  <text x="430" y="207" text-anchor="middle" font-size="12" fill="#cc3a3a">erase</text>
+  <line x1="545" y1="160" x2="545" y2="192" stroke="#2e8b57" stroke-width="2.5"/>
+  <text x="545" y="207" text-anchor="middle" font-size="12" fill="#2e8b57">draw</text>
+  <text x="92" y="180" text-anchor="end" font-size="11" fill="#5b6b7f">your loop</text>
+  <!-- the catch -->
+  <line x1="490" y1="148" x2="490" y2="176" stroke="#b3402e" stroke-width="1.6" stroke-dasharray="4 3"/>
+  <circle cx="490" cy="176" r="3.5" fill="#b3402e"/>
+  <text x="465" y="242" text-anchor="middle" font-size="13" fill="#b3402e">✗  a scan falls <tspan font-style="italic">between</tspan> erase and draw — the monitor catches the ball missing → <tspan font-weight="bold">flicker</tspan></text>
+
+  <!-- divider -->
+  <line x1="60" y1="270" x2="840" y2="270" stroke="#e2e6ea" stroke-width="1"/>
+
+  <!-- ================= Row B: with vsync ================= -->
+  <text x="110" y="300" font-size="15" font-weight="bold" fill="#2e8b57">With vsync</text>
+  <!-- green highlight over the blank gap -->
+  <rect x="585" y="316" width="55" height="78" fill="#d8f0e2"/>
+  <g>
+    <rect x="110" y="320" width="210" height="38" fill="#cfe6fb"/>
+    <rect x="320" y="320" width="55"  height="38" fill="#f0f2f5"/>
+    <rect x="375" y="320" width="210" height="38" fill="#cfe6fb"/>
+    <rect x="585" y="320" width="55"  height="38" fill="#eafaf1"/>
+    <rect x="640" y="320" width="180" height="38" fill="#cfe6fb"/>
+    <rect x="110" y="320" width="710" height="38" fill="none" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="215" y="344" text-anchor="middle" font-size="11" fill="#3a5a80">scanout</text>
+    <text x="480" y="344" text-anchor="middle" font-size="11" fill="#3a5a80">scanout</text>
+    <text x="730" y="344" text-anchor="middle" font-size="11" fill="#3a5a80">scanout</text>
+    <text x="347" y="343" text-anchor="middle" font-size="9"  fill="#8a94a3">blank</text>
+    <text x="612" y="343" text-anchor="middle" font-size="9"  fill="#2e8b57">blank</text>
+  </g>
+  <text x="92" y="344" text-anchor="end" font-size="11" fill="#5b6b7f">monitor</text>
+  <!-- erase+draw inside the gap -->
+  <line x1="602" y1="366" x2="602" y2="388" stroke="#cc3a3a" stroke-width="2.5"/>
+  <line x1="623" y1="366" x2="623" y2="388" stroke="#2e8b57" stroke-width="2.5"/>
+  <text x="92" y="380" text-anchor="end" font-size="11" fill="#5b6b7f">your loop</text>
+  <text x="565" y="384" text-anchor="end" font-size="12" fill="#2e8b57">erase+draw</text>
+  <text x="450" y="418" text-anchor="middle" font-size="13" fill="#2e8b57">✓  hdmi.vsync() waits for the blank gap, so erase+draw finish <tspan font-style="italic">before</tspan> the next scan — never caught</text>
+</svg>

@@ -19,6 +19,8 @@ Two ingredients, then:
   screen shows a **viewport** onto it, and moving the viewport is
   scrolling.
 
+![A tile map is a small **tileset** (tiles numbered from 1; index 0 is empty) plus a **grid of indices**. `tm.draw()` stamps the tile named by each index — here index 3 is the tree — so a few kilobytes of numbers become a whole world.](figs/19-tileset-map.png)
+
 ## Forging the tileset
 
 Per house rules, we owe no one any artwork. This program draws six
@@ -110,6 +112,8 @@ a single `draw_jpg`. (Note the map coordinates are **cells**, the view
 coordinates **pixels** — cell `(5, 3)` sits at world pixel `(80, 48)`.
 Keeping the two systems straight is half of tile-map programming;
 `// 16` and `* 16` are the bridge.)
+
+![The three coordinate systems a tile map juggles. A **cell** `(5, 3)` becomes a **world pixel** `(80, 48)` by ×16 (the tile size); subtract the camera's **view** `(vx, vy)` to get the **screen** position you draw at. Going back the other way, `// 16` turns a world pixel into a cell.](figs/19-coordinates.png)
 
 Maps can also arrive as *data* — `TileMap(..., data=rows)` takes a
 list of row-lists (chapter 10 nesting, professionally employed), and

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#23272e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="900" height="430" fill="#ffffff"/>
+  <text x="450" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">The three drawing surfaces — N · L · F</text>
+
+  <!-- F: off-screen buffer (left) -->
+  <g>
+    <rect x="55"  y="110" width="210" height="95" fill="#d8ecfb"/>
+    <rect x="55"  y="205" width="210" height="65" fill="#d4ecc6"/>
+    <circle cx="223" cy="144" r="18" fill="#e7b62e"/>
+    <rect x="93"  y="202" width="22" height="22" fill="#cc3a3a"/>
+    <rect x="55"  y="110" width="210" height="160" fill="none" stroke="#8a94a3" stroke-width="2" stroke-dasharray="7 5"/>
+    <text x="160" y="100" text-anchor="middle" font-size="15" font-weight="bold" fill="#23272e">F — off-screen buffer</text>
+    <text x="160" y="292" text-anchor="middle" font-size="12" fill="#5b6b7f">hidden workbench — draw here</text>
+  </g>
+
+  <!-- N: visible screen (centre) -->
+  <g>
+    <rect x="345" y="110" width="210" height="95" fill="#d8ecfb"/>
+    <rect x="345" y="205" width="210" height="65" fill="#d4ecc6"/>
+    <circle cx="513" cy="144" r="18" fill="#e7b62e"/>
+    <rect x="383" y="202" width="22" height="22" fill="#cc3a3a"/>
+    <rect x="345" y="110" width="210" height="160" fill="none" stroke="#5b6b7f" stroke-width="2.5"/>
+    <text x="450" y="100" text-anchor="middle" font-size="15" font-weight="bold" fill="#23272e">N — visible screen</text>
+    <text x="450" y="292" text-anchor="middle" font-size="12" fill="#5b6b7f">the monitor shows this, 60×/s</text>
+  </g>
+
+  <!-- L: overlay layer (right), transparent -->
+  <g>
+    <rect x="635" y="110" width="210" height="160" fill="#ffffff"/>
+    <g fill="#e6eaef">
+      <rect x="635" y="110" width="21" height="20"/><rect x="677" y="110" width="21" height="20"/><rect x="719" y="110" width="21" height="20"/><rect x="761" y="110" width="21" height="20"/><rect x="803" y="110" width="21" height="20"/>
+      <rect x="656" y="130" width="21" height="20"/><rect x="698" y="130" width="21" height="20"/><rect x="740" y="130" width="21" height="20"/><rect x="782" y="130" width="21" height="20"/><rect x="824" y="130" width="21" height="20"/>
+      <rect x="635" y="230" width="21" height="20"/><rect x="677" y="230" width="21" height="20"/><rect x="719" y="230" width="21" height="20"/><rect x="761" y="230" width="21" height="20"/><rect x="803" y="230" width="21" height="20"/>
+      <rect x="656" y="250" width="21" height="20"/><rect x="698" y="250" width="21" height="20"/><rect x="740" y="250" width="21" height="20"/><rect x="782" y="250" width="21" height="20"/><rect x="824" y="250" width="21" height="20"/>
+    </g>
+    <text x="648" y="180" font-size="15" font-weight="bold" fill="#c88a00">SCORE 100</text>
+    <rect x="770" y="196" width="26" height="26" fill="#cc3a3a"/>
+    <rect x="635" y="110" width="210" height="160" fill="none" stroke="#3a9a9a" stroke-width="2" stroke-dasharray="7 5"/>
+    <text x="740" y="100" text-anchor="middle" font-size="15" font-weight="bold" fill="#23272e">L — overlay layer</text>
+    <text x="740" y="292" text-anchor="middle" font-size="12" fill="#5b6b7f">320 modes · black = see-through</text>
+  </g>
+
+  <!-- relationships -->
+  <line x1="268" y1="190" x2="342" y2="190" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="305" y="181" text-anchor="middle" font-size="12" fill="#23272e">copy("F","N")</text>
+
+  <line x1="632" y1="190" x2="558" y2="190" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="595" y="181" text-anchor="middle" font-size="12" fill="#23272e">overlaid</text>
+  <text x="595" y="208" text-anchor="middle" font-size="10.5" fill="#5b6b7f">per scanline</text>
+
+  <text x="450" y="360" text-anchor="middle" font-size="14" fill="#3a4250">You draw on <tspan font-weight="bold">F</tspan> (a whole hidden frame) or <tspan font-weight="bold">L</tspan> (movers over scenery); the monitor only ever reads <tspan font-weight="bold">N</tspan>.</text>
+</svg>

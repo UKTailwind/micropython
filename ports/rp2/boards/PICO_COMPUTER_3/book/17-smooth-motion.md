@@ -81,6 +81,8 @@ ships *between* your erase and your redraw, catching the instant the
 ball doesn't exist. The monitor faithfully shows the gap. Sixty
 chances a second, so it blinks like a guilty thing.
 
+![Without `vsync`, a scan can fall between your erase and your redraw — the monitor catches the frame with the ball missing, and that is the flicker. `hdmi.vsync()` (below) lands your erase-and-draw in the blank gap between scans, so a half-finished move is never shown.](figs/17-vsync-race.png)
+
 The clock blinked for exactly this reason. To fix it, you don't draw
 faster — you draw *at the right moment*.
 
@@ -203,6 +205,8 @@ the 1980s does exactly this:
 3. **`vsync`, then `copy`** — the finished frame appears between two
    scans, whole.
 
+![Double buffering: build the whole frame on the hidden `F` buffer, then `vsync` and `copy` it onto the visible `N` in one move. Because the monitor never sees `F` being drawn, `N` only ever shows finished frames.](figs/17-double-buffer.png)
+
 Flicker is now *impossible by construction*: the visible screen only
 ever holds completed pictures. The cost is honest — you redraw the
 whole scene every frame — and the machine is built for it: the fill
@@ -309,6 +313,8 @@ for _ in range(200):
 — a slow upward departure for everything you had drawn.
 
 ## Choosing your weapon
+
+![The three drawing surfaces this chapter has given you. `N` is the visible screen the monitor reads 60×/s; `F` is a hidden off-screen buffer you compose a whole frame on, then `copy` to `N`; `L` is a transparent overlay (the 320 modes only) for movers over untouched scenery, where black means see-through.](figs/17-buffers-nlf.png)
 
 | Scene | Tool |
 |---|---|

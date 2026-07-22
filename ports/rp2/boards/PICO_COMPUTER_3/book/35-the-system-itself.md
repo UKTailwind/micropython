@@ -38,6 +38,8 @@ code* each stage is:
    runs forever, the machine *is* that program.
 6. Failing a `main.py`, or after it ends: the `>>>` prompt.
 
+![The boot sequence, colour-coded by whose code runs each stage: the chip's ROM, the MicroPython firmware, the board's hook, then your `/boot.py` and `/main.py` — or the `>>>` prompt when there is no `main.py`.](figs/35-boot.png)
+
 And the escape ladder, one rung per failure: **Ctrl-C** interrupts a
 runaway `main.py` *or* `boot.py`; a wrecked screen still leaves the
 **USB-C serial console** (chapter 2's lifeline); and the nuclear
@@ -54,6 +56,8 @@ Where everything actually lives — worth one table on the wall:
 | `/` (12 MB, LittleFS) | *your* files: programs, scores, saves, `settings.json` | yes | **yes** |
 | `/sd` | the removable bridge to the world | yes | yes |
 | PSRAM heap | every running object | no | no |
+
+![Where everything lives. The 16 MB flash holds the firmware (replaced on reflash) and your 12 MB `/` filesystem (kept); the SD card is removable; the PSRAM heap vanishes at power-off. Everything precious lives in `/`.](figs/35-flash.png)
 
 Two sentences from that table govern machine ownership. **Reflashing
 replaces the system and touches nothing of yours** — firmware updates

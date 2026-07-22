@@ -43,6 +43,8 @@ games where they don't.
 *In one line: input, then update, then draw — one complete pass per
 frame, no leaking between phases.*
 
+![The game loop: read the input, update the world, draw it — one complete pass per frame, each phase finished before the next begins.](figs/22-game-loop.png)
+
 ## Frame timing: the metronome
 
 Chapter 17's `vsync` paced your loops at sixty a second — as long as
@@ -114,6 +116,8 @@ games in this book, a string and a ladder are exactly enough.
 
 *In one line: one loop runs everything; a `state` string picks what
 input/update/draw mean this frame.*
+
+![One `state` string, one ladder: the same loop behaves as a title screen, the game, or a game-over — and moving between them is a single assignment the loop never notices.](figs/22-state.png)
 
 ## Project: Pong, part one — the rally
 

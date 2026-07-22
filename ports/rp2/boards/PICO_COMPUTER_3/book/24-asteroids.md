@@ -33,6 +33,8 @@ all from one position and one heading. (`math` covers 2-D games
 completely; the firmware's `pcmath` adds quaternions and 3-D vectors
 for the day you leave flatland.)
 
+![Placing anything from a position and a heading: `sin(a)` is the x-step and `−cos(a)` the y-step (minus, because screen y runs down), with 0° pointing up. Add that step to the ship's *velocity* rather than its position and you get momentum.](figs/24-vectors.png)
+
 ## Stage one: flight
 
 `edit("flight.py")`:
@@ -131,6 +133,8 @@ then it takes hold. What you are feeling:
 - **Space wraps.** `% W` — off the right edge is onto the left. One
   operator, chapter 3's remainder, and the little screen becomes a
   boundless torus. Every moving thing in stage two inherits it.
+
+![`% W` and `% H` glue each edge to its opposite: leave one side of the screen and reappear on the other. The little screen becomes a boundless torus.](figs/24-wrap.png)
 - **The ship is three lines**, re-placed each frame by `pt()` from
   one `(x, y, a)` — rotation without a single rotated bitmap. The
   flame is a fourth line, drawn only while burning: instant feedback,

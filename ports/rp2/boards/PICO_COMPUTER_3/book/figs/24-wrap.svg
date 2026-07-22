@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="450" viewBox="0 0 760 450" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8a94a3"/>
+    </marker>
+    <marker id="gold" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8a5e00"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="760" height="450" fill="#ffffff"/>
+  <text x="380" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">Space wraps — every edge glued to its opposite</text>
+
+  <!-- screen -->
+  <rect x="140" y="88" width="380" height="244" fill="#f7fafc"/>
+  <!-- glued edges: left/right blue, top/bottom green -->
+  <line x1="140" y1="88" x2="140" y2="332" stroke="#1f5fbf" stroke-width="4"/>
+  <line x1="520" y1="88" x2="520" y2="332" stroke="#1f5fbf" stroke-width="4"/>
+  <line x1="140" y1="88" x2="520" y2="88" stroke="#2e8b57" stroke-width="4"/>
+  <line x1="140" y1="332" x2="520" y2="332" stroke="#2e8b57" stroke-width="4"/>
+  <text x="330" y="78" text-anchor="middle" font-size="11.5" fill="#2e8b57">top edge = bottom edge  (% H)</text>
+
+  <!-- a few stars -->
+  <g fill="#c8ccd2"><circle cx="220" cy="140" r="2"/><circle cx="300" cy="250" r="2"/><circle cx="410" cy="130" r="2"/><circle cx="360" cy="300" r="2"/></g>
+
+  <!-- ship exiting right -->
+  <polygon points="512,170 512,190 532,180" fill="#e0a81e" stroke="#8a5e00" stroke-width="1.2"/>
+  <line x1="494" y1="180" x2="540" y2="180" stroke="#8a5e00" stroke-width="2" marker-end="url(#gold)"/>
+  <text x="512" y="160" text-anchor="middle" font-size="11" fill="#8a5e00">exits →</text>
+  <!-- ghost entering left -->
+  <polygon points="140,170 140,190 160,180" fill="#e0a81e" fill-opacity="0.35" stroke="#8a5e00" stroke-width="1" stroke-opacity="0.5"/>
+  <text x="150" y="160" font-size="11" fill="#8a5e00">→ re-enters</text>
+
+  <!-- wrap arc right -> left -->
+  <path d="M536,190 Q 330,430 124,190" fill="none" stroke="#8a94a3" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#arrow)"/>
+  <text x="330" y="420" text-anchor="middle" font-size="12.5" fill="#5b6b7f">% W — the right edge <tspan font-style="italic">is</tspan> the left edge</text>
+
+  <!-- panel -->
+  <rect x="560" y="120" width="182" height="66" rx="6" fill="#f3f5f8"/>
+  <text x="651" y="146" text-anchor="middle" font-size="12.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">x = (x+vx*dt) % W</text>
+  <text x="651" y="168" text-anchor="middle" font-size="12.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">y = (y+vy*dt) % H</text>
+  <text x="651" y="214" text-anchor="middle" font-size="12" fill="#3a4250">The <tspan font-family="monospace">%</tspan> operator does it:</text>
+  <text x="651" y="232" text-anchor="middle" font-size="12" fill="#3a4250">leave one edge, appear</text>
+  <text x="651" y="250" text-anchor="middle" font-size="12" fill="#3a4250">at the opposite one.</text>
+  <text x="651" y="274" text-anchor="middle" font-size="12" font-weight="bold" fill="#3a4250">The screen is a torus.</text>
+</svg>

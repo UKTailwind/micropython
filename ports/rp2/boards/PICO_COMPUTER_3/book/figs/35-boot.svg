@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="600" viewBox="0 0 780 600" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#23272e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="780" height="600" fill="#ffffff"/>
+  <text x="300" y="34" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">The five seconds after the switch</text>
+
+  <!-- power on -->
+  <rect x="240" y="50" width="120" height="26" rx="13" fill="#2a2f36"/>
+  <text x="300" y="68" text-anchor="middle" font-size="12.5" fill="#fff">power on</text>
+  <line x1="300" y1="76" x2="300" y2="86" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- boxes -->
+  <g>
+    <!-- ROM -->
+    <rect x="140" y="88" width="320" height="56" rx="6" fill="#f4f6f9" stroke="#5b6b7f" stroke-width="1.4"/>
+    <rect x="140" y="88" width="8" height="56" rx="3" fill="#6b7280"/>
+    <text x="160" y="112" font-size="14" font-weight="bold" fill="#23272e">① Chip ROM  <tspan font-weight="normal" fill="#6b7280">(Raspberry Pi)</tspan></text>
+    <text x="160" y="132" font-size="11.5" fill="#5b6b7f">BOOT held? → flash mode · otherwise run the firmware</text>
+    <line x1="300" y1="144" x2="300" y2="166" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- Firmware -->
+    <rect x="140" y="168" width="320" height="56" rx="6" fill="#eaf1fb" stroke="#5b6b7f" stroke-width="1.4"/>
+    <rect x="140" y="168" width="8" height="56" rx="3" fill="#1f5fbf"/>
+    <text x="160" y="192" font-size="14" font-weight="bold" fill="#23272e">② Firmware · _boot  <tspan font-weight="normal" fill="#1f5fbf">(MicroPython)</tspan></text>
+    <text x="160" y="212" font-size="11.5" fill="#5b6b7f">bring up Python · mount / — the 12 MB filesystem</text>
+    <line x1="300" y1="224" x2="300" y2="246" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- board -->
+    <rect x="140" y="248" width="320" height="56" rx="6" fill="#e6f4f4" stroke="#5b6b7f" stroke-width="1.4"/>
+    <rect x="140" y="248" width="8" height="56" rx="3" fill="#2a8a8a"/>
+    <text x="160" y="272" font-size="14" font-weight="bold" fill="#23272e">③ _boot_board  <tspan font-weight="normal" fill="#2a8a8a">(the board)</tspan></text>
+    <text x="160" y="292" font-size="11.5" fill="#5b6b7f">inject helpers, mount /sd, sync clock, start HDMI</text>
+    <line x1="300" y1="304" x2="300" y2="326" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- boot.py -->
+    <rect x="140" y="328" width="320" height="56" rx="6" fill="#fbf3e2" stroke="#5b6b7f" stroke-width="1.4"/>
+    <rect x="140" y="328" width="8" height="56" rx="3" fill="#c88a00"/>
+    <text x="160" y="352" font-size="14" font-weight="bold" fill="#23272e">④ /boot.py  <tspan font-weight="normal" fill="#c88a00">(yours, if present)</tspan></text>
+    <text x="160" y="372" font-size="11.5" fill="#5b6b7f">quiet preparations · house rules</text>
+    <line x1="300" y1="384" x2="300" y2="406" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <!-- main.py -->
+    <rect x="140" y="408" width="320" height="56" rx="6" fill="#fbf3e2" stroke="#5b6b7f" stroke-width="1.4"/>
+    <rect x="140" y="408" width="8" height="56" rx="3" fill="#c88a00"/>
+    <text x="160" y="432" font-size="14" font-weight="bold" fill="#23272e">⑤ /main.py  <tspan font-weight="normal" fill="#c88a00">(yours, if present)</tspan></text>
+    <text x="160" y="452" font-size="11.5" fill="#5b6b7f">your app — runs forever? the machine <tspan font-style="italic">is</tspan> that program</text>
+    <line x1="300" y1="464" x2="300" y2="490" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+    <text x="312" y="482" font-size="11" fill="#5b6b7f">ends, or none</text>
+
+    <!-- REPL -->
+    <rect x="140" y="492" width="320" height="50" rx="6" fill="#eafaf1" stroke="#5b6b7f" stroke-width="1.4"/>
+    <rect x="140" y="492" width="8" height="50" rx="3" fill="#2e8b57"/>
+    <text x="160" y="514" font-size="14" font-weight="bold" fill="#23272e">⑥ &gt;&gt;&gt;  the prompt  <tspan font-weight="normal" fill="#2e8b57">(interactive)</tspan></text>
+    <text x="160" y="532" font-size="11.5" fill="#5b6b7f">where the book has lived since chapter 3</text>
+  </g>
+
+  <!-- side branch: UF2 flash mode -->
+  <line x1="460" y1="116" x2="512" y2="116" stroke="#6b7280" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="514" y="88" width="220" height="56" rx="6" fill="#f0f1f3" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="624" y="112" text-anchor="middle" font-size="13" font-weight="bold" fill="#23272e">RPI-RP2 drive</text>
+  <text x="624" y="131" text-anchor="middle" font-size="11.5" fill="#5b6b7f">drag firmware.uf2 (chapter 2)</text>
+
+  <!-- legend -->
+  <g font-size="12" fill="#3a4250">
+    <text x="540" y="200" font-size="13" font-weight="bold" fill="#23272e">Whose code</text>
+    <rect x="540" y="212" width="15" height="14" fill="#6b7280"/><text x="562" y="224">Raspberry Pi ROM</text>
+    <rect x="540" y="234" width="15" height="14" fill="#1f5fbf"/><text x="562" y="246">MicroPython firmware</text>
+    <rect x="540" y="256" width="15" height="14" fill="#2a8a8a"/><text x="562" y="268">the board</text>
+    <rect x="540" y="278" width="15" height="14" fill="#c88a00"/><text x="562" y="290">you</text>
+    <rect x="540" y="300" width="15" height="14" fill="#2e8b57"/><text x="562" y="312">the REPL</text>
+  </g>
+
+  <text x="624" y="360" text-anchor="middle" font-size="11.5" fill="#5b6b7f" width="220">Ctrl-C interrupts a runaway</text>
+  <text x="624" y="378" text-anchor="middle" font-size="11.5" fill="#5b6b7f">main.py or boot.py.</text>
+</svg>

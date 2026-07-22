@@ -29,8 +29,8 @@ Run it:
 
 **Clone with git as shown -- GitHub's "Download ZIP"/source-tarball
 links won't build**: those archives lack the git submodules
-(`lib/ulab` and friends), and the `make ... submodules` step can only
-fetch them inside a real clone.
+(`lib/ulab`, `lib/usqlite` and friends), and the `make ... submodules`
+step can only fetch them inside a real clone.
 
 Without `libsdl2-dev` the build still works but is terminal-only (no
 display window) -- install SDL2 and rebuild for the full machine.

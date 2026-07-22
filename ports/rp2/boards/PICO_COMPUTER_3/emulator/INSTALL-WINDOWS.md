@@ -121,10 +121,10 @@ If you'd rather compile it (or want to track the repository):
     make -C ports/unix VARIANT=pc3 -j$(nproc)
 
 **Use `git clone`, not GitHub's "Download ZIP" / source-tarball links** —
-those archives are missing the git submodules (`lib/ulab` and friends),
-so the build stops with `lib/ulab/code/micropython.mk: No such file`.
-The `make ... submodules` step above fetches them, but only inside a
-real clone.
+those archives are missing the git submodules (`lib/ulab`, `lib/usqlite`
+and friends), so the build warns `lib/…/micropython.mk: No such file`
+and drops those modules. The `make ... submodules` step above fetches
+them, but only inside a real clone.
 
 Run it with:
 

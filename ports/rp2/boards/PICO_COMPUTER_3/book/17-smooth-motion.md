@@ -314,7 +314,7 @@ for _ in range(200):
 
 ## Choosing your weapon
 
-![The three drawing surfaces this chapter has given you. `N` is the visible screen the monitor reads 60×/s; `F` is a hidden off-screen buffer you compose a whole frame on, then `copy` to `N`; `L` is a transparent overlay (the 320 modes only) for movers over untouched scenery, where black means see-through.](figs/17-buffers-nlf.png)
+![The three drawing surfaces this chapter has given you. `N` is the base buffer (usually the scenery); `L` is a transparent overlay for movers (the 320 modes only), where black means see-through; `F` is a hidden off-screen buffer you compose a whole frame on, then `copy` into `N`. What the monitor actually shows is `N` with `L` composited on top — the visible screen is the *combination* of the two, not `N` alone.](figs/17-buffers-nlf.png)
 
 | Scene | Tool |
 |---|---|

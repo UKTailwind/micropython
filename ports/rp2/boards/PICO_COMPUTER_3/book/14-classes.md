@@ -97,6 +97,8 @@ turtles without remarking on it: two `Turtle()`s wander separately.)
 object, `__init__` fills in its attributes, and every object has its
 own.*
 
+![A class is a blueprint. `Hero(...)` stamps out an object and `__init__` fills in its attributes — so `h` and `g` come from one class yet carry their own `name`, `health` and `gold`, while sharing its methods.](figs/14-blueprint.png)
+
 ## Methods: the rules move in
 
 Attributes made the parcel; methods make it *smart*. Grow the class:

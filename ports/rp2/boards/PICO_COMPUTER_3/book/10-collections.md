@@ -193,6 +193,8 @@ chapter 12 dines out on.
 *In one line: `x[a:b]` is items `a` up to (not including) `b`; blank
 ends mean "from the start" and "to the end".*
 
+![Two ways brackets read a list. An **index** names one item — counting `0` from the front or `−1` from the back. A **slice** `a:b` takes a run of items, `a` up to but *not* including `b`; its numbers mark the gaps between items, which is why `[1:4]` is three items, not four.](figs/10-index-slice.png)
+
 ## Sorting
 
 Lists sort themselves, in place, with a method:

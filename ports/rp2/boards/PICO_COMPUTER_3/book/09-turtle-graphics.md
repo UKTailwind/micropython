@@ -136,7 +136,11 @@ for _ in range(5):
 
 Why 144 works: five turns of 144° is 720° — *two* full revolutions, so
 the turtle winds around twice before closing, crossing itself into a
-star. And once the angle is a variable, the door swings wide open:
+star.
+
+![The turtle turns the same angle at every corner, and those turns must sum to a whole number of full circles for the path to close. `360/5 = 72°` gives a pentagon (once around); overshooting to `144°` winds twice around (`720°`) and draws a star.](figs/09-turtle-angles.png)
+
+And once the angle is a variable, the door swings wide open:
 
 ```python
 angle = float(input("Angle? (try 100, 135, 144, 160, 170) "))

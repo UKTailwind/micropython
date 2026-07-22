@@ -75,6 +75,8 @@ paradigm:
   rig), while the `finally` returns keyboard and console. The GUI
   collar.
 
+![The `pcgui` model. You **describe** the screen — a manager plus controls, each with a callback — then **poll** it in a loop: `g.poll()` notices a click or touch, calls your callback with that control, and the control redraws. Nothing happens outside `poll()`.](figs/27-gui.png)
+
 > **Coming from MMBasic:** these are the Micromite Plus GUI controls,
 > control for control — but `CTRLVAL(ref)` is now `control.value`,
 > `GUI INTERRUPT` is `g.on_touch(...)`, and `GUI CURSOR` is the

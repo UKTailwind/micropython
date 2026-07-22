@@ -29,6 +29,8 @@ uncaught exception.
 You already know how to read one (deepest line naming your file; last
 line names the type). What is new today: the alarm can be *caught*.
 
+![A traceback, labelled. Read it bottom-up: the last line names the exception **type** and its **message** (what went wrong); the frame just above names the **file and line** where it broke. The frames above that are the chain of calls that led there.](figs/13-traceback.png)
+
 ## `try`: the safety net
 
 The classic wound, open since chapter 6 — any program with

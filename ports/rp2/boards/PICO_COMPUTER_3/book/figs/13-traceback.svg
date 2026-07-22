@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="380" viewBox="0 0 860 380" font-family="DejaVu Sans, Verdana, sans-serif">
+  <rect x="0" y="0" width="860" height="380" fill="#ffffff"/>
+  <text x="430" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">Reading a traceback — the obituary of an uncaught error</text>
+
+  <!-- terminal -->
+  <rect x="44" y="66" width="470" height="228" rx="6" fill="#23272e"/>
+  <!-- highlight the frame that broke -->
+  <rect x="54" y="170" width="450" height="48" rx="3" fill="#33404e"/>
+  <g font-family="DejaVu Sans Mono, monospace" font-size="13.5">
+    <text x="64" y="98"  fill="#c8ccd2">Traceback (most recent call last):</text>
+    <text x="64" y="126" fill="#d8dce2">  File "game.py", line 42, in &lt;module&gt;</text>
+    <text x="64" y="146" fill="#9aa2ad">    start()</text>
+    <text x="64" y="188" fill="#d8dce2">  File "game.py", line 18, in start</text>
+    <text x="64" y="208" fill="#9aa2ad">    age = int(reply)</text>
+    <text x="64" y="248" fill="#ff8a80">ValueError: invalid literal for int()</text>
+    <text x="64" y="268" fill="#ff8a80">            with base 10: 'twelve'</text>
+  </g>
+
+  <!-- callouts -->
+  <g font-size="13" fill="#3a4250">
+    <line x1="514" y1="92"  x2="548" y2="92"  stroke="#8a94a3" stroke-width="1.2"/>
+    <text x="554" y="88">① the headline — always this line</text>
+
+    <line x1="514" y1="132" x2="548" y2="132" stroke="#8a94a3" stroke-width="1.2"/>
+    <text x="554" y="128">② the call stack: how Python got here</text>
+    <text x="554" y="146" font-size="11.5" fill="#5b6b7f">(outermost call first, innermost last)</text>
+
+    <line x1="514" y1="194" x2="548" y2="194" stroke="#b3402e" stroke-width="1.4"/>
+    <text x="554" y="190" font-weight="bold" fill="#b3402e">③ where it broke — your file &amp; line</text>
+    <text x="554" y="208" font-size="11.5" fill="#5b6b7f">the deepest frame · start reading here</text>
+
+    <line x1="514" y1="252" x2="548" y2="252" stroke="#b3402e" stroke-width="1.4"/>
+    <text x="554" y="248" font-weight="bold" fill="#b3402e">④ type : message</text>
+    <text x="554" y="266" font-size="11.5" fill="#5b6b7f">what went wrong, and the detail</text>
+  </g>
+
+  <text x="430" y="332" text-anchor="middle" font-size="13.5" fill="#3a4250">Read it <tspan font-weight="bold">bottom-up</tspan>: the last line says <tspan font-weight="bold">what</tspan> went wrong; the frame just above says <tspan font-weight="bold">where</tspan>.</text>
+</svg>

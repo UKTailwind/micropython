@@ -8,6 +8,10 @@ USB-host support across from the existing MMBasic (PicoMite) firmware.
 ## Board summary
 
 - MCU: **RP2350B** (Cortex-M33, ARM; `PICO_RISCV=0`), QFN-80, 48 GPIOs.
+  This board is **ARM-only**. The RP2350's alternate RISC-V (Hazard3) cores are
+  not a supported target: the stock `mpconfigvariant_RISCV.cmake` that rode in
+  when the board was cloned from `RPI_PICO2` has been removed, so there is a
+  single build variant (`rp2350`, ARM) to reason about and validate.
 - Base board definition: `pimoroni_pico_plus2_w_rp2350`.
 - 16 MB external flash, 8 MB PSRAM (CS on GP47), CYW43 Wi-Fi/BT.
 - SD card on **SPI1**: SCK=GP30, MOSI=GP31, MISO=GP28, CS=GP33.

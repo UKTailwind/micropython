@@ -110,3 +110,7 @@ linalg (ch. 30) · **usqlite** on-device **SQLite** database —
 `sfx.py` (20) · `initials.py` (26) · `gpad.py` (31) · `bench.py`
 (34) · `backup.py` (35). No one can take these away; improving them
 is the hobby.
+
+Where these live and how `import` finds them — next to your program,
+the `/lib` shelf on flash, or a folder you add to `sys.path` (from
+`/boot.py`, to make it stick) — is chapter 11.

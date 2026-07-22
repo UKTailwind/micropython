@@ -234,7 +234,8 @@ moves.
   the import path — but Python checks *next to your program first*. A
   file you are hacking on beside your code therefore shadows the
   installed copy of the same name: occasionally surprising, usually
-  convenient.
+  convenient. (Chapter 11 has the whole search path — `''`, `.frozen`,
+  `/lib` — and how to add your own folders to it with `sys.path`.)
 
 > **Coming from MMBasic:** MMBasic ships almost everything inside the
 > firmware — one big binary, with `LIBRARY SAVE` for your own

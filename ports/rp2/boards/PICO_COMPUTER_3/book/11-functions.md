@@ -332,6 +332,12 @@ Three entries, each worth knowing:
   searched from anywhere: `cp("shapes.py", "/lib")` and every program
   on the machine can `import shapes`, no neighbouring required.
 
+Python walks that list **in order, stopping at the first match** —
+your program's folder, then `.frozen`, then `/lib`. So a `shapes.py`
+sitting beside your program *shadows* one on the `/lib` shelf: handy
+when a project wants its own tweaked copy, a trap on the day you forget
+an old neighbour is hiding the shelf version you meant to use.
+
 The list is a plain list — chapter 10 applies — so you can put more
 shelves on it:
 
@@ -340,9 +346,17 @@ shelves on it:
 ```
 
 From then on (until the next reset) imports also search that folder.
-To make it permanent, put those two lines in `/boot.py`, `main.py`'s
-quieter sibling from chapter 5 — it runs at every start-up, before
-anything else. One caution before you build your library empire on the
+To make it permanent, put it in `/boot.py` — `main.py`'s quieter
+sibling from chapter 5, which runs at every start-up, before anything
+else:
+
+```python
+# /boot.py -- runs before any program, at every start-up
+import sys
+sys.path.append("/sd/mylibs")
+```
+
+One caution before you build your library empire on the
 SD card: the card is removable, and a shelf that vanishes mid-project
 makes for puzzling `ImportError`s. The reliable homes are the two that
 are always there: next to the program, and `/lib` on flash.

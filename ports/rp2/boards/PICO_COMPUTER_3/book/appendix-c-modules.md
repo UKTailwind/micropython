@@ -101,7 +101,8 @@ manual §5) · **network** WLAN (ch. 29) · **requests** HTTP(S)
 (ch. 29) · **umqtt.simple/robust** MQTT (ch. 29) · **ntptime**,
 **mip** (installer), **aioble/bluetooth** (BLE — manual §16) ·
 **asyncio** tasks (ch. 33) · **ulab.numpy / ulab.scipy** arrays, FFT,
-linalg (ch. 30).
+linalg (ch. 30) · **usqlite** on-device **SQLite** database —
+`connect()`, SQL, cursors, `.db` files on `/` or `/sd` (manual §17).
 
 ## Your own shelf (built through the book)
 

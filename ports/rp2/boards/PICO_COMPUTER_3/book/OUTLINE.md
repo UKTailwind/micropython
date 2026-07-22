@@ -182,6 +182,11 @@ curves, playtesting your friends.
 laying out a screen; responding to clicks and touch. Project: a calculator
 and a settings screen.
 
+**28. Databases: keeping and querying real data**
+On-device SQLite with `usqlite`; tables, `SELECT`, `?` parameters, joins
+and `GROUP BY`; data that persists. Project: Traders, a point-and-click
+business database — scaling up to the full Northwind demo.
+
 **29. Time and schedules: the real-time clock**
 The DS3231, reading and setting time, `time` module. Project: an alarm
 clock / kitchen timer with the GUI and sounds.

@@ -203,6 +203,11 @@ Regenerate after editing chapters with:
 - `03-calc.py` (91 lines)
 - `04-prefs.py` (94 lines)
 
+## ch28 -- Chapter 28 — Databases: keeping and querying real data
+
+- `01-scores.py` (28 lines)
+- `02-traders.py` (192 lines)
+
 ## ch29 -- Chapter 29 — Time and schedules: the real-time clock
 
 - `01-listing.py` (2 lines)
@@ -269,7 +274,7 @@ Regenerate after editing chapters with:
 - `02-backup.py` (21 lines)
 - `03-listing.py` (2 lines)
 
-Total: 165 programs.
+Total: 167 programs.
 
 ## lib -- the reader's toolkit, under its real names
 

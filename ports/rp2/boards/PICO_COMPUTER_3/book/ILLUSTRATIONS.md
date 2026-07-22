@@ -1,6 +1,6 @@
 # Illustration plan — where diagrams would help the reader
 
-A review of all 35 chapters + appendices for places a figure would carry
+A review of all 36 chapters + appendices for places a figure would carry
 more than prose can. Today the book has exactly one image (the board photo
 in ch1); everything else is text and code. Many concepts here are inherently
 **spatial** (coordinates, buffers, tile grids, memory maps, circuits,

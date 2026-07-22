@@ -111,6 +111,8 @@ sane artwork uses, which makes it the industry's masking tape. The
 a PNG's transparent regions *become* magenta, ready to skip. One
 colour, two jobs, zero effort.
 
+![A sprite sheet is one image holding a grid of cells; `img.cell(col, row, …)` stamps one. The **skip colour** (magenta) is never copied, so each sprite lands cut out over whatever is already on screen.](figs/16-sprite-sheet.png)
+
 Two housekeeping notes from the manual: the decoded buffer is in the
 current mode's pixel format, so **reload your images after a
 `screen()` change** (the chapter 15 rule, extended); and in `RGB1024`

@@ -59,7 +59,9 @@ take it apart:
 ```
 
 Positions 0–5 are what you'd guess; position **6** is the weekday
-(0 = Monday) and **7** the day-of-year. Two idioms cover nearly all
+(0 = Monday) and **7** the day-of-year.
+
+![The machine's three clocks — the battery DS3231, the system clock it seeds at boot, and the millisecond ticker — and the eight-number tuple `gettime()` returns: positions 0–5 the date and time, 6 the weekday (0 = Mon), 7 the day of the year.](figs/28-clocks.png) Two idioms cover nearly all
 display work: the `:02` pad (chapter 6's format specs — clocks are
 why they exist) and a name table for weekdays:
 

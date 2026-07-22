@@ -187,6 +187,8 @@ long while.)
 *In one line: names made in a function live and die there; pass in
 through parameters, hand back through `return`.*
 
+![A function is a sealed room with two doors: arguments enter through the parameters, the answer leaves through `return`. Names made inside are private and vanish when the call ends — ten calls, ten fresh rooms.](figs/11-function.png)
+
 ## The refactor: chapter 9, four lines at a time
 
 Watch what functions do to the flower. Before — chapter 9's nested

@@ -55,7 +55,9 @@ timers at once, against MMBasic's four.) This is also chapter 21's
 ## Pin interrupts: the doorbell
 
 Chapter 31 polled its button sixty times a second. The interrupt way
-inverts it: the *pin* calls *you*. Wire the chapter 31 button (GP1 to
+inverts it: the *pin* calls *you*.
+
+![An interrupt is a tap on the shoulder: when the pin (or timer) fires, its handler runs between two statements of your main program, then the program resumes exactly where it paused.](figs/33-interrupt.png) Wire the chapter 31 button (GP1 to
 GND) and `edit("doorbell.py")`:
 
 ```python
@@ -240,6 +242,8 @@ volunteering ("wake me in 400 ms — someone else can have the core");
 `create_task` starts a recipe running alongside; `asyncio.run(main())`
 starts the whole circus and ends when `main()` returns (taking the
 background tasks with it).
+
+![`asyncio` shares one core between many tasks. Each runs until its `await`, then hands the core to the next ready task — cooperative, so tasks share variables without locks, but any task that never awaits freezes them all.](figs/33-asyncio.png)
 
 Two properties make asyncio *kind* to programmers. Because only one
 task ever runs at an instant, **tasks share variables freely** — no

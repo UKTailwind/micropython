@@ -235,6 +235,8 @@ short messages between anyone subscribed to a *topic* — the protocol
 under a million home-automation gadgets, and the natural way for two
 Pico Computers to talk. The frozen `umqtt.simple` speaks it:
 
+![Two ways to use the network. **HTTP** (earlier in the chapter) is a one-shot question and answer with a server; **MQTT** lets many machines chat by *topic* through a shared broker that relays each message to every subscriber.](figs/29-net.png)
+
 ```python
 # mqtt_hello.py -- say hello on a public test broker.
 # (Public brokers are for hellos, never for anything private!)

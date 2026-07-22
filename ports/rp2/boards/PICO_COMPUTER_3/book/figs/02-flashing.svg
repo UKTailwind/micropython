@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="560" viewBox="0 0 640 560" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#23272e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="640" height="560" fill="#ffffff"/>
+  <text x="320" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">Flashing firmware — the drill</text>
+
+  <!-- step 1 (switch) -->
+  <rect x="120" y="52" width="400" height="46" rx="6" fill="#fbf3e2" stroke="#c88a00" stroke-width="1.8"/>
+  <text x="138" y="80" font-size="14" font-weight="bold" fill="#a06000">① USB HUB switch → DISABLE</text>
+  <line x1="320" y1="98" x2="320" y2="118" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- step 2 -->
+  <rect x="120" y="120" width="400" height="46" rx="6" fill="#f4f6f9" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="138" y="148" font-size="13.5" fill="#23272e">② Connect Prog (micro-USB) to the PC · power on</text>
+  <line x1="320" y1="166" x2="320" y2="186" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- step 3 (buttons) -->
+  <rect x="120" y="188" width="400" height="46" rx="6" fill="#fbece9" stroke="#b3402e" stroke-width="1.8"/>
+  <text x="138" y="216" font-size="14" font-weight="bold" fill="#b3402e">③ Hold BOOT, click RESET, release BOOT</text>
+  <line x1="320" y1="234" x2="320" y2="254" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- step 4 -->
+  <rect x="120" y="256" width="400" height="46" rx="6" fill="#f4f6f9" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="138" y="284" font-size="13.5" fill="#23272e">④ A drive appears (RP2350 / RPI-RP2)</text>
+  <line x1="320" y1="302" x2="320" y2="322" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- step 5 -->
+  <rect x="120" y="324" width="400" height="46" rx="6" fill="#f4f6f9" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="138" y="352" font-size="13.5" fill="#23272e">⑤ Drag <tspan font-family="monospace">firmware.uf2</tspan> onto it</text>
+  <line x1="320" y1="370" x2="320" y2="390" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- step 6 -->
+  <rect x="120" y="392" width="400" height="46" rx="6" fill="#f4f6f9" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="138" y="420" font-size="13.5" fill="#23272e">⑥ The drive vanishes → the board reboots</text>
+  <line x1="320" y1="438" x2="320" y2="458" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- step 7 (switch) -->
+  <rect x="120" y="460" width="400" height="46" rx="6" fill="#fbf3e2" stroke="#c88a00" stroke-width="1.8"/>
+  <text x="138" y="488" font-size="14" font-weight="bold" fill="#a06000">⑦ USB HUB switch → ENABLE</text>
+
+  <text x="320" y="536" text-anchor="middle" font-size="12.5" fill="#3a4250">Nothing here can do damage — if it goes wrong, start again at ①. Your saved files survive a reflash.</text>
+</svg>

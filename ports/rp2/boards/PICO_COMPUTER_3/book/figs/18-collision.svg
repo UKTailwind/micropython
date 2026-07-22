@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="360" viewBox="0 0 860 360" font-family="DejaVu Sans, Verdana, sans-serif">
+  <rect x="0" y="0" width="860" height="360" fill="#ffffff"/>
+  <text x="430" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">Collisions — do the bounding boxes overlap?</text>
+
+  <!-- ===== collision case ===== -->
+  <text x="210" y="66" text-anchor="middle" font-size="14" font-weight="bold" fill="#2e8b57">overlap on both axes → collision</text>
+  <!-- overlap highlight -->
+  <rect x="185" y="150" width="55" height="70" fill="#fbe9c8"/>
+  <!-- sprite a (ball) + box -->
+  <circle cx="165" cy="150" r="42" fill="#cfe6fb"/>
+  <circle cx="165" cy="150" r="42" fill="none" stroke="#1f5fbf" stroke-width="1"/>
+  <rect x="120" y="105" width="90" height="90" fill="none" stroke="#1f5fbf" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="128" y="122" font-size="13" font-weight="bold" fill="#1f5fbf">a</text>
+  <!-- sprite b (block) + box -->
+  <rect x="192" y="158" width="88" height="54" rx="4" fill="#d4ecc6"/>
+  <rect x="185" y="150" width="102" height="70" fill="none" stroke="#2e8b57" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="277" y="238" text-anchor="end" font-size="13" font-weight="bold" fill="#2e8b57">b</text>
+  <text x="210" y="272" text-anchor="middle" font-size="13" fill="#3a4250">✓ <tspan font-family="monospace">update()</tspan> reports the pair <tspan font-family="monospace">(a, b)</tspan></text>
+
+  <!-- divider -->
+  <line x1="430" y1="70" x2="430" y2="300" stroke="#e2e6ea" stroke-width="1.5"/>
+
+  <!-- ===== no collision case ===== -->
+  <text x="650" y="66" text-anchor="middle" font-size="14" font-weight="bold" fill="#b3402e">a gap on either axis → nothing</text>
+  <circle cx="600" cy="140" r="42" fill="#cfe6fb"/>
+  <circle cx="600" cy="140" r="42" fill="none" stroke="#1f5fbf" stroke-width="1"/>
+  <rect x="555" y="95" width="90" height="90" fill="none" stroke="#1f5fbf" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="563" y="112" font-size="13" font-weight="bold" fill="#1f5fbf">a</text>
+  <rect x="642" y="210" width="88" height="54" rx="4" fill="#d4ecc6"/>
+  <rect x="635" y="202" width="102" height="70" fill="none" stroke="#2e8b57" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="727" y="290" text-anchor="end" font-size="13" font-weight="bold" fill="#2e8b57">b</text>
+  <!-- gap indicator -->
+  <line x1="600" y1="185" x2="600" y2="202" stroke="#b3402e" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <text x="612" y="198" font-size="11" fill="#b3402e">gap</text>
+
+  <text x="430" y="326" text-anchor="middle" font-size="13.5" fill="#3a4250">Collision uses each sprite's <tspan font-weight="bold">rectangle</tspan>, and is <tspan font-weight="bold">edge-triggered</tspan> — it fires once, the moment contact begins.</text>
+</svg>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="330" viewBox="0 0 820 330" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7f"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="820" height="330" fill="#ffffff"/>
+  <text x="410" y="28" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">asyncio — polite jugglers sharing one core</text>
+
+  <!-- task cards -->
+  <rect x="55" y="48" width="228" height="70" rx="6" fill="#eaf1fb" stroke="#1f5fbf" stroke-width="1.4"/>
+  <rect x="55" y="48" width="228" height="24" rx="6" fill="#1f5fbf"/><rect x="55" y="60" width="228" height="12" fill="#1f5fbf"/>
+  <text x="68" y="66" font-size="13" font-weight="bold" fill="#fff" font-family="DejaVu Sans Mono, monospace">drummer</text>
+  <text x="68" y="92" font-size="11.5" fill="#3a4250">print "boom", then</text>
+  <text x="68" y="110" font-size="11.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">await sleep_ms(400)</text>
+
+  <rect x="296" y="48" width="228" height="70" rx="6" fill="#eafaf1" stroke="#2e8b57" stroke-width="1.4"/>
+  <rect x="296" y="48" width="228" height="24" rx="6" fill="#2e8b57"/><rect x="296" y="60" width="228" height="12" fill="#2e8b57"/>
+  <text x="309" y="66" font-size="13" font-weight="bold" fill="#fff" font-family="DejaVu Sans Mono, monospace">singer</text>
+  <text x="309" y="92" font-size="11.5" fill="#3a4250">print "la", then</text>
+  <text x="309" y="110" font-size="11.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">await sleep_ms(650)</text>
+
+  <rect x="537" y="48" width="228" height="70" rx="6" fill="#fbf3e2" stroke="#c88a00" stroke-width="1.4"/>
+  <rect x="537" y="48" width="228" height="24" rx="6" fill="#c88a00"/><rect x="537" y="60" width="228" height="12" fill="#c88a00"/>
+  <text x="550" y="66" font-size="13" font-weight="bold" fill="#fff" font-family="DejaVu Sans Mono, monospace">countdown</text>
+  <text x="550" y="92" font-size="11.5" fill="#3a4250">print n, then</text>
+  <text x="550" y="110" font-size="11.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">await sleep(1)</text>
+
+  <!-- the core, over time -->
+  <text x="60" y="176" font-size="12.5" font-weight="bold" fill="#23272e">one core:</text>
+  <g font-size="11.5" fill="#fff" text-anchor="middle" font-weight="bold">
+    <rect x="150" y="162" width="86" height="40" rx="5" fill="#1f5fbf"/><text x="193" y="187">drummer</text>
+    <rect x="256" y="162" width="72" height="40" rx="5" fill="#2e8b57"/><text x="292" y="187">singer</text>
+    <rect x="348" y="162" width="98" height="40" rx="5" fill="#c88a00"/><text x="397" y="187">countdown</text>
+    <rect x="466" y="162" width="132" height="40" rx="5" fill="#e6eaef"/><text x="532" y="187" fill="#5b6b7f">idle — all sleeping</text>
+    <rect x="618" y="162" width="86" height="40" rx="5" fill="#1f5fbf"/><text x="661" y="187">drummer</text>
+  </g>
+  <text x="720" y="187" font-size="18" fill="#5b6b7f">…</text>
+  <g font-size="10.5" fill="#5b6b7f" text-anchor="middle">
+    <text x="246" y="156">await</text><text x="338" y="156">await</text><text x="456" y="156">await</text>
+  </g>
+  <line x1="150" y1="216" x2="740" y2="216" stroke="#5b6b7f" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="150" y="232" font-size="11" fill="#5b6b7f">time →</text>
+
+  <text x="410" y="270" text-anchor="middle" font-size="13.5" fill="#3a4250">Each task runs until its <tspan font-family="monospace">await</tspan>, then hands the core to the next ready one.</text>
+  <text x="410" y="294" text-anchor="middle" font-size="12.5" fill="#5b6b7f">One task at a time → shared variables need no locks; but a task that never awaits freezes them all.</text>
+</svg>

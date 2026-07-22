@@ -66,6 +66,8 @@ damaging way — if anything goes amiss, start again at step 1. The same
 procedure installs every future firmware update, and updating the firmware
 does **not** erase the programs you have saved on the board.
 
+![The flashing drill. The USB HUB switch must be at DISABLE to flash and back at ENABLE afterwards; holding BOOT while you click RESET puts the chip into its firmware-drive mode. Your saved files survive a reflash.](figs/02-flashing.png)
+
 One thing that surprises PC users: in normal operation the Pico Computer 3
 will *not* show up as a drive on a PC. With the switch at *ENABLE*, the
 chip's USB connection belongs to your keyboard and mouse — the board is the

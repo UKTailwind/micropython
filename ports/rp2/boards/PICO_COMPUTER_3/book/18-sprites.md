@@ -132,6 +132,8 @@ report themselves. Three details, each a design gift:
   over: it collides with everyone and it travels with `sp.scroll`'s
   scenery (chapter 19 territory).
 
+![Sprites collide when their bounding boxes overlap on *both* axes; a gap on either axis means no contact. The report is edge-triggered — the pair `(a, b)` arrives the moment they first touch.](figs/18-collision.png)
+
 Sprites also carry small talents you will use immediately:
 `s.hide()`, `s.top()` (raise in the pile), `s.flip("h")` (a mirrored
 copy — one duck artwork, both directions), and — for sheet-backed

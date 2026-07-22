@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="330" viewBox="0 0 820 330" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#23272e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="820" height="330" fill="#ffffff"/>
+  <text x="410" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">Interrupts — a tap on the shoulder</text>
+
+  <!-- main program line -->
+  <line x1="70" y1="228" x2="748" y2="228" stroke="#23272e" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <!-- paused segment -->
+  <line x1="350" y1="228" x2="430" y2="228" stroke="#c88a00" stroke-width="2.5" stroke-dasharray="4 4"/>
+  <g fill="#5b6b7f"><circle cx="120" cy="228" r="3"/><circle cx="180" cy="228" r="3"/><circle cx="240" cy="228" r="3"/><circle cx="300" cy="228" r="3"/><circle cx="480" cy="228" r="3"/><circle cx="540" cy="228" r="3"/><circle cx="600" cy="228" r="3"/><circle cx="660" cy="228" r="3"/></g>
+  <text x="70" y="256" font-size="12.5" fill="#3a4250">your main program — one statement after another →</text>
+
+  <!-- interrupt event -->
+  <circle cx="350" cy="228" r="6" fill="#cc3a3a"/>
+  <text x="340" y="290" text-anchor="end" font-size="12" fill="#b3402e">① the pin fires (button pressed)</text>
+  <line x1="350" y1="220" x2="350" y2="166" stroke="#cc3a3a" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- handler box -->
+  <rect x="250" y="92" width="200" height="72" rx="6" fill="#fbf3e2" stroke="#c88a00" stroke-width="1.6"/>
+  <text x="350" y="120" text-anchor="middle" font-size="14" font-weight="bold" fill="#a06000">handler(pin)</text>
+  <text x="350" y="142" text-anchor="middle" font-size="12" fill="#5b6b7f">runs to the end · beep, count…</text>
+  <text x="350" y="82" text-anchor="middle" font-size="12" fill="#3a4250">② runs between two statements</text>
+
+  <!-- resume -->
+  <line x1="430" y1="166" x2="430" y2="220" stroke="#2e8b57" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="452" y="290" text-anchor="start" font-size="12" fill="#2e8b57">③ resume here</text>
+
+  <text x="410" y="318" text-anchor="middle" font-size="13" fill="#3a4250">The pin or timer calls you — no loop needed. The handler finishes, then the program continues where it paused.</text>
+</svg>

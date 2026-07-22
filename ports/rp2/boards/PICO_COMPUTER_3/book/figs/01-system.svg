@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="520" viewBox="0 0 880 520" font-family="DejaVu Sans, Verdana, sans-serif">
+  <rect x="0" y="0" width="880" height="520" fill="#ffffff"/>
+  <text x="440" y="32" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">What's on the board</text>
+
+  <!-- connector lines from chip centre to each block -->
+  <g stroke="#c2c9d2" stroke-width="1.8">
+    <line x1="440" y1="285" x2="440" y2="75"/>
+    <line x1="440" y1="285" x2="150" y2="156"/>
+    <line x1="440" y1="285" x2="735" y2="156"/>
+    <line x1="440" y1="285" x2="140" y2="241"/>
+    <line x1="440" y1="285" x2="740" y2="241"/>
+    <line x1="440" y1="285" x2="150" y2="326"/>
+    <line x1="440" y1="285" x2="735" y2="326"/>
+    <line x1="440" y1="285" x2="265" y2="463"/>
+    <line x1="440" y1="285" x2="460" y2="463"/>
+    <line x1="440" y1="285" x2="665" y2="463"/>
+  </g>
+
+  <!-- chip -->
+  <rect x="350" y="240" width="180" height="90" rx="8" fill="#2a2f36"/>
+  <text x="440" y="268" text-anchor="middle" font-size="16" font-weight="bold" fill="#fff">RP2350B</text>
+  <text x="440" y="288" text-anchor="middle" font-size="11.5" fill="#c8ccd2">2 cores · 252 MHz</text>
+  <text x="440" y="306" text-anchor="middle" font-size="10.5" fill="#9aa2ad">one runs Python,</text>
+  <text x="440" y="320" text-anchor="middle" font-size="10.5" fill="#9aa2ad">one draws the video</text>
+
+  <!-- blocks -->
+  <g font-size="12.5" fill="#23272e" text-anchor="middle">
+    <!-- memory -->
+    <rect x="240" y="50" width="400" height="50" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="440" y="72" font-weight="bold">Memory</text>
+    <text x="440" y="90" font-size="11">16 MB flash · 8 MB PSRAM · 512 KB fast SRAM</text>
+    <!-- HDMI -->
+    <rect x="60" y="130" width="180" height="52" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="150" y="152" font-weight="bold">HDMI display</text>
+    <text x="150" y="170" font-size="10.5" fill="#5b6b7f">up to 1024×600</text>
+    <!-- Wi-Fi -->
+    <rect x="640" y="130" width="190" height="52" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="735" y="152" font-weight="bold">Wi-Fi / Bluetooth</text>
+    <text x="735" y="170" font-size="10.5" fill="#5b6b7f">CYW43 wireless</text>
+    <!-- USB host -->
+    <rect x="40" y="215" width="200" height="52" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="140" y="237" font-weight="bold">USB host hub</text>
+    <text x="140" y="255" font-size="10.5" fill="#5b6b7f">keyboard · mouse · touch</text>
+    <!-- Audio -->
+    <rect x="640" y="215" width="200" height="52" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="740" y="237" font-weight="bold">Audio DAC</text>
+    <text x="740" y="255" font-size="10.5" fill="#5b6b7f">PCM5102 → 3.5 mm jack</text>
+    <!-- SD -->
+    <rect x="60" y="300" width="180" height="52" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="150" y="322" font-weight="bold">SD card</text>
+    <text x="150" y="340" font-size="10.5" fill="#5b6b7f">removable /sd</text>
+    <!-- DS3231 -->
+    <rect x="640" y="300" width="190" height="52" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="735" y="322" font-weight="bold">DS3231 clock</text>
+    <text x="735" y="340" font-size="10.5" fill="#5b6b7f">battery-backed time</text>
+    <!-- USB-C -->
+    <rect x="150" y="438" width="230" height="50" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="265" y="459" font-weight="bold">USB-C</text>
+    <text x="265" y="477" font-size="10.5" fill="#5b6b7f">power + serial console</text>
+    <!-- Prog -->
+    <rect x="400" y="438" width="120" height="50" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="460" y="459" font-weight="bold">Prog</text>
+    <text x="460" y="477" font-size="10.5" fill="#5b6b7f">firmware only</text>
+    <!-- IO -->
+    <rect x="540" y="438" width="250" height="50" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+    <text x="665" y="459" font-weight="bold">I/O header + QWIIC</text>
+    <text x="665" y="477" font-size="10.5" fill="#5b6b7f">GPIO, ADC, I2C modules</text>
+  </g>
+</svg>

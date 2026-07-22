@@ -43,6 +43,8 @@ well-known values in between. One octave's worth, rounded to whole Hz:
 That table is about to become a dictionary, because — chapter 10
 reflex — a *melody* is data: notes and durations, in a list.
 
+![A musical note is a wave. Its frequency — cycles per second — sets the pitch; its amplitude — the wave's height — sets the volume. `tone()` plays a pure sine, one per ear.](figs/20-waveform.png)
+
 ## `tone()`: two sine waves, endless patience
 
 ```python

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="370" viewBox="0 0 820 370" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#23272e"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="820" height="370" fill="#ffffff"/>
+  <text x="410" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">A function is a sealed room with two doors</text>
+
+  <!-- argument in -->
+  <rect x="36" y="120" width="152" height="52" rx="6" fill="#eef3f8" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="112" y="152" text-anchor="middle" font-size="13" font-family="DejaVu Sans Mono, monospace" fill="#23272e">[31, 7, 90, 44]</text>
+  <text x="112" y="196" text-anchor="middle" font-size="12" fill="#1f5fbf" font-weight="bold">parameters in</text>
+  <line x1="188" y1="146" x2="232" y2="146" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- the room -->
+  <rect x="234" y="94" width="300" height="180" rx="6" fill="#f7f9fc" stroke="#5b6b7f" stroke-width="1.8"/>
+  <rect x="234" y="94" width="300" height="30" rx="6" fill="#1f5fbf"/><rect x="234" y="110" width="300" height="14" fill="#1f5fbf"/>
+  <text x="248" y="115" font-size="13.5" font-weight="bold" fill="#fff" font-family="DejaVu Sans Mono, monospace">def spread(numbers):</text>
+  <text x="384" y="152" text-anchor="middle" font-size="12.5" fill="#3a4250">local names (numbers, …)</text>
+  <text x="384" y="170" text-anchor="middle" font-size="11.5" font-style="italic" fill="#5b6b7f">private — wiped when the call ends</text>
+  <text x="384" y="206" text-anchor="middle" font-size="12.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">return min(numbers),</text>
+  <text x="384" y="224" text-anchor="middle" font-size="12.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">       max(numbers)</text>
+  <text x="384" y="254" text-anchor="middle" font-size="11" fill="#8a94a3">the sealed room</text>
+
+  <!-- return out -->
+  <line x1="536" y1="146" x2="580" y2="146" stroke="#23272e" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="582" y="120" width="152" height="52" rx="6" fill="#eafaf1" stroke="#2e8b57" stroke-width="1.4"/>
+  <text x="658" y="152" text-anchor="middle" font-size="13" font-family="DejaVu Sans Mono, monospace" fill="#23272e">(7, 90)</text>
+  <text x="658" y="196" text-anchor="middle" font-size="12" fill="#2e8b57" font-weight="bold">return out</text>
+
+  <!-- caller -->
+  <rect x="250" y="298" width="320" height="34" rx="4" fill="#f3f5f8"/>
+  <text x="410" y="320" text-anchor="middle" font-size="13.5" font-family="DejaVu Sans Mono, monospace" fill="#23272e">low, high = spread([31, 7, 90, 44])</text>
+
+  <text x="410" y="356" text-anchor="middle" font-size="12.5" fill="#3a4250">Names born inside die when the call ends — ten calls, ten fresh rooms; no call sees another's.</text>
+</svg>

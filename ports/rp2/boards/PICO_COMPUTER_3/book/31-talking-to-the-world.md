@@ -57,6 +57,8 @@ alarm and 32 kHz outputs — chapter 28 met the first.) The manual's
 section 2 lists the machine's own reserved pins; the header simply
 never exposes them.
 
+![The I/O header, colour-coded. `GP20`/`GP21` are the shared I2C bus; `GP40`–`GP46` can also read analogue voltages; every `GP` pin can do PWM. The board is 3.3 V logic — the 5 V pin powers things only, never a `GP` input.](figs/31-pinout.png)
+
 ## Output: your first electron
 
 Wire an LED: **GP0 → resistor → LED long leg, LED short leg → GND.**
@@ -109,6 +111,8 @@ It's counter-intuitive for a day and second nature forever. And the
 real springy metal — the 5 ms nap conveniently outlasts most contact
 rattle.
 
+![The two starter circuits. An LED needs its 330 Ω resistor, with the long leg (anode) toward the pin; a button ties the pin to GND, and the internal `PULL_UP` holds the pin at 1 until a press pulls it to 0.](figs/31-wiring.png)
+
 > **Coming from MMBasic:** `SETPIN n, DOUT` / `DIN` / `AIN` / `PWM`
 > map to `Pin(n, Pin.OUT)`, `Pin(n, Pin.IN, ...)`, `machine.ADC`,
 > `machine.PWM` — and the pull-up option you always added on DIN is
@@ -147,7 +151,9 @@ heat. One circuit, a thousand sensors.
 
 A pin that flicks on and off thousands of times a second *averages*
 to something in between — that's PWM, and it dims LEDs and, more
-gloriously, commands servos. Wire the servo: brown→GND, red→**5V**,
+gloriously, commands servos.
+
+![PWM in one picture: the pin is only ever fully on or fully off, but its *duty* — the fraction of each cycle spent on — sets the average the world feels, dimming an LED or, at 50 Hz, steering a servo.](figs/31-pwm.png) Wire the servo: brown→GND, red→**5V**,
 orange (signal)→**GP2**. `edit("sweep.py")`:
 
 ```python

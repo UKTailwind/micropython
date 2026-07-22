@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="380" viewBox="0 0 900 380" font-family="DejaVu Sans, Verdana, sans-serif">
+  <rect x="0" y="0" width="900" height="380" fill="#ffffff"/>
+  <text x="450" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">PWM — flick a pin fast; the average is what the world feels</text>
+  <text x="450" y="52" text-anchor="middle" font-size="12.5" fill="#5b6b7f">the pin is only ever fully on (3.3 V) or fully off (0 V) — its <tspan font-style="italic">duty</tspan> (% of time on) sets the average</text>
+
+  <!-- Row 1: 10% -->
+  <text x="150" y="98" text-anchor="end" font-size="14" font-weight="bold" fill="#23272e">duty 10%</text>
+  <text x="172" y="82" text-anchor="end" font-size="10" fill="#8a94a3">3.3V</text>
+  <text x="172" y="126" text-anchor="end" font-size="10" fill="#8a94a3">0V</text>
+  <polyline points="180,122 180,82 195,82 195,122 333,122 333,82 348,82 348,122 486,122 486,82 501,82 501,122 640,122" fill="none" stroke="#1f5fbf" stroke-width="2.2"/>
+  <line x1="180" y1="118" x2="640" y2="118" stroke="#b3402e" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="648" y="121" font-size="10.5" fill="#b3402e">average</text>
+  <circle cx="730" cy="102" r="20" fill="#e0a81e" fill-opacity="0.12" stroke="#8a5e00" stroke-width="1.5"/>
+  <text x="770" y="106" font-size="13" fill="#3a4250">dim</text>
+
+  <!-- Row 2: 50% -->
+  <text x="150" y="196" text-anchor="end" font-size="14" font-weight="bold" fill="#23272e">duty 50%</text>
+  <polyline points="180,220 180,180 256,180 256,220 333,220 333,180 409,180 409,220 486,220 486,180 562,180 562,220 640,220" fill="none" stroke="#1f5fbf" stroke-width="2.2"/>
+  <line x1="180" y1="200" x2="640" y2="200" stroke="#b3402e" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="648" y="203" font-size="10.5" fill="#b3402e">average</text>
+  <circle cx="730" cy="200" r="20" fill="#e0a81e" fill-opacity="0.5" stroke="#8a5e00" stroke-width="1.5"/>
+  <text x="770" y="204" font-size="13" fill="#3a4250">half</text>
+
+  <!-- Row 3: 90% -->
+  <text x="150" y="294" text-anchor="end" font-size="14" font-weight="bold" fill="#23272e">duty 90%</text>
+  <polyline points="180,318 180,278 318,278 318,318 333,318 333,278 471,278 471,318 486,318 486,278 624,278 624,318 640,318" fill="none" stroke="#1f5fbf" stroke-width="2.2"/>
+  <line x1="180" y1="282" x2="640" y2="282" stroke="#b3402e" stroke-width="1.4" stroke-dasharray="6 4"/>
+  <text x="648" y="285" font-size="10.5" fill="#b3402e">average</text>
+  <circle cx="730" cy="298" r="20" fill="#e0a81e" fill-opacity="0.92" stroke="#8a5e00" stroke-width="1.5"/>
+  <text x="770" y="302" font-size="13" fill="#3a4250">bright</text>
+
+  <text x="450" y="356" text-anchor="middle" font-size="13" fill="#3a4250">Same wire, same voltage — only the fraction of time it is on changes. It dims LEDs, and at 50 Hz a 0.5–2.5 ms pulse steers a servo.</text>
+</svg>

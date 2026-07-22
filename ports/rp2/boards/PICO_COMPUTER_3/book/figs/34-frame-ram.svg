@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" font-family="DejaVu Sans, Verdana, sans-serif">
+  <defs>
+    <pattern id="firstcome" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="10" height="10" fill="#f3efe2"/>
+      <line x1="0" y1="0" x2="0" y2="10" stroke="#c9a24a" stroke-width="3"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="900" height="430" fill="#ffffff"/>
+  <text x="450" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#23272e">Where the frame lives — the on-chip video RAM, mode by mode</text>
+  <text x="450" y="52" text-anchor="middle" font-size="12.5" fill="#5b6b7f">on-chip video RAM ≈ 300 KB · more colours or more pixels = a bigger frame = less room for F</text>
+
+  <!-- legend -->
+  <g font-size="12" fill="#3a4250">
+    <rect x="250" y="66" width="16" height="14" fill="#1f5fbf"/><text x="272" y="78">N — visible base</text>
+    <rect x="400" y="66" width="16" height="14" fill="#e0a81e"/><text x="422" y="78">F — off-screen</text>
+    <rect x="540" y="66" width="16" height="14" fill="#3a9a9a"/><text x="562" y="78">L — overlay</text>
+    <rect x="650" y="66" width="16" height="14" fill="#d6dbe0"/><text x="672" y="78">spare</text>
+  </g>
+
+  <!-- rows: bar 270..710 (=300 KB); half=490, quarters at 380,490,600 -->
+  <!-- Row 1: RGB640, 256 colours -->
+  <text x="60" y="128" font-size="14" font-weight="bold" fill="#23272e">RGB640</text>
+  <text x="60" y="145" font-size="11" fill="#5b6b7f">256 colours</text>
+  <rect x="270" y="112" width="440" height="34" fill="#1f5fbf"/>
+  <text x="490" y="134" text-anchor="middle" font-size="12.5" fill="#ffffff">N — 300 KB (fills the video RAM)</text>
+  <rect x="270" y="112" width="440" height="34" fill="none" stroke="#5b6b7f" stroke-width="1.4"/>
+  <rect x="716" y="114" width="28" height="30" fill="#e0a81e" stroke="#8a5e00" stroke-width="1"/>
+  <text x="730" y="134" text-anchor="middle" font-size="11" fill="#fff">F</text>
+  <text x="752" y="126" font-size="11.5" fill="#b3402e">→ slow PSRAM</text>
+  <text x="752" y="141" font-size="10.5" fill="#5b6b7f">(bus toll ×2/frame)</text>
+
+  <!-- Row 2: RGB640_4, 16 colours -->
+  <text x="60" y="196" font-size="14" font-weight="bold" fill="#23272e">RGB640_4</text>
+  <text x="60" y="213" font-size="11" fill="#5b6b7f">16 colours</text>
+  <rect x="270" y="180" width="220" height="34" fill="#1f5fbf"/>
+  <rect x="490" y="180" width="220" height="34" fill="#e0a81e"/>
+  <text x="380" y="202" text-anchor="middle" font-size="12" fill="#fff">N — 150 KB</text>
+  <text x="600" y="202" text-anchor="middle" font-size="12" fill="#fff">F — 150 KB</text>
+  <rect x="270" y="180" width="440" height="34" fill="none" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="726" y="201" font-size="12" fill="#2e8b57">✓ both on-chip</text>
+
+  <!-- Row 3: RGB320, 65536 colours -->
+  <text x="60" y="264" font-size="14" font-weight="bold" fill="#23272e">RGB320</text>
+  <text x="60" y="281" font-size="11" fill="#5b6b7f">65,536 colours</text>
+  <rect x="270" y="248" width="220" height="34" fill="#1f5fbf"/>
+  <rect x="490" y="248" width="220" height="34" fill="url(#firstcome)"/>
+  <text x="380" y="270" text-anchor="middle" font-size="12" fill="#fff">N — 150 KB</text>
+  <text x="600" y="270" text-anchor="middle" font-size="11.5" fill="#7a5a10">F or L (first come)</text>
+  <rect x="270" y="248" width="440" height="34" fill="none" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="726" y="269" font-size="12" fill="#2e8b57">✓ one extra, on-chip</text>
+
+  <!-- Row 4: RGB320_8, 256 colours -->
+  <text x="60" y="332" font-size="14" font-weight="bold" fill="#23272e">RGB320_8</text>
+  <text x="60" y="349" font-size="11" fill="#5b6b7f">256 colours</text>
+  <rect x="270" y="316" width="110" height="34" fill="#1f5fbf"/>
+  <rect x="380" y="316" width="110" height="34" fill="#3a9a9a"/>
+  <rect x="490" y="316" width="110" height="34" fill="#e0a81e"/>
+  <rect x="600" y="316" width="110" height="34" fill="#d6dbe0"/>
+  <text x="325" y="337" text-anchor="middle" font-size="11" fill="#fff">N 75K</text>
+  <text x="435" y="337" text-anchor="middle" font-size="11" fill="#fff">L</text>
+  <text x="545" y="337" text-anchor="middle" font-size="11" fill="#fff">F</text>
+  <text x="655" y="337" text-anchor="middle" font-size="11" fill="#5b6b7f">spare</text>
+  <rect x="270" y="316" width="440" height="34" fill="none" stroke="#5b6b7f" stroke-width="1.4"/>
+  <text x="726" y="337" font-size="12" fill="#2e8b57">✓✓ N + L + F on-chip</text>
+
+  <text x="450" y="392" text-anchor="middle" font-size="13" fill="#3a4250">Fewer colours or smaller pixels shrink the frame, so the off-screen buffer fits in fast on-chip RAM.</text>
+  <text x="450" y="412" text-anchor="middle" font-size="13" fill="#3a4250">That single change of address — not a faster loop — is what took the 3D demo past MMBasic's frame rate.</text>
+</svg>

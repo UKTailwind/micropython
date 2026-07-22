@@ -165,6 +165,8 @@ own, answering in a cycle or two — and the 8 MB of external **PSRAM**
 where the heap lives, reached over a serial bus at several times the
 cost per byte. Palatial, but out of town.
 
+![The machine's two memories: a small, fast on-chip SRAM — where the screen and the fast buffers live — and a large, slow external PSRAM reached over a serial bus, where the heap lives. A frame left in PSRAM pays that bus toll twice every frame.](figs/34-sram-psram.png)
+
 Why a games chapter cares: a double-buffered frame (chapter 17) is,
 before it is anything else, a byte-moving exercise. Fill F, draw the
 scene on F, copy F to the screen — every frame touches every byte of a
@@ -190,6 +192,8 @@ The firmware's trick: three modes don't *fill* the video RAM, and
   first-come rule, and a full `copy("F","N")` is half of RGB320's.
   The only mode that offers an overlay and a fast double buffer
   together: scenery on N, HUD on L, compose on F.
+
+![How the ~300 KB of on-chip video RAM is spent in each mode. Fewer colours or smaller pixels make a smaller frame, leaving room for the off-screen `F` buffer on-chip — and in `RGB320_8`, room for `N`, `L` and `F` at once. In `RGB640` the frame fills the video RAM, so `F` is exiled to slow PSRAM.](figs/34-frame-ram.png)
 
 Numbers, not marketing — this chapter's rule. The port's 3D ship demo
 at 378 MHz went from **19 fps** (8-bit mode, F in PSRAM) to **past

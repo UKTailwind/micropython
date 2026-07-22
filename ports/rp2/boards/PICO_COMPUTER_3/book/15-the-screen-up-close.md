@@ -93,7 +93,11 @@ A colour here is three numbers, 0–255 each, for **red, green and
 blue light** mixed together — packed into one value written in hex:
 `0xRRGGBB`. `0xFF0000` is pure red; `0x000000` all-off black;
 `0xFFFFFF` everything-on white; `0x8000FF`, some red and full blue —
-violet. You already met hex-ish notation in the mode names; here it
+violet.
+
+![Colour is red, green and blue light added together (left), written as one hex number `0xRRGGBB` (right) — two digits per channel, `00` (off) to `FF` (255, full on). `0xFFD700` is full red, most of green and no blue: gold.](figs/15-rgb.png)
+
+You already met hex-ish notation in the mode names; here it
 earns its keep: two digits per channel, readable at a glance.
 
 Twenty-two colours come pre-named — the classic MMBasic sixteen

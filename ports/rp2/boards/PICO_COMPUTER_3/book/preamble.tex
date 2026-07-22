@@ -26,3 +26,22 @@
 \makeatletter
 \def\FV@Space{\char"20\relax}
 \makeatother
+
+% ---------------------------------------------------------------------------
+% Full-bleed cover page. Replaces the generated \maketitle title block with
+% the hi-tech cover image (cover.png, A4 aspect). The book class already gives
+% a titlepage an empty page style; \newgeometry drops the 2.5cm margins so the
+% image bleeds to the paper edge, and \restoregeometry hands the body its
+% margins back. The image is placed flush -- no centering wrapper and no
+% \vfill: those add \topsep/\parskip glue that, on top of an already
+% full-height image, spills onto a second page and leaves a blank page 1.
+% Sizing to both \paperwidth and \paperheight (the cover is drawn at A4
+% aspect) fills the sheet edge to edge with no letterbox slivers.
+\usepackage{graphicx}
+\renewcommand{\maketitle}{%
+  \begin{titlepage}%
+    \newgeometry{margin=0pt}%
+    \noindent\includegraphics[width=\paperwidth,height=\paperheight]{cover.png}%
+    \restoregeometry%
+  \end{titlepage}%
+}

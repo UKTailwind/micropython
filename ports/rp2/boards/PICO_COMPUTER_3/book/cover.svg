@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1980" viewBox="0 0 1400 1980" font-family="'DejaVu Sans','Segoe UI',Arial,sans-serif">
+  <defs>
+    <!-- deep background -->
+    <radialGradient id="bgGlow" cx="50%" cy="40%" r="75%">
+      <stop offset="0%"  stop-color="#12233b"/>
+      <stop offset="45%" stop-color="#0a1524"/>
+      <stop offset="100%" stop-color="#04070e"/>
+    </radialGradient>
+    <linearGradient id="redGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#ff5a5f"/>
+      <stop offset="100%" stop-color="#c1121f"/>
+    </linearGradient>
+    <linearGradient id="chipFace" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#1b2436"/>
+      <stop offset="100%" stop-color="#0b1120"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"  stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#bcd4e6"/>
+    </linearGradient>
+    <radialGradient id="die" cx="50%" cy="45%" r="60%">
+      <stop offset="0%"  stop-color="#7ff3ff"/>
+      <stop offset="40%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#0a5b78"/>
+    </radialGradient>
+
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="18" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <pattern id="dots" width="46" height="46" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.4" fill="#2ee6ff" opacity="0.10"/>
+    </pattern>
+  </defs>
+
+  <!-- ============ BACKGROUND ============ -->
+  <rect width="1400" height="1980" fill="url(#bgGlow)"/>
+  <rect width="1400" height="1980" fill="url(#dots)"/>
+
+  <!-- PCB traces radiating from centre -->
+  <g stroke-linecap="round" fill="none" opacity="0.55">
+    <g stroke="#2ee6ff" stroke-width="3" opacity="0.5">
+      <path d="M700 700 L700 300 L520 120"/>
+      <path d="M760 700 L980 700 L1120 560 L1120 240"/>
+      <path d="M640 760 L360 760 L200 600 L200 300"/>
+      <path d="M700 820 L700 1140 L560 1280 L560 1520"/>
+      <path d="M780 820 L1060 1100 L1240 1100"/>
+      <path d="M620 820 L360 1080 L360 1360 L200 1520"/>
+      <path d="M840 700 L1180 700"/>
+      <path d="M560 700 L240 700"/>
+      <path d="M700 660 L700 420"/>
+    </g>
+    <g stroke="#ff5a5f" stroke-width="3" opacity="0.45">
+      <path d="M820 760 L1120 760 L1300 940"/>
+      <path d="M580 640 L300 640 L120 460"/>
+      <path d="M760 840 L900 1300 L900 1620"/>
+      <path d="M640 840 L500 1180"/>
+    </g>
+  </g>
+  <!-- trace pad nodes -->
+  <g fill="#2ee6ff" opacity="0.7">
+    <circle cx="520" cy="120" r="5"/><circle cx="1120" cy="240" r="5"/>
+    <circle cx="200" cy="300" r="5"/><circle cx="560" cy="1520" r="5"/>
+    <circle cx="1240" cy="1100" r="5"/><circle cx="200" cy="1520" r="5"/>
+    <circle cx="1180" cy="700" r="5"/><circle cx="240" cy="700" r="5"/>
+  </g>
+  <g fill="#ff5a5f" opacity="0.7">
+    <circle cx="1300" cy="940" r="5"/><circle cx="120" cy="460" r="5"/>
+    <circle cx="900" cy="1620" r="5"/><circle cx="500" cy="1180" r="5"/>
+  </g>
+
+  <!-- ============ HERO CHIP ============ -->
+  <g transform="translate(700,700)">
+    <!-- glow halo -->
+    <circle r="250" fill="#22d3ee" opacity="0.14" filter="url(#softGlow)"/>
+
+    <!-- pins -->
+    <g fill="#8fb0c4">
+      <!-- top / bottom -->
+      <g>
+        <rect x="-160" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-120" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-80"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="-40"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="0"    y="-196" width="12" height="34" rx="3"/>
+        <rect x="40"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="80"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="120"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="148"  y="-196" width="12" height="34" rx="3"/>
+      </g>
+      <g transform="scale(1,-1)">
+        <rect x="-160" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-120" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-80"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="-40"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="0"    y="-196" width="12" height="34" rx="3"/>
+        <rect x="40"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="80"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="120"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="148"  y="-196" width="12" height="34" rx="3"/>
+      </g>
+      <g transform="rotate(90)">
+        <rect x="-160" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-120" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-80"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="-40"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="0"    y="-196" width="12" height="34" rx="3"/>
+        <rect x="40"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="80"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="120"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="148"  y="-196" width="12" height="34" rx="3"/>
+      </g>
+      <g transform="rotate(-90)">
+        <rect x="-160" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-120" y="-196" width="12" height="34" rx="3"/>
+        <rect x="-80"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="-40"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="0"    y="-196" width="12" height="34" rx="3"/>
+        <rect x="40"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="80"   y="-196" width="12" height="34" rx="3"/>
+        <rect x="120"  y="-196" width="12" height="34" rx="3"/>
+        <rect x="148"  y="-196" width="12" height="34" rx="3"/>
+      </g>
+    </g>
+
+    <!-- chip body -->
+    <rect x="-172" y="-172" width="344" height="344" rx="26" fill="url(#chipFace)" stroke="#33465f" stroke-width="2"/>
+    <rect x="-172" y="-172" width="344" height="344" rx="26" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.35"/>
+    <!-- pin-1 dot -->
+    <circle cx="-138" cy="-138" r="9" fill="#22d3ee" opacity="0.8"/>
+
+    <!-- inner die -->
+    <rect x="-92" y="-92" width="184" height="184" rx="14" fill="url(#die)" opacity="0.9" filter="url(#glow)"/>
+    <!-- die tracery -->
+    <g stroke="#04121a" stroke-width="3" opacity="0.5" fill="none">
+      <path d="M-60 -60 H60 V60 H-60 Z"/>
+      <path d="M-30 -92 V-30 H30 V-92"/>
+      <path d="M-92 0 H-30 M92 0 H30 M0 92 V30 M0 -92 V-30"/>
+    </g>
+    <!-- boot prompt on the die -->
+    <text x="0" y="18" text-anchor="middle" font-family="'DejaVu Sans Mono','Consolas',monospace"
+          font-size="58" font-weight="700" fill="#04121a">&gt;&gt;&gt;</text>
+
+    <!-- chip label -->
+    <text x="0" y="140" text-anchor="middle" font-family="'DejaVu Sans Mono','Consolas',monospace"
+          font-size="22" letter-spacing="3" fill="#9fc6d6">RP2350B</text>
+  </g>
+
+  <!-- ============ TEXT ============ -->
+  <!-- kicker -->
+  <g text-anchor="middle">
+    <text x="700" y="196" font-size="30" letter-spacing="13" fill="#2ee6ff" opacity="0.92"
+          font-weight="600">M I C R O P Y T H O N</text>
+    <line x1="360" y1="222" x2="1040" y2="222" stroke="#2ee6ff" stroke-width="1.5" opacity="0.35"/>
+  </g>
+
+  <!-- title -->
+  <g text-anchor="middle" font-weight="800">
+    <text x="700" y="1240" font-size="120" fill="url(#titleGrad)" letter-spacing="1">Programming</text>
+    <text x="700" y="1360" font-size="120" fill="url(#titleGrad)" letter-spacing="1">the</text>
+    <text x="700" y="1500" font-size="132" fill="url(#redGrad)" letter-spacing="2">Pico Computer 3</text>
+  </g>
+
+  <!-- subtitle -->
+  <g text-anchor="middle" fill="#a9c2d4" font-weight="400">
+    <text x="700" y="1600" font-size="34">A complete course in Python — from your first</text>
+    <text x="700" y="1648" font-size="34">keystroke to games, graphics and real applications</text>
+  </g>
+
+  <!-- author -->
+  <text x="700" y="1782" text-anchor="middle" font-size="42" letter-spacing="4"
+        fill="#e6edf5" font-weight="600">PETER MATHER</text>
+
+  <!-- footer / version tag -->
+  <g>
+    <rect x="560" y="1852" width="280" height="52" rx="26" fill="none" stroke="#2ee6ff" stroke-width="1.5" opacity="0.55"/>
+    <text x="700" y="1887" text-anchor="middle" font-family="'DejaVu Sans Mono','Consolas',monospace"
+          font-size="24" letter-spacing="2" fill="#2ee6ff" opacity="0.9">firmware v0.10</text>
+  </g>
+
+  <!-- corner brackets for a framed, technical feel -->
+  <g stroke="#2ee6ff" stroke-width="3" fill="none" opacity="0.6">
+    <path d="M60 60 h70 M60 60 v70"/>
+    <path d="M1340 60 h-70 M1340 60 v70"/>
+    <path d="M60 1920 h70 M60 1920 v-70"/>
+    <path d="M1340 1920 h-70 M1340 1920 v-70"/>
+  </g>
+</svg>

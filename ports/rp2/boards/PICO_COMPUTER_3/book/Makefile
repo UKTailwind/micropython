@@ -13,13 +13,15 @@ epub: $(BOOK).epub
 pdf:  $(BOOK).pdf
 docx: $(BOOK).docx
 
-$(BOOK).html: metadata.yaml $(CHAPTERS)
-	$(PANDOC) $(COMMON) --standalone --embed-resources -o $@ $(CHAPTERS)
+$(BOOK).html: metadata.yaml cover.png cover-head.html cover-body.html $(CHAPTERS)
+	$(PANDOC) $(COMMON) --standalone --embed-resources \
+	    --include-in-header=cover-head.html \
+	    --include-before-body=cover-body.html -o $@ $(CHAPTERS)
 
-$(BOOK).epub: metadata.yaml $(CHAPTERS)
-	$(PANDOC) $(COMMON) -o $@ $(CHAPTERS)
+$(BOOK).epub: metadata.yaml cover.png $(CHAPTERS)
+	$(PANDOC) $(COMMON) --epub-cover-image=cover.png -o $@ $(CHAPTERS)
 
-$(BOOK).pdf: metadata.yaml preamble.tex $(CHAPTERS)
+$(BOOK).pdf: metadata.yaml preamble.tex cover.png $(CHAPTERS)
 	$(PANDOC) $(COMMON) --pdf-engine=$(PDF_ENGINE) -H preamble.tex -o $@ $(CHAPTERS)
 
 $(BOOK).docx: metadata.yaml $(CHAPTERS)

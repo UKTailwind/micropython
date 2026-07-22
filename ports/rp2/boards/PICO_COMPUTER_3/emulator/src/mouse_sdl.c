@@ -37,9 +37,14 @@ static float m_speed = 1.0f;
 void pc3emu_mouse_sdl_event(int kind, int a, int b, int c, int out_w, int out_h) {
     m_seen = true;
     if (kind == 0) {
-        // Window pixels -> framebuffer pixels (RGB320's window is doubled).
-        m_x = (out_w > 0) ? a * hdmi_w / out_w : a;
-        m_y = (out_h > 0) ? b * hdmi_h / out_h : b;
+        // View pixels -> framebuffer pixels. `a`,`b` are already relative to the
+        // scaled/letterboxed image's top-left (out_w/out_h are its on-screen
+        // size), so this handles any window scale. Clamp so a click in the
+        // letterbox border stays on-screen rather than running off the edge.
+        int x = (out_w > 0) ? a * hdmi_w / out_w : a;
+        int y = (out_h > 0) ? b * hdmi_h / out_h : b;
+        m_x = x < 0 ? 0 : (x >= hdmi_w ? hdmi_w - 1 : x);
+        m_y = y < 0 ? 0 : (y >= hdmi_h ? hdmi_h - 1 : y);
     } else if (kind == 1) {
         int bit = (a == 1) ? 1 : (a == 3) ? 2 : (a == 2) ? 4 : 0; // SDL L/R/M
         if (b) {

@@ -26,6 +26,7 @@
 // behaves identically in both.
 
 #include <string.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
 
@@ -52,6 +53,12 @@ static volatile bool sdl_thread_up = false;   // window exists, loop running
 static volatile bool sdl_want_stop = false;
 static volatile bool sdl_failed = false;      // SDL init failed (headless?)
 static volatile bool in_blank = false;
+
+// Where the (aspect-preserved) framebuffer image currently sits inside the
+// window, in window pixels. The window is resizable and may be scaled up on a
+// hi-res monitor, so the image is letterboxed and the mouse mapping below reads
+// these to turn a window click back into a framebuffer coordinate.
+static volatile int view_x = 0, view_y = 0, view_w = 640, view_h = 480;
 
 // Colour expansion tables: what the monitor shows for each framebuffer value.
 static uint32_t map332[256];       // RGB332 -> ARGB8888
@@ -147,12 +154,40 @@ static void *sdl_thread_main(void *arg) {
         sdl_thread_up = true; // unblock start()
         return NULL;
     }
+
+    // Initial window scale. PC3EMU_SCALE=N (N>=1) forces an integer multiple;
+    // otherwise pick one automatically from the desktop height, so a 4K screen
+    // opens a big, readable window instead of a tiny native-res one. The window
+    // is resizable either way -- drag it to any size and the image scales to fit
+    // (aspect preserved, letterboxed).
+    int scale = 0;
+    const char *scale_env = getenv("PC3EMU_SCALE");
+    if (scale_env != NULL) {
+        scale = atoi(scale_env);
+    }
+    if (scale < 1) {
+        SDL_DisplayMode dm;
+        int dh = 0;
+        if (SDL_GetDesktopDisplayMode(0, &dm) == 0) {
+            dh = dm.h;
+        }
+        scale = (dh >= 2000) ? 3 : (dh >= 1400) ? 2 : 1; // 4K -> 3x, 1440p -> 2x
+    }
+    if (scale > 4) {
+        scale = 4;
+    }
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest"); // crisp pixels when scaled
+
     SDL_Window *win = SDL_CreateWindow("Pico Computer 3",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        out_w, out_h, SDL_WINDOW_ALLOW_HIGHDPI);
+        out_w * scale, out_h * scale, SDL_WINDOW_RESIZABLE);
     SDL_Renderer *ren = win ? SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED) : NULL;
     if (ren == NULL && win != NULL) {
         ren = SDL_CreateRenderer(win, -1, 0); // software fallback
+    }
+    if (ren != NULL) {
+        SDL_SetRenderDrawColor(ren, 0, 0, 0, 255); // letterbox bars
     }
     SDL_Texture *tex = ren ? SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING, out_w, out_h) : NULL;
@@ -182,7 +217,28 @@ static void *sdl_thread_main(void *arg) {
         if (SDL_LockTexture(tex, NULL, &pixels, &pitch) == 0) {
             compose((uint32_t *)pixels, out_w, out_h);
             SDL_UnlockTexture(tex);
-            SDL_RenderCopy(ren, tex, NULL, NULL);
+
+            // Fit the fixed-resolution image into the (resizable) window,
+            // preserving aspect ratio; centre it, leaving black bars. Record
+            // the destination rect for the mouse mapping.
+            int ww = out_w, wh = out_h;
+            SDL_GetRendererOutputSize(ren, &ww, &wh);
+            int dw = ww, dh = wh;
+            if (ww * out_h >= wh * out_w) {   // window wider than image: bar sides
+                dw = wh * out_w / out_h;
+                dh = wh;
+            } else {                          // window taller: bar top/bottom
+                dw = ww;
+                dh = ww * out_h / out_w;
+            }
+            SDL_Rect dst = {(ww - dw) / 2, (wh - dh) / 2, dw, dh};
+            view_x = dst.x;
+            view_y = dst.y;
+            view_w = dst.w;
+            view_h = dst.h;
+
+            SDL_RenderClear(ren);
+            SDL_RenderCopy(ren, tex, NULL, &dst);
             SDL_RenderPresent(ren);
         }
         in_blank = true;
@@ -217,12 +273,14 @@ static void *sdl_thread_main(void *arg) {
                         ev.type == SDL_KEYDOWN, SDL_GetModState());
                 }
             } else if (ev.type == SDL_MOUSEMOTION) {
-                pc3emu_mouse_sdl_event(0, ev.motion.x, ev.motion.y, 0, out_w, out_h);
+                // Map the window click back through the letterboxed view rect.
+                pc3emu_mouse_sdl_event(0, ev.motion.x - view_x, ev.motion.y - view_y,
+                    0, view_w, view_h);
             } else if (ev.type == SDL_MOUSEBUTTONDOWN || ev.type == SDL_MOUSEBUTTONUP) {
                 pc3emu_mouse_sdl_event(1, ev.button.button,
-                    ev.type == SDL_MOUSEBUTTONDOWN, ev.button.clicks, out_w, out_h);
+                    ev.type == SDL_MOUSEBUTTONDOWN, ev.button.clicks, view_w, view_h);
             } else if (ev.type == SDL_MOUSEWHEEL) {
-                pc3emu_mouse_sdl_event(2, ev.wheel.y, 0, 0, out_w, out_h);
+                pc3emu_mouse_sdl_event(2, ev.wheel.y, 0, 0, view_w, view_h);
             }
         }
         pc3emu_kbd_tick(); // auto-repeat, at frame rate (25x the repeat period)

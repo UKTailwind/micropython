@@ -49,6 +49,12 @@ emulator's console plumbing is POSIX.
 - The **display window** is the machine: the boot banner, the REPL, all
   graphics. Type in it as you would at the real keyboard; layouts follow
   `keymap("UK")` etc., exactly as on the machine.
+- The window is **resizable** — drag any corner and the image scales to fit,
+  keeping its aspect ratio (black bars fill the remainder). On a hi-res /
+  4K monitor it opens scaled up automatically so it's readable; override the
+  starting size with `PC3EMU_SCALE=N` (an integer 1–4), e.g.
+  `PC3EMU_SCALE=1 pc3emu` for exact native pixels or `PC3EMU_SCALE=3` for a
+  big window. The mouse tracks correctly at any size.
 - The **launching terminal** doubles as the serial console: everything is
   mirrored there, you can type there too, and it is the natural place to
   paste from (like a serial terminal on the real machine).

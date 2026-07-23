@@ -4,11 +4,12 @@ Switch on the Pico Computer 3 and, a moment later, a prompt appears on the
 screen:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.10 with RP2350B
+MicroPython on PICO COMPUTER 3 with RP2350B
 >>>
 ```
 
-That `>>>` is an invitation. The machine is waiting for you to tell it what
+(Your screen will also show the MicroPython and firmware version numbers,
+which change as the software is updated.) That `>>>` is an invitation. The machine is waiting for you to tell it what
 to do — and the language it speaks is **Python**, the most widely used
 programming language in the world.
 

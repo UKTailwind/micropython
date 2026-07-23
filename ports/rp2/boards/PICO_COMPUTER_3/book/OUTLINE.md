@@ -1,7 +1,7 @@
 # Programming the Pico Computer 3
 ### A complete course in Python — from your first keystroke to games, graphics and real applications
 
-**Book outline — draft 1 (targets firmware v0.8)**
+**Book outline — draft 1**
 
 Audience: complete newcomers to programming, plus readers arriving from
 MMBasic/PicoMite. No PC required beyond the initial firmware flash — every

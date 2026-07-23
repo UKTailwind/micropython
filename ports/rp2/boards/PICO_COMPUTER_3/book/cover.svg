@@ -176,13 +176,6 @@
   <text x="700" y="1782" text-anchor="middle" font-size="42" letter-spacing="4"
         fill="#e6edf5" font-weight="600">PETER MATHER</text>
 
-  <!-- footer / version tag -->
-  <g>
-    <rect x="560" y="1852" width="280" height="52" rx="26" fill="none" stroke="#2ee6ff" stroke-width="1.5" opacity="0.55"/>
-    <text x="700" y="1887" text-anchor="middle" font-family="'DejaVu Sans Mono','Consolas',monospace"
-          font-size="24" letter-spacing="2" fill="#2ee6ff" opacity="0.9">firmware v0.10</text>
-  </g>
-
   <!-- corner brackets for a framed, technical feel -->
   <g stroke="#2ee6ff" stroke-width="3" fill="none" opacity="0.6">
     <path d="M60 60 h70 M60 60 v70"/>

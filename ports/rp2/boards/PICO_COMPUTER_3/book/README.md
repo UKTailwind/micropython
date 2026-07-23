@@ -63,7 +63,7 @@ read on the Pico Computer itself with `cat()` or `fm()`.
 - Any program that redirects drawing (`hdmi.write("F")`/`"L"`) wears the
   `try:`/`finally: hdmi.write("N")` collar, so Ctrl-C can never strand
   the console on an invisible buffer. Full-screen animations also pair
-  `console("none")` (kills the blinking console cursor; firmware v0.8+)
+  `console("none")` (kills the blinking console cursor)
   with `console()` in the same `finally`.
 - Programs that `hdmi.create()` or `hdmi.layer()` first `hdmi.close()`
   the same target ("start clean — rerun-proof"): create/layer raise

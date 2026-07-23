@@ -53,10 +53,15 @@ list(APPEND USER_C_MODULES ${MICROPY_DIR}/lib/ulab/code/micropython.cmake)
 # Pull in usqlite (SQLite 3.47 amalgamation) as a user C module. Like ulab it
 # ships its own micropython.cmake that self-links into `usermod` and registers
 # the `usqlite` module -- no MICROPY_PY_* switch and nothing to freeze (it is
-# pure C). SQLite's allocator is routed to MicroPython's GC heap (the 8 MB PSRAM
-# heap on this board) and its VFS onto the mounted filesystem (LittleFS / SD).
+# pure C). SQLite runs in its own MEMSYS5 heap -- a dedicated block reserved on
+# the first connect(), kept off the GC heap so gc.collect() can't corrupt an
+# open database -- and its VFS maps onto the mounted filesystem (LittleFS / SD).
 list(APPEND USER_C_MODULES ${MICROPY_DIR}/lib/usqlite/micropython.cmake)
 list(REMOVE_DUPLICATES USER_C_MODULES)
+# Size that dedicated SQLite heap to 4 MB (usqlite's default is a small 128 KB
+# for constrained boards; this board has 8 MB of PSRAM). The page cache follows
+# at half the pool.
+add_compile_definitions(MEMSYS5_HEAP_SIZE=0x400000)
 
 # Board specific version of the frozen manifest
 set(MICROPY_FROZEN_MANIFEST ${MICROPY_BOARD_DIR}/manifest.py)

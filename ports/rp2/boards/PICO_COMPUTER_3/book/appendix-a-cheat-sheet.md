@@ -6,7 +6,8 @@ your fingers.
 ## The shell (chapter 4)
 
 ```
-ls()  ls("/sd/*.py")        list (wildcards)   cls() clear screen
+ls()  ls("/sd/*.py")        list (wildcards)
+cls()                       clear screen
 cd("/sd")  pwd()            change / show directory
 cat("f.py")                 view, paged (q stops)
 cp("a.py", "b.py")          copy    (wildcards -> dir)

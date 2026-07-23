@@ -121,7 +121,7 @@ sound(2, "L", "O", 1)          # voice 2 Off
 stop()                         # everything off
 ```
 
-The waveform letters: **S**ine (smooth), **Q**uare (buzzy, the 8-bit
+The waveform letters: **S**ine (smooth), s**Q**uare (buzzy, the 8-bit
 classic), **T**riangle (soft), **W** sawtooth (brassy), **P**eriodic
 noise (rumbling) and **N** white noise (hiss, surf, explosions) — plus
 **O**ff. Volume runs 0–25 *per voice* (four at full volume exactly fill

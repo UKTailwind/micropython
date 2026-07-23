@@ -35,7 +35,7 @@ the two facts that govern all graphics here:
   it. What looks like motion is drawing, erasing and redrawing — a
   truth that becomes the whole plot of chapter 17.
 
-## The four screens
+## The six screens
 
 The framebuffer lives in fast memory, and memory is a budget: more
 pixels means fewer bits left per pixel for colour. So the machine

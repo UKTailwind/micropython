@@ -1,3 +1,41 @@
+# Appendix J — The Northwind database
+
+Chapter 28 built Northwind's questions (`nwquery.py`) and its screen
+(`northwind.py`) in the text. This is the third file — the one that
+holds the data and builds the database the first time you open it. It
+lives here rather than in the chapter because it is mostly *plumbing*
+and *data*: eight `CREATE TABLE`s, a few hundred rows of the sample
+Northwind, and the loop that inserts them.
+
+Three things are worth pointing out before the listing:
+
+- **The schema is eight tables, parents before children.** A
+  `Products` row *references* a `Suppliers` row and a `Categories`
+  row; an `OrderDetails` row references an `Orders` row and a
+  `Products` row. Those `REFERENCES` clauses are **foreign keys** —
+  they write down the links the queries follow, and let SQLite check
+  them.
+
+- **The seed data is plain Python** — lists of tuples — so the file
+  imports on a desktop as happily as on the machine, and reads like a
+  spreadsheet. `SEED` pairs each table with its column list so one
+  loop can fill them all.
+
+- **`build()` wraps every insert in one `BEGIN … COMMIT`.** That is
+  the one-line fix promised in the chapter: instead of the database
+  saving after each of ~150 rows, it saves once, at the end. (And it
+  inserts one `execute()` per row rather than `executemany()`, because
+  on this machine `executemany()` runs a multi-statement *script* and
+  takes no parameter list — so parameterised bulk loads loop over
+  `execute()`, which behaves the same on `usqlite` and desktop
+  `sqlite3`.)
+
+`open_db()` at the foot ties it together: open the file, and if the
+tables aren't there yet, build and seed them. The chapter's
+`northwind.py` calls it once and never thinks about loading again.
+`edit("nwdata.py")`:
+
+```python
 # Northwind -- schema and seed data for the Pico Computer 3.
 #
 # A small approximation of Microsoft's classic "Northwind"
@@ -350,3 +388,19 @@ def open_db(path="/sd/northwind.db", force=False):
     if not _built(con):
         build(con)
     return con
+```
+
+To poke at this data yourself without the GUI, put the folder on the
+import path and open it at the `>>>` prompt:
+
+```python
+>>> import sys
+>>> sys.path.append("/sd/northwind")
+>>> import nwdata
+>>> con = nwdata.open_db("/sd/northwind.db")
+>>> con.execute("SELECT count(*) FROM Orders").fetchone()
+(24,)
+>>> con.execute("SELECT ProductName FROM Products"
+...             " WHERE UnitsInStock = 0").fetchall()
+[('Louisiana Gumbo Mix',), ('Alice Mutton',)]
+```

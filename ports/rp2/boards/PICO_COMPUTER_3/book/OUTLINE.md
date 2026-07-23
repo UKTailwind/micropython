@@ -268,3 +268,7 @@ exceptions, `__repr__`, operator hooks (`__add__`, `__lt__`-driven
 sorting), `__len__`/`__getitem__`, class attributes, `@property`,
 `@classmethod`/`@staticmethod`, the underscore treaty (and MicroPython's
 lack of name mangling), duck typing, and when not to use any of it.
+
+**J. The Northwind database** *(written)* — the schema and seed data
+behind chapter 28's Northwind app (`nwdata.py`), with the `REFERENCES`
+foreign keys, the one-transaction `build()`, and `open_db()`.

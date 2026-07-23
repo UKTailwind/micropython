@@ -19,6 +19,12 @@ LIBS = [("shapes.py", "ch11"), ("scorelib.py", "ch12"),
         ("initials.py", "ch26"), ("gpad.py", "ch32"),
         ("bench.py", "ch35")]
 
+# The Northwind demo (chapter 28 + Appendix J) is a multi-file app: ship the
+# whole folder as examples/northwind/ rather than reassembling it from the
+# chapter/appendix listings, and skip those listings when extracting chapters.
+NORTHWIND_SRC = BOOK.parent / "northwind"
+NORTHWIND_FILES = {"nwdata.py", "nwquery.py", "northwind.py"}
+
 
 def extract(md_path):
     lines = md_path.read_text(encoding="utf-8").splitlines()
@@ -95,6 +101,9 @@ def main():
         index.append("")
         n = 0
         for (s, e, code) in progs:
+            name = find_name(lines, s, e)
+            if name in NORTHWIND_FILES:
+                continue  # shipped whole as examples/northwind/
             n += 1
             body = "\n".join(code).rstrip() + "\n"
             try:
@@ -102,7 +111,6 @@ def main():
                 fragment = False
             except SyntaxError:
                 fragment = True
-            name = find_name(lines, s, e)
             if fragment:
                 fname = "%02d-fragment.py" % n
             elif name:
@@ -117,6 +125,21 @@ def main():
             total += 1
         index.append("")
     index.append("Total: %d programs." % total)
+    index.append("")
+
+    # -- the Northwind demo, shipped as a whole folder -----------------
+    nwdir = OUT / "northwind"
+    nwdir.mkdir()
+    for f in sorted(NORTHWIND_SRC.glob("*.py")):
+        shutil.copy(f, nwdir / f.name)
+    readme = NORTHWIND_SRC / "README.md"
+    if readme.exists():
+        shutil.copy(readme, nwdir / "README.md")
+    index.append("## northwind -- the full Northwind Traders demo")
+    index.append("")
+    index.append("The complete app from chapter 28 and Appendix J.")
+    index.append("Copy this folder to `/sd` and run it:")
+    index.append("`run(\"/sd/northwind/northwind.py\")`.")
     index.append("")
 
     # -- the importable toolkit, under its real names ------------------

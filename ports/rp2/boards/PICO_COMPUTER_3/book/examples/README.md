@@ -206,7 +206,6 @@ Regenerate after editing chapters with:
 ## ch28 -- Chapter 28 — Databases: keeping and querying real data
 
 - `01-scores.py` (28 lines)
-- `02-traders.py` (192 lines)
 
 ## ch29 -- Chapter 29 — Time and schedules: the real-time clock
 
@@ -274,7 +273,13 @@ Regenerate after editing chapters with:
 - `02-backup.py` (21 lines)
 - `03-listing.py` (2 lines)
 
-Total: 167 programs.
+Total: 166 programs.
+
+## northwind -- the full Northwind Traders demo
+
+The complete app from chapter 28 and Appendix J.
+Copy this folder to `/sd` and run it:
+`run("/sd/northwind/northwind.py")`.
 
 ## lib -- the reader's toolkit, under its real names
 

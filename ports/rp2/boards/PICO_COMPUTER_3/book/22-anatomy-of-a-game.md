@@ -231,8 +231,9 @@ autopsy, top to bottom:
   the moment of drawing (`int(p1y)`) — keep physics in real numbers
   and rounding out of the simulation, or slow movement dies of
   truncation.
-- **The deflection line is the game design.** `(by + BS/2 - p1y) / PH
-  - 0.5` measures *where on the paddle* the ball struck, −0.5 at the
+- **The deflection line is the game design.**
+  `(by + BS/2 - p1y) / PH - 0.5`
+  measures *where on the paddle* the ball struck, −0.5 at the
   top through +0.5 at the bottom; scaled by 2 and by 260, an
   edge-of-paddle strike sends the ball off at a fierce angle while a
   centre strike returns it flat. One line, and suddenly there is

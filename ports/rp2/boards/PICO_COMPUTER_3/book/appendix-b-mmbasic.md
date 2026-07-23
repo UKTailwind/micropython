@@ -34,7 +34,7 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `REM` / `'` | `#` | 5 |
 | `^`, `\`, `MOD` | `**`, `//`, `%` | 3 |
 | `PEEK` / `POKE` | `machine.mem32[...]` — rarely needed; handle with care |  |
-| `CSUB` | `@micropython.native`, `@micropython.viper`, or a C module | 34 |
+| `CSUB` | `@micropython.native`, `@micropython.viper`, or a C module | 35 |
 
 ## Strings
 
@@ -68,8 +68,8 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `AUTOSAVE` | `autosave("f.py")`, Ctrl-Z ends | 5 |
 | `XMODEM SEND/RECEIVE` | `xsend()` / `xrecv()` | 5 |
 | `FM` | `fm()` — plus Space multi-select | 4 |
-| `OPTION AUTORUN` | `/main.py` (and `/boot.py` before it) | 5, 35 |
-| `OPTION`s generally | `/settings.json` — set via `keymap()`, `screen()`, `wifi()`... | 35 |
+| `OPTION AUTORUN` | `/main.py` (and `/boot.py` before it) | 5, 36 |
+| `OPTION`s generally | `/settings.json` — set via `keymap()`, `screen()`, `wifi()`... | 36 |
 
 ## Screen and graphics
 
@@ -107,18 +107,18 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `PLAY WAV/MP3/FLAC` | `play(path)` — background, `wait=True` blocks | 20 |
 | `PAUSE ms` | `time.sleep_ms(ms)` — callbacks still fire | 8, 21 |
 | `TIMER` | `time.ticks_ms()` + `ticks_diff()` | 21 |
-| `DATE$` / `TIME$` | `gettime()` tuple + f-strings | 28 |
-| `SETTIME` | `settime(...)`; `ntpsync()` from the internet | 28, 29 |
-| `SETTICK p, sub` / `SETTICK 0` | `machine.Timer(period=p, callback=f)` / `t.deinit()` | 33 |
-| `SETPIN n, INTL/INTH/INTB` | `Pin(n).irq(f, Pin.IRQ_FALLING/RISING/both)` | 33 |
-| `SETPIN DOUT/DIN/AIN/PWM` | `Pin` / `Pin(+PULL_UP)` / `machine.ADC` / `machine.PWM` | 31 |
-| `WATCHDOG t` | `machine.WDT(timeout=ms)` + `.feed()` | 33 |
+| `DATE$` / `TIME$` | `gettime()` tuple + f-strings | 29 |
+| `SETTIME` | `settime(...)`; `ntpsync()` from the internet | 29, 30 |
+| `SETTICK p, sub` / `SETTICK 0` | `machine.Timer(period=p, callback=f)` / `t.deinit()` | 34 |
+| `SETPIN n, INTL/INTH/INTB` | `Pin(n).irq(f, Pin.IRQ_FALLING/RISING/both)` | 34 |
+| `SETPIN DOUT/DIN/AIN/PWM` | `Pin` / `Pin(+PULL_UP)` / `machine.ADC` / `machine.PWM` | 32 |
+| `WATCHDOG t` | `machine.WDT(timeout=ms)` + `.feed()` | 34 |
 | `SYNC` | `pcgame.Clock` / `hdmi.vsync()` | 17, 22 |
 | `OPTION CONSOLE` | `console("both"/"serial"/"screen"/"none")` | 2, 17 |
 | `OPTION KEYBOARD` | `keymap("UK")` | 2 |
-| `WEB NTP / GET / MQTT` (WebMite) | `ntpsync()` / `requests.get()` / `umqtt` | 29 |
-| `MATH` verbs (CORREL, CHI, FFT, V_, Q_) | `pcmath` + `ulab.numpy` | 30 |
-| `MM.INFO()` | `os.uname()`, `gc.mem_free()`, `os.statvfs()` | 35 |
+| `WEB NTP / GET / MQTT` (WebMite) | `ntpsync()` / `requests.get()` / `umqtt` | 30 |
+| `MATH` verbs (CORREL, CHI, FFT, V_, Q_) | `pcmath` + `ulab.numpy` | 31 |
+| `MM.INFO()` | `os.uname()`, `gc.mem_free()`, `os.statvfs()` | 36 |
 
 Two things have no MMBasic ancestor and repay early study:
 **dictionaries** (chapter 10) — lookup tables that replace every

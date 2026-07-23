@@ -53,7 +53,7 @@ Ch. 27; manual §7.
 Ch. 30; manual §11, §16.
 
 **pcplot / `plot()`** † — autoscaled plotting: data, functions,
-series, styles. Ch. 8, 30; manual §17.
+series, styles. Ch. 8, 31; manual §17.
 
 **pcmath** — `correl chi_square crossings power_spectrum window`,
 3-D vectors, quaternions, `PID`. Ch. 31; manual §17.
@@ -91,11 +91,11 @@ Ch. 5; manual §13.
 
 **math** trig, `sqrt`, `pi`, `radians` (ch. 3, 24) · **random**
 `randint choice seed` (ch. 7) · **time** `sleep sleep_ms ticks_ms
-ticks_us ticks_diff localtime mktime` (ch. 5, 21, 28) · **os**
-`listdir mkdir remove statvfs uname` (ch. 16, 35) · **json**
+ticks_us ticks_diff localtime mktime` (ch. 5, 21, 29) · **os**
+`listdir mkdir remove statvfs uname` (ch. 16, 36) · **json**
 `load(s)/dump(s)` (ch. 30) · **gc** `mem_free collect` (ch. 35) ·
 **sys** `path implementation` (ch. 11) · **machine** `Pin ADC PWM I2C
-SPI UART Timer WDT RTC freq` (ch. 32, 33) · **micropython** `const
+SPI UART Timer WDT RTC freq` (ch. 32, 34) · **micropython** `const
 native viper mem_info` (ch. 35) · **framebuf** (under `Display`;
 manual §5) · **network** WLAN (ch. 30) · **requests** HTTP(S)
 (ch. 30) · **umqtt.simple/robust** MQTT (ch. 30) · **ntptime**,
@@ -107,8 +107,8 @@ linalg (ch. 31) · **usqlite** on-device **SQLite** database —
 ## Your own shelf (built through the book)
 
 `shapes.py` (11) · `scorelib.py` (12) · `handy.py` (13, 21) ·
-`sfx.py` (20) · `initials.py` (26) · `gpad.py` (31) · `bench.py`
-(34) · `backup.py` (35). No one can take these away; improving them
+`sfx.py` (20) · `initials.py` (26) · `gpad.py` (32) · `bench.py`
+(35) · `backup.py` (36). No one can take these away; improving them
 is the hobby.
 
 Where these live and how `import` finds them — next to your program,

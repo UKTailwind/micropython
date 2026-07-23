@@ -276,8 +276,8 @@ whole magic of this machine, and you built the machine that does it.
    horizon, the city skyline: a nested loop of rectangles.
 3. **Your monogram.** Your initials, drawn large, in your choice of
    colours — `goto`, headings and arcs, planned on paper first. Frame
-   grade only: this one goes on the wall (chapter 10's `save_image()`
-   will even make it a file... a chapter early. `save_image("art.bmp")`
+   grade only: this one goes on the wall (chapter 15's `save_image()`
+   will even make it a file... borrowed early. `save_image("art.bmp")`
    — you heard it here first).
 4. **The hypnotist.** Fifty squares, each rotated 7° from the last and
    2 pixels bigger. Then swap the square for your spirograph. Then dim

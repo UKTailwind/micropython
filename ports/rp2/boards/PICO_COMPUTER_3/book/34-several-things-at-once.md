@@ -367,7 +367,7 @@ engineering, because this program contains a deliberate imperfection:
 **`requests.get` blocks** — for the second or so a fetch takes,
 *every* task stalls, ball included. Watch for it at the minute mark.
 Two things make it livable, and both are old friends: the fetch is
-*rare* (a stall a minute is a blink; this is why the ch29 panel
+*rare* (a stall a minute is a blink; this is why the chapter 30 panel
 fetched every ten), and the ball's motion is **`dt`-based** — chapter
 22's per-second discipline means the ball reappears where it *would
 have been*, a skip rather than a slow-motion smear. For the day you
@@ -432,7 +432,7 @@ territory to point at, not to teach.
    inside every GUI toolkit, including chapter 27's.
 4. **The uptime champion.** A `/main.py` gadget of your choice made
    *unkillable*: watchdog fed on health checks (not blindly!), all
-   handlers `try`-wrapped, every network touch chapter-29 hardened,
+   handlers `try`-wrapped, every network touch chapter 30 hardened,
    and a boot counter file that increments on every start — so the
    number on screen tells you honestly how often it has died. Ship
    it; check the counter in a month; iterate. That number reaching

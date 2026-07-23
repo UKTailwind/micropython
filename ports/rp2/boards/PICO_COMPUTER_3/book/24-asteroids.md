@@ -138,6 +138,7 @@ then it takes hold. What you are feeling:
   boundless torus. Every moving thing in stage two inherits it.
 
 ![`% W` and `% H` glue each edge to its opposite: leave one side of the screen and reappear on the other. The little screen becomes a boundless torus.](figs/24-wrap.png)
+
 - **The ship is three lines**, re-placed each frame by `pt()` from
   one `(x, y, a)` — rotation without a single rotated bitmap. The
   flame is a fourth line, drawn only while burning: instant feedback,

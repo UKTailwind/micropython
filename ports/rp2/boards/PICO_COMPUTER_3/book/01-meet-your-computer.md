@@ -48,7 +48,7 @@ designed by Raspberry Pi. Here is what you are getting, in plain terms:
 ![What's on the board: the RP2350B at the centre, with its memory, HDMI display, USB host, wireless, audio, clock, storage, power/console and I/O all hanging off it.](figs/01-system.png)
 
 **The brain.** The RP2350B has *two* processor cores running at 252 MHz
-(they can be pushed to 378 MHz — chapter 15). One core runs your Python
+(they can be pushed to 378 MHz — chapter 35). One core runs your Python
 programs; the other is dedicated full-time to generating the video picture,
 which is why graphics feel effortless. By the standards of the machines that
 inspired this one, it is a monster: thousands of times faster than a BBC

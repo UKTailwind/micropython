@@ -156,7 +156,7 @@ the top:
    that remains.
 4. **`native`/`viper`** for the measured-hot few.
 5. **More hertz**: `screen(hdmi.RGB640, 378)` runs the whole machine
-   half again faster (chapter 15's table; the display couples to the
+   half again faster (Appendix D's table; the display couples to the
    clock, which is why it's set together). Honest last resort — it
    speeds bad code and good code equally.
 

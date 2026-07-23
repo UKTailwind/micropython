@@ -20,7 +20,7 @@ Quotes either way; `+` joins, `*` repeats; `len(s)`, `s[0]`,
 `s[-1]`, slices `s[2:5]`. Methods return **copies**: `upper lower
 strip replace startswith endswith count find split join` — reflexes:
 `input(...).strip()`, compare `.lower()`. `ord(c)`/`chr(n)`. Bytes
-(29): `b"..."`, `.decode()`, `.encode()`.
+(30): `b"..."`, `.decode()`, `.encode()`.
 
 **f-strings** (6): `f"{x}"`; specs `:.2f` (decimals) `:02` (pad) `:,`
 (thousands) `{name:12}` (width) `{x!r}` (repr). `\n` newline, `\\`

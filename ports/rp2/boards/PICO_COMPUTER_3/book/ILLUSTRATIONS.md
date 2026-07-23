@@ -41,7 +41,7 @@ Almost every idea here is spatial/temporal and currently prose-only.
 - **P2 The overlay/layer** (§The overlay): acetate over scenery,
   black = see-through, merged per scanline.
 - **P2 Video-RAM split** (§Why only 320×240): two 320×240 screens fill video
-  RAM; the layer *is* the second half. (Shared with ch34's figure.)
+  RAM; the layer *is* the second half. (Shared with ch35's figure.)
 
 ### Ch 35 — Performance & memory
 - **P1 Where the frame lives** (§Where the frame lives): the video-RAM

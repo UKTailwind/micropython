@@ -50,7 +50,7 @@ shows the size in bytes, when the file last changed (the battery-backed
 clock at work), and the name.
 
 One thing before we go on: these commands are MicroPython, so the brackets
-are required, and **file names go in quotes** — they are strings, exactly
+are required, and **filenames go in quotes** — they are strings, exactly
 like `"hello"` in chapter 3. `ls` alone names the command; `ls()` runs it.
 
 > **Pico Computer 3 specific.** These shell-style commands — `ls`, `cd`,

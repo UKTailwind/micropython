@@ -62,7 +62,7 @@ auto(True)         # ...and do that automatically at every boot
 your phone trusts) and writes *local* time into the battery-backed
 DS3231 — so the machine is correct even offline afterwards, and with
 `auto(True)` the bedside clock of chapter 29 becomes an appliance
-that is simply never wrong. (`auto` fails silently to the DS3231 when
+that is simply never wrong. (`auto` falls back silently to the DS3231 when
 the network is away — an everyday case, quietly handled.)
 
 ## Asking the web a question

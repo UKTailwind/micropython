@@ -1,6 +1,6 @@
 # Chapter 23 — Breakout
 
-One year after Pong, the same company wondered what would happen if the
+Four years after Pong, the same company wondered what would happen if the
 wall you rallied against could *break*. The answer financed Apple
 Computer (really — look it up), and it is your game this chapter.
 Breakout is Pong turned ninety degrees plus three new disciplines:

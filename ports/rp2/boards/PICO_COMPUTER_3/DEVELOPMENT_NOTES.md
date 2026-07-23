@@ -1687,7 +1687,13 @@ verbs ulab lacks, in clean Python:
 - **Statistics** (`CORREL/CHI`): `correl` (Pearson r), `chi_square` → `(chi2, p)`
   with the p-value from a self-contained regularised upper-incomplete-gamma
   (Lanczos `lgamma` + NR series/continued-fraction) — no scipy dependency.
-- **Control** (`PID`): a `PID` class with output clamping + integral anti-windup.
+- **Control** (`PID`): a `PID` class numerically identical to MMBasic's `MATH PID`
+  (PicoMite `MATHS.c` `PIDController_Update`) -- trapezoidal (Tustin) integral with
+  a dedicated anti-windup clamp (`int_min/int_max`, MMBasic's `limMinInt/limMaxInt`),
+  derivative-on-measurement band-limited by a first-order LPF of time constant `tau`,
+  and a fixed sample time `T` seconds (floor `T >= 0.001`, MMBasic's 1 ms). `.start(cb)`
+  / `.stop()` mirror `MATH PID START`/`STOP`: they run `cb(pid)` every `T` off a
+  `machine.Timer` (MMBasic fires a BASIC interrupt sub each tick instead).
 
 Deliberately **not** wrapped: stats/linalg/FFT/complex (use ulab directly) and
 the heavier/niche `SENSORFUSION` (AHRS) — can add later. No firmware change (ulab
@@ -1697,7 +1703,7 @@ Verify (`tests/test_math.py`, automatic; also host-tested vs NumPy): quaternion
 rotate/compose/inverse, euler round-trip, `to_matrix` vs `rotate`; vector ops;
 window ends/symmetry; `sinc`; 4 zero-crossings of two sine periods; power-spectrum
 peak bin; `correl` ±1; `chi_square` = 5.8 with p matching the 4-dof closed form
-`e^-2.9·3.9`; PID P-term and anti-windup clamp.
+`e^-2.9·3.9`; PID P-term, anti-windup clamp, band-limited derivative (`tau`) and 1 ms floor.
 
 ### 47. `autosave()` — paste a program onto the board (MMBasic AUTOSAVE)
 
@@ -2341,6 +2347,35 @@ when it moves, so it floats over any screen content without disturbing it.
   `/sqltest.db` on the emulator's mounted flash → `RESULT PASS`, byte-identical
   output to the hardware. usqlite is part of the C-module set (like ulab), so the
   SDL-less terminal-only fallback build omits it, by design.
+
+### 66. `pcmath.PID` rewritten to match MMBasic `MATH PID` exactly + v0.11 bump
+
+The `PID` class was a plain textbook controller; rewrote it to be numerically
+identical to PicoMite `core/MATHS.c` `PIDController_Update` (the "Phil's Lab"
+band-limited form): trapezoidal (Tustin) integral with a **dedicated** anti-windup
+clamp (`int_min`/`int_max` = MMBasic `limMinInt`/`limMaxInt`), derivative-on-
+**measurement** (no setpoint kick) band-limited by a first-order LPF of time
+constant `tau`, at a **fixed** sample time `T` seconds (floor `T >= 0.001`,
+MMBasic's 1 ms). New signature `PID(kp, ki, kd, tau, T, out_min, out_max,
+int_min, int_max)` — the struct's 9 config fields in order — and
+`update(setpoint, measurement)` mirrors `MATH(PID ch, setpoint, measurement)`.
+`.start(cb)`/`.stop()` run it off a `machine.Timer` (= `MATH PID START`/`STOP`;
+MMBasic instead fires a BASIC interrupt sub each tick, polled between statements
+in `checkdetailinterrupts()`).
+- `int_min/int_max` default to `out_min/out_max` when omitted (friendlier than
+  MMBasic, where zeroed integrator limits kill integral action); documented.
+- **`tau = 0` is degenerate** (recursion pole at +1: the D term integrates
+  rather than differentiates) — valid only when `kd = 0`; set `tau > 0` (a few ×
+  `T`) whenever `kd > 0`. Documented in the header + manual.
+- **Verified** in the `pc3` emulator: a closed-loop thermal-plant step settles to
+  setpoint (steady-state error ~0, drive matches the analytic value); the D-term
+  step kick matches the closed form `2·Kd/(2·tau+T)` to full precision and larger
+  `tau` cuts kick + noise monotonically; `.start()` timer fired ~50×/0.5 s at
+  T=10 ms; `tests/test_math.py` PID checks (P, anti-windup, band-limited D ==
+  MMBasic, 1 ms floor) all pass.
+
+**v0.11 version bump**: `PICO_COMPUTER_3_VERSION` "0.10" → "0.11" (banner +
+`os.uname().machine`).
 
 ---
 

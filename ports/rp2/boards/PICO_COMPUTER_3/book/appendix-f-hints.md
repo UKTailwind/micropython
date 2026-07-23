@@ -99,11 +99,12 @@ to the same topic. That's the whole thing — genuinely.
 **30.1 (calculus)** `dx = x[1] - x[0]`; slope = `(y[1:] - y[:-1]) /
 dx` — one element shorter, so plot it against `x[:-1]`.
 
-**31.4 (PID)** `pid = pcmath.PID(kp, ki, kd, setpoint, 0, 65535)` (the
-`0, 65535` clamp the PWM output), then each loop:
-`pwm.duty_u16(int(pid.update(light.lux, dt)))`, where `light` is the
-TSL2591 and `setpoint` a target lux. Start with ki = kd = 0 and raise
-kp until it oscillates, then halve it.
+**31.4 (PID)** `pid = pcmath.PID(kp, ki, kd, tau=0.02, T=0.05, out_min=0,
+out_max=65535)` (the `out_min/out_max` clamp the PWM output; `T` is the
+loop period in seconds, `tau` the derivative filter), then each loop:
+`pwm.duty_u16(int(pid.update(setpoint, light.lux)))`, where `light` is the
+TSL2591 and `setpoint` a target lux — call it once every `T` seconds. Start
+with ki = kd = 0 and raise kp until it oscillates, then halve it.
 
 **32.3 (event bus)** `handlers = {}`; `on` appends to
 `handlers.setdefault(name, [])`… or chapter-10 honestly: `if name

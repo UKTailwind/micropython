@@ -10,7 +10,7 @@
 #     north = q.rotate((1, 0, 0))            # -> (0, 1, 0)
 #     w = pcmath.window(256, "hann")
 #     r = pcmath.correl(xs, ys)
-#     pid = pcmath.PID(2.0, 0.5, 0.1, out_min=0, out_max=255)
+#     pid = pcmath.PID(2.0, 0.5, 0.1, tau=0.02, T=0.01, out_min=0, out_max=255)
 #
 # ulab is compiled into this firmware, so no rebuild is needed to use this.
 
@@ -290,41 +290,109 @@ def _gammq(a, x):
 
 
 # ============================================================================
-# PID controller (MMBasic MATH PID). Call update() each control step with the
-# measured value and the time since the last call.
+# PID controller -- numerically identical to MMBasic's MATH PID (PicoMite
+# MATHS.c PIDController_Update, the "Phil's Lab" band-limited form):
+#   * trapezoidal (Tustin) integral with a dedicated anti-windup clamp,
+#   * derivative taken on the MEASUREMENT (no setpoint kick), band-limited by
+#     a first-order low-pass of time constant `tau`. A unit step in the
+#     measurement gives a derivative kick of 2*Kd/(2*tau + T), so larger `tau`
+#     tames both the kick and measurement noise. Set `tau` > 0 whenever Kd > 0:
+#     tau == 0 is degenerate (the recursion pole sits at +1 and the term
+#     integrates rather than differentiates); it is only safe when Kd == 0.
+#     As with MMBasic, a few times the sample time (e.g. tau = 2..5 * T) is a
+#     sane starting point,
+#   * a FIXED sample time `T` seconds -- the maths assume exactly T between
+#     calls, so run update() on a fixed schedule. MMBasic's floor is
+#     T >= 0.001 (1 ms) and this class enforces the same.
+#
+#     pid = pcmath.PID(2.0, 0.5, 0.1, tau=0.02, T=0.01,
+#                      out_min=0, out_max=255, int_min=-255, int_max=255)
+#     drive = pid.update(setpoint, measured)     # call every T seconds
+#
+# The constructor arguments are MMBasic's 9 PIDController config fields in
+# order: Kp, Ki, Kd, tau, (limMin, limMax), (limMinInt, limMaxInt), T. Unlike
+# MMBasic -- where a zeroed limMinInt/limMaxInt clamps the integrator to 0 and
+# kills integral action -- omitting int_min/int_max here defaults them to the
+# output limits (out_min/out_max), so integral action works out of the box.
+# Pass int_min/int_max explicitly for a tighter (or looser) anti-windup clamp.
+# Pass a callback to .start() to run it in the background off a machine.Timer --
+# the port's equivalent of MATH PID START / STOP.
 # ============================================================================
 class PID:
-    def __init__(self, kp, ki, kd, setpoint=0.0, out_min=None, out_max=None):
+    def __init__(self, kp, ki, kd, tau=0.0, T=0.01,
+                 out_min=None, out_max=None, int_min=None, int_max=None):
+        if T < 0.001:
+            raise ValueError("T must be >= 0.001 s (1 ms)")
         self.kp = kp
         self.ki = ki
         self.kd = kd
-        self.setpoint = setpoint
+        self.tau = tau                 # derivative low-pass time constant
+        self.T = T                     # fixed sample time (seconds)
         self.out_min = out_min
         self.out_max = out_max
-        self._i = 0.0
-        self._prev = None
+        # MMBasic keeps a separate integrator clamp (limMinInt/limMaxInt);
+        # default it to the output clamp when not given.
+        self.int_min = int_min if int_min is not None else out_min
+        self.int_max = int_max if int_max is not None else out_max
+        self.integrator = 0.0
+        self.prev_error = 0.0
+        self.differentiator = 0.0
+        self.prev_measurement = 0.0
+        self.out = 0.0
+        self._timer = None
 
     def reset(self):
-        self._i = 0.0
-        self._prev = None
+        self.integrator = 0.0
+        self.prev_error = 0.0
+        self.differentiator = 0.0
+        self.prev_measurement = 0.0
+        self.out = 0.0
 
-    def _clamp(self, v):
-        if self.out_min is not None and v < self.out_min:
-            return self.out_min
-        if self.out_max is not None and v > self.out_max:
-            return self.out_max
-        return v
+    def update(self, setpoint, measurement):
+        error = setpoint - measurement
+        proportional = self.kp * error
+        # integral (trapezoidal) with anti-windup clamp
+        self.integrator += 0.5 * self.ki * self.T * (error + self.prev_error)
+        if self.int_max is not None and self.integrator > self.int_max:
+            self.integrator = self.int_max
+        elif self.int_min is not None and self.integrator < self.int_min:
+            self.integrator = self.int_min
+        # derivative on measurement, band-limited (bilinear-transform LPF, tau).
+        # Minus sign: derivative on measurement, not error. 2*tau + T > 0 since
+        # T >= 1 ms, so no divide-by-zero even when tau == 0 (raw differentiator).
+        self.differentiator = -(
+            2.0 * self.kd * (measurement - self.prev_measurement)
+            + (2.0 * self.tau - self.T) * self.differentiator
+        ) / (2.0 * self.tau + self.T)
+        out = proportional + self.integrator + self.differentiator
+        if self.out_max is not None and out > self.out_max:
+            out = self.out_max
+        elif self.out_min is not None and out < self.out_min:
+            out = self.out_min
+        self.out = out
+        self.prev_error = error
+        self.prev_measurement = measurement
+        return out
 
-    def update(self, measured, dt, setpoint=None):
-        if setpoint is not None:
-            self.setpoint = setpoint
-        err = self.setpoint - measured
-        self._i = self._clamp(self._i + self.ki * err * dt)     # integral + anti-windup
-        d = 0.0
-        if self._prev is not None and dt > 0:
-            d = self.kd * (err - self._prev) / dt
-        self._prev = err
-        return self._clamp(self.kp * err + self._i + d)
+    def start(self, callback):
+        """Run `callback(self)` every T seconds off a machine.Timer -- the
+        port's MATH PID START. MMBasic fires a BASIC interrupt sub each tick;
+        here your callback reads the sensor, calls self.update(setpoint,
+        measurement) and drives the output. Runs in soft-IRQ context, so keep
+        it short. Call .stop() to end it."""
+        import machine
+
+        self.stop()
+        period = int(self.T * 1000 + 0.5)      # ms; T >= 0.001 -> >= 1 ms
+        self._timer = machine.Timer(-1)
+        self._timer.init(period=period, mode=machine.Timer.PERIODIC,
+                         callback=lambda t: callback(self))
+
+    def stop(self):
+        """Stop a background controller started with .start() (MATH PID STOP)."""
+        if self._timer is not None:
+            self._timer.deinit()
+            self._timer = None
 
 
 # --- Sensor fusion (MMBasic MATH SENSORFUSION) -------------------------------

@@ -62,13 +62,27 @@ T.check(_close(chi2, 5.8), "chi-square statistic")
 T.check(_close(p, math.exp(-2.9) * (1 + 2.9), 1e-4), "chi-square p-value")
 
 T.section("PID")
-pid = M.PID(2.0, 0.0, 0.0, setpoint=10, out_min=0, out_max=255)
-T.check(pid.update(0, 0.1) == 20.0, "P term: 2*(10-0)")
-pid2 = M.PID(0.0, 1.0, 0.0, setpoint=10, out_max=5)
+# P-only: out = Kp*(setpoint - measurement)
+pid = M.PID(2.0, 0.0, 0.0, T=0.1, out_min=0, out_max=255)
+T.check(pid.update(10, 0) == 20.0, "P term: 2*(10-0)")
+# Integral clamps to the dedicated integrator limit (anti-windup)
+pid2 = M.PID(0.0, 1.0, 0.0, T=1.0, out_max=5, int_max=5)
 out = 0
 for _ in range(100):
-    out = pid2.update(0, 1.0)
+    out = pid2.update(10, 0)
 T.check(out == 5.0, "integral clamps (anti-windup)")
+# Derivative on measurement, band-limited by tau: matches MATHS.c exactly.
+pid3 = M.PID(0.0, 0.0, 1.0, tau=0.02, T=0.01)
+d1 = pid3.update(0, 0)          # prev_measurement 0->0, differentiator stays 0
+d2 = pid3.update(0, 1.0)        # measurement steps 0->1
+# differentiator = -(2*Kd*(1-0) + (2*tau-T)*0) / (2*tau+T) = -2/0.05 = -40
+T.check(_close(d2, -40.0, 1e-9), "band-limited derivative (tau) matches MMBasic")
+# 1 ms floor, as enforced by MMBasic's MATH PID INIT
+try:
+    M.PID(1.0, 0.0, 0.0, T=0.0005)
+    T.check(False, "T < 1 ms rejected")
+except ValueError:
+    T.check(True, "T < 1 ms rejected")
 
 
 if __name__ == "__main__":

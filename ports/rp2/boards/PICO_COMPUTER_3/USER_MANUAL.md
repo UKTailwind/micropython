@@ -1728,15 +1728,15 @@ doesn't have, on top of it:
 | 3-D vectors | `vcross`, `vdot`, `vmag`, `vunit`, `vrotate(v, axis, angle)` |
 | DSP | `window(n, kind)` (hann/hamming/blackman/bartlett/rect), `sinc(x)`, `crossings(a, level)`, `power_spectrum(a)` |
 | Statistics | `correl(a, b)` (Pearson r), `chi_square(obs, exp)` → `(chi2, p)` |
-| Control | `PID(kp, ki, kd, setpoint, out_min, out_max)` → `.update(measured, dt)` |
+| Control | `PID(kp, ki, kd, tau, T, out_min, out_max, int_min, int_max)` → `.update(setpoint, measured)`; `.start(cb)` / `.stop()` run it in the background off a `machine.Timer`. Numerically identical to MMBasic `MATH PID` (trapezoidal integral + dedicated anti-windup clamp, derivative-on-measurement band-limited by `tau` — set `tau > 0` whenever `kd > 0` (a few × `T`; `tau = 0` is degenerate and only valid when `kd = 0`) — fixed sample time `T` seconds, `T >= 0.001`). `int_min`/`int_max` default to `out_min`/`out_max` when omitted (so integral action works without setting them; MMBasic instead needs its `limMinInt`/`limMaxInt` set explicitly) |
 | Sensor fusion | `AHRS()` → `.madgwick(ax,ay,az, gx,gy,gz, mx=None,my=None,mz=None, beta=0.5, dt=None)` / `.mahony(..., kp=10, ki=0, dt=None)` → `(roll, pitch, yaw)` in radians (MMBasic `MATH SENSORFUSION`, ported verbatim). Gyro in rad/s; magnetometer optional (omitted = 6-axis IMU); `dt=None` times itself between calls (capped 1 s); `.reset()` re-levels. One `AHRS()` instance per IMU |
 
 ```python
 import math, pcmath
 q = pcmath.Quat.from_euler(0, 0, math.radians(90))
 print(q.rotate((1, 0, 0)))                 # ~ (0, 1, 0)
-pid = pcmath.PID(2.0, 0.5, 0.1, setpoint=100, out_min=0, out_max=255)
-drive = pid.update(temperature, dt)
+pid = pcmath.PID(2.0, 0.5, 0.1, tau=0.02, T=0.01, out_min=0, out_max=255)
+drive = pid.update(100, temperature)       # (setpoint, measured), every T s
 ```
 
 ### Plotting — `plot()`

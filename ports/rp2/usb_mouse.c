@@ -1,12 +1,23 @@
 /*
  * USB mouse support for the Pico Computer 3.
  *
- * Ported from MMBasic (PicoMite):
- *   - analyze_mouse_descriptor / process_mouse_report (USBKeyboard.c): detect the
- *     mouse type (8/12/16-bit X/Y) from the report descriptor and decode each
- *     input report into button/x/y/wheel deltas.
- *   - process_mouse_input (KeyboardMap.c): accumulate the deltas into a virtual
- *     cursor position clamped to the screen, track buttons + wheel + double-click.
+ * Originally ported from MMBasic (PicoMite) USBKeyboard.c, which recognised
+ * three fixed report layouts (8/12/16-bit X/Y). Generalised since: the report
+ * descriptor is walked once at mount and the exact bit offset / width /
+ * signedness of each field (buttons, X, Y, wheel, AC pan) is recorded, along
+ * with the report ID that carries them; input reports are then decoded by bit
+ * extraction, so any single-pointer mouse layout works — arbitrary padding,
+ * field order, button counts and X/Y widths, and multi-report-ID descriptors
+ * (movement decoded from the pointer report, other IDs ignored).
+ *
+ * The mouse is switched to report protocol at mount (as MMBasic does). If the
+ * device stays in boot protocol (SET_PROTOCOL refused) or the descriptor parse
+ * finds no X/Y, the decoder falls back to the fixed boot layout
+ * (buttons, X8, Y8[, wheel]).
+ *
+ * Cursor accumulation (process_mouse_input in MMBasic's KeyboardMap.c) is
+ * unchanged: deltas accumulate into a virtual cursor clamped to the screen,
+ * with button, wheel and double-click tracking.
  *
  * Exposed the same way as MMBasic's DEVICE(MOUSE n, "...") reader, via the
  * `mouse` Python module (usb_mouse_mod.c) which calls usb_mouse_query().
@@ -26,48 +37,30 @@
 extern int hdmi_get_width(void);
 extern int hdmi_get_height(void);
 
-// --- Mouse type + descriptor info (from MMBasic Hardware_Includes.h) ---------
-typedef enum {
-    MOUSE_TYPE_UNKNOWN = 0,
-    MOUSE_TYPE_STANDARD_8BIT = 1, // 4 bytes: buttons, X, Y, wheel
-    MOUSE_TYPE_HIGHRES_12BIT = 2, // 5 bytes: buttons, 12-bit X/Y packed, wheel
-    MOUSE_TYPE_GAMING_16BIT = 3,  // 6+ bytes: buttons, 16-bit X, 16-bit Y, wheel
-} mouse_report_type_t;
+// --- Report layout captured from the HID report descriptor ------------------
+typedef struct {
+    bool present;
+    uint16_t bit_offset; // within the report, excluding any report-ID byte
+    uint8_t bit_size;
+    bool is_signed;      // Logical Minimum < 0 on the declaring Input item
+    uint8_t report_id;   // report this field belongs to (0 = no IDs used)
+} mouse_field_t;
 
 typedef struct {
-    mouse_report_type_t type;
-    uint8_t report_length;
-    uint8_t x_bits;
-    uint8_t y_bits;
-    uint8_t button_count;
-    bool has_wheel;
-    bool has_pan;
-    uint8_t wheel_byte_offset;
+    bool valid;            // X and Y found: bit-extraction decode possible
+    mouse_field_t buttons; // run of 1-bit fields folded into one bitmap
+    mouse_field_t x, y, wheel, pan;
     bool uses_report_id;
-    uint8_t report_id;
-} mouse_info_t;
-
-// Report layouts for the high-res / gaming mice (standard 8-bit uses TinyUSB's
-// hid_mouse_report_t). Field order matches MMBasic.
-typedef struct TU_ATTR_PACKED {
-    uint8_t buttons;
-    uint8_t data[3];
-    int8_t wheel;
-    int8_t pan;
-} hid_mouse_report_12bit_t;
-
-typedef struct TU_ATTR_PACKED {
-    uint8_t buttons;
-    uint8_t data[4];
-    int8_t wheel;
-    int8_t pan;
-} hid_gaming_mouse_report_t;
+    uint8_t report_id;     // ID of the report carrying X/Y (0 if none used)
+    uint8_t report_length; // declared Input bits of that report, in bytes
+    uint8_t min_len;       // minimum report bytes needed to decode all fields
+} mouse_layout_t;
 
 // --- Published mouse state (read by usb_mouse_query) -------------------------
 static uint8_t mouse_addr = 0xFF, mouse_inst = 0xFF;
 static bool mouse_present = false;
 static int mouse_slot_num = 0; // 1-based HID slot
-static mouse_info_t mouse_info;
+static mouse_layout_t mouse_layout;
 static float mouse_speed = 1.0f; // Option.mousespeed: raw delta divided by this
 
 static volatile int mouse_ax = 0, mouse_ay = 0; // accumulated position (screen coords)
@@ -76,91 +69,249 @@ static volatile int mouse_l = 0, mouse_r = 0, mouse_c = 0; // buttons
 static volatile int mouse_buttons = 0;          // raw button bitmap (bits L/R/M)
 static volatile int mouse_dclick = 0;           // double-click (clear on read)
 
-// --- Descriptor parser (MMBasic analyze_mouse_descriptor) --------------------
-static mouse_report_type_t analyze_mouse_descriptor(const uint8_t *desc, uint16_t len, mouse_info_t *info) {
-    if (!desc || !info || len == 0) {
-        return MOUSE_TYPE_UNKNOWN;
+// --- Descriptor parser -------------------------------------------------------
+// Records the first field seen for each usage of interest. Understands the
+// items a pointer descriptor uses: Usage Page / Usage (incl. 4-byte extended
+// usages), Usage Min/Max ranges, Logical Minimum (signedness), Report Size /
+// Count / ID, and Input items including constant padding. Not handled: Push/
+// Pop (unused by mice) — long items are skipped.
+
+#define MOUSE_MAX_USAGES 8
+#define MOUSE_MAX_REPORT_IDS 8
+
+// Per-report-ID Input bit counts: each Report ID opens its own bit space.
+typedef struct {
+    uint8_t id;
+    uint16_t bits;
+} mouse_rbits_t;
+
+static uint16_t rbits_get(const mouse_rbits_t *tab, uint8_t n, uint8_t id) {
+    for (uint8_t k = 0; k < n; k++) {
+        if (tab[k].id == id) {
+            return tab[k].bits;
+        }
     }
-    memset(info, 0, sizeof(*info));
+    return 0;
+}
 
+static void rbits_set(mouse_rbits_t *tab, uint8_t *n, uint8_t id, uint16_t bits) {
+    for (uint8_t k = 0; k < *n; k++) {
+        if (tab[k].id == id) {
+            tab[k].bits = bits;
+            return;
+        }
+    }
+    if (*n < MOUSE_MAX_REPORT_IDS) {
+        tab[*n].id = id;
+        tab[*n].bits = bits;
+        (*n)++;
+    }
+}
+
+static void capture_field(mouse_field_t *f, uint16_t off, uint8_t bits,
+    bool is_signed, uint8_t report_id) {
+    if (!f->present) {
+        f->present = true;
+        f->bit_offset = off;
+        f->bit_size = bits;
+        f->is_signed = is_signed;
+        f->report_id = report_id;
+    }
+}
+
+static bool analyze_mouse_descriptor(const uint8_t *desc, uint16_t desc_len,
+    mouse_layout_t *out) {
+    memset(out, 0, sizeof(*out));
+    if (!desc || desc_len == 0) {
+        return false;
+    }
+
+    // Global item state.
+    uint16_t usage_page = 0;
+    int32_t logical_min = 0;
     uint8_t report_size = 0, report_count = 0;
-    bool found_x = false, found_y = false;
-    uint8_t x_bits = 0, y_bits = 0, button_count = 0;
-    uint8_t bit_position = 0;
+    uint8_t cur_id = 0;
+    bool saw_report_id = false;
+    // Local item state (cleared after every Main item).
+    uint32_t usages[MOUSE_MAX_USAGES]; // page << 16 | usage
+    uint8_t n_usages = 0;
+    uint32_t usage_min = 0;
+    bool have_usage_range = false;
+    // Input bit position within the current report ID's report.
+    uint16_t bit_pos = 0;
+    mouse_rbits_t rbits[MOUSE_MAX_REPORT_IDS];
+    uint8_t n_rbits = 0;
 
-    for (uint16_t i = 0; i < len;) {
-        uint8_t bSize = desc[i] & 0x03;
-        uint8_t bType = (desc[i] >> 2) & 0x03;
-        uint8_t bTag = (desc[i] >> 4) & 0x0F;
-        i++;
-        uint32_t data = 0;
-        for (int j = 0; j < bSize; j++) {
-            if (i + j < len) {
-                data |= (desc[i + j] << (j * 8));
+    for (uint16_t i = 0; i < desc_len;) {
+        uint8_t prefix = desc[i++];
+        if (prefix == 0xFE) { // long item: bDataSize follows, then tag + data
+            if (i < desc_len) {
+                i += 2 + desc[i];
             }
+            continue;
+        }
+        uint8_t bSize = prefix & 0x03;
+        if (bSize == 3) {
+            bSize = 4; // HID spec: size code 3 means 4 bytes
+        }
+        uint8_t bType = (prefix >> 2) & 0x03;
+        uint8_t bTag = (prefix >> 4) & 0x0F;
+        uint32_t data = 0;
+        for (uint8_t j = 0; j < bSize && i + j < desc_len; j++) {
+            data |= (uint32_t)desc[i + j] << (j * 8);
+        }
+        int32_t sdata = (int32_t)data;
+        if (bSize == 1) {
+            sdata = (int8_t)data;
+        } else if (bSize == 2) {
+            sdata = (int16_t)data;
         }
         i += bSize;
 
-        if (bType == 1 && bTag == 8) { // Global Report ID
-            info->uses_report_id = true;
-            info->report_id = data;
-        }
-        if (bType == 1) {
-            if (bTag == 7) {
-                report_size = data;
-            } else if (bTag == 9) {
-                report_count = data;
+        if (bType == 1) { // Global
+            switch (bTag) {
+                case 0:
+                    usage_page = data;
+                    break;
+                case 1:
+                    logical_min = sdata;
+                    break;
+                case 7:
+                    report_size = data;
+                    break;
+                case 8: // Report ID: switch to that report's own bit space
+                    rbits_set(rbits, &n_rbits, cur_id, bit_pos);
+                    saw_report_id = true;
+                    cur_id = data;
+                    bit_pos = rbits_get(rbits, n_rbits, cur_id);
+                    break;
+                case 9:
+                    report_count = data;
+                    break;
+                default:
+                    break;
             }
-        } else if (bType == 2) {
-            if (bTag == 0) { // Usage
-                if (data == 0x30) {
-                    found_x = true;
-                } else if (data == 0x31) {
-                    found_y = true;
-                } else if (data == 0x38) {
-                    info->has_wheel = true;
-                    info->wheel_byte_offset = bit_position / 8;
-                } else if (data == 0x3C) {
-                    info->has_pan = true;
-                }
-            } else if (bTag == 2) { // Usage Maximum -> button count
-                if (data >= 0x01 && data <= 0x20) {
-                    button_count = data;
-                }
+        } else if (bType == 2) { // Local
+            switch (bTag) {
+                case 0: // Usage; 4-byte form carries the page in the top half
+                    if (n_usages < MOUSE_MAX_USAGES) {
+                        usages[n_usages++] = (bSize == 4)
+                            ? data : (((uint32_t)usage_page << 16) | data);
+                    }
+                    break;
+                case 1:
+                    usage_min = data;
+                    have_usage_range = true;
+                    break;
+                default:
+                    break;
             }
-        } else if (bType == 0) {
+        } else if (bType == 0) { // Main
             if (bTag == 8) { // Input
-                if (found_x && !x_bits) {
-                    x_bits = report_size;
-                    found_x = false;
+                bool constant = data & 0x01;
+                if (!constant && report_size && report_count) {
+                    for (uint16_t f = 0; f < report_count; f++) {
+                        // Usage for field f: queued usages distribute in order
+                        // (last repeats, per spec); a Usage Min/Max range
+                        // enumerates from its minimum.
+                        uint32_t u = 0;
+                        if (n_usages) {
+                            u = usages[f < n_usages ? f : n_usages - 1];
+                        } else if (have_usage_range) {
+                            u = ((uint32_t)usage_page << 16) | (usage_min + f);
+                        }
+                        uint16_t page = u >> 16;
+                        uint16_t usage = u & 0xFFFF;
+                        uint16_t off = bit_pos + f * report_size;
+                        bool sgn = logical_min < 0;
+                        if (page == 0x01) { // Generic Desktop
+                            if (usage == 0x30) {
+                                capture_field(&out->x, off, report_size, sgn, cur_id);
+                            } else if (usage == 0x31) {
+                                capture_field(&out->y, off, report_size, sgn, cur_id);
+                            } else if (usage == 0x38) {
+                                capture_field(&out->wheel, off, report_size, sgn, cur_id);
+                            }
+                        } else if (page == 0x09) { // Buttons
+                            // Fold the run of 1-bit button fields into one
+                            // little-endian bitmap, first button = bit 0.
+                            if (!out->buttons.present && report_size == 1) {
+                                uint16_t nb = report_count - f;
+                                capture_field(&out->buttons, off,
+                                    nb > 8 ? 8 : (uint8_t)nb, false, cur_id);
+                            }
+                        } else if (page == 0x0C && usage == 0x0238) { // AC Pan
+                            capture_field(&out->pan, off, report_size, sgn, cur_id);
+                        }
+                    }
                 }
-                if (found_y && !y_bits) {
-                    y_bits = report_size;
-                    found_y = false;
-                }
-                bit_position += (report_size * report_count);
+                bit_pos += (uint16_t)report_size * report_count;
+            }
+            // Local items only apply to the next Main item.
+            n_usages = 0;
+            usage_min = 0;
+            have_usage_range = false;
+        }
+    }
+    rbits_set(rbits, &n_rbits, cur_id, bit_pos);
+
+    // X and Y must live in the same report for a usable pointer layout.
+    if (!out->x.present || !out->y.present || out->y.report_id != out->x.report_id) {
+        memset(out, 0, sizeof(*out));
+        return false;
+    }
+    out->valid = true;
+    out->uses_report_id = saw_report_id;
+    out->report_id = out->x.report_id;
+    // Fields declared under a different report ID arrive in different reports.
+    if (out->wheel.present && out->wheel.report_id != out->report_id) {
+        out->wheel.present = false;
+    }
+    if (out->pan.present && out->pan.report_id != out->report_id) {
+        out->pan.present = false;
+    }
+    if (out->buttons.present && out->buttons.report_id != out->report_id) {
+        out->buttons.present = false;
+    }
+
+    uint16_t bits = rbits_get(rbits, n_rbits, out->report_id);
+    out->report_length = (bits + 7) / 8;
+    uint16_t need = 0;
+    const mouse_field_t *fields[] = { &out->buttons, &out->x, &out->y, &out->wheel, &out->pan };
+    for (unsigned k = 0; k < sizeof(fields) / sizeof(fields[0]); k++) {
+        if (fields[k]->present) {
+            uint16_t end = fields[k]->bit_offset + fields[k]->bit_size;
+            if (end > need) {
+                need = end;
             }
         }
     }
+    out->min_len = (need + 7) / 8;
+    return true;
+}
 
-    info->x_bits = x_bits;
-    info->y_bits = y_bits;
-    info->button_count = button_count;
-    info->report_length = (bit_position + 7) / 8;
-    if (info->uses_report_id) {
-        info->report_length += 1;
+// --- Report field extraction -------------------------------------------------
+// HID reports are little-endian bit streams: bit n lives in byte n/8, bit n%8.
+static uint32_t report_bits(const uint8_t *p, uint16_t off, uint8_t n) {
+    uint32_t v = 0;
+    for (uint8_t i = 0; i < n; i++) {
+        uint16_t b = off + i;
+        if (p[b >> 3] & (1u << (b & 7))) {
+            v |= 1u << i;
+        }
     }
+    return v;
+}
 
-    if (x_bits == 8 && y_bits == 8) {
-        info->type = MOUSE_TYPE_STANDARD_8BIT;
-    } else if (x_bits == 12 && y_bits == 12) {
-        info->type = MOUSE_TYPE_HIGHRES_12BIT;
-    } else if (x_bits == 16 && y_bits == 16) {
-        info->type = MOUSE_TYPE_GAMING_16BIT;
-    } else {
-        info->type = MOUSE_TYPE_UNKNOWN;
+static int report_field(const uint8_t *p, const mouse_field_t *f) {
+    if (!f->present) {
+        return 0;
     }
-    return info->type;
+    uint32_t v = report_bits(p, f->bit_offset, f->bit_size);
+    if (f->is_signed && f->bit_size < 32 && (v & (1u << (f->bit_size - 1)))) {
+        v |= ~((1u << f->bit_size) - 1);
+    }
+    return (int)(int32_t)v;
 }
 
 // --- Accumulate a decoded report (MMBasic process_mouse_input) ---------------
@@ -220,10 +371,13 @@ void usb_mouse_mount(uint8_t dev_addr, uint8_t instance,
     mouse_addr = dev_addr;
     mouse_inst = instance;
     mouse_present = true;
-    analyze_mouse_descriptor(desc_report, desc_len, &mouse_info);
-    if (mouse_info.type == MOUSE_TYPE_UNKNOWN) {
-        mouse_info.type = MOUSE_TYPE_STANDARD_8BIT; // best-effort default
-    }
+    analyze_mouse_descriptor(desc_report, desc_len, &mouse_layout);
+    // Switch from boot protocol to report protocol so the reports match the
+    // descriptor layout decoded above. TinyUSB puts boot-capable mice into
+    // boot protocol during enumeration; MMBasic issues exactly this call from
+    // its mount callback (USBKeyboard.c mouse path) and it's the only
+    // mount-time control transfer allowed here.
+    tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
     // Start the cursor centred on the current screen so it's visible.
     int w = hdmi_get_width(), h = hdmi_get_height();
     mouse_ax = (w > 0) ? w / 2 : 0;
@@ -238,56 +392,41 @@ bool usb_mouse_owns(uint8_t dev_addr, uint8_t instance) {
 
 void usb_mouse_on_report(uint8_t dev_addr, uint8_t instance,
     const uint8_t *report, uint16_t len) {
-    if (!usb_mouse_owns(dev_addr, instance) || !report) {
+    if (!usb_mouse_owns(dev_addr, instance) || !report || len == 0) {
         return;
-    }
-    // Skip a leading report-id byte if the descriptor declared one.
-    if (mouse_info.uses_report_id) {
-        report++;
-        if (len) {
-            len--;
-        }
     }
     float sp = (mouse_speed == 0.0f) ? 1.0f : mouse_speed;
     int x_delta = 0, y_delta = 0, wheel = 0;
     uint8_t buttons = 0;
 
-    switch (mouse_info.type) {
-        case MOUSE_TYPE_HIGHRES_12BIT: {
-            const hid_mouse_report_12bit_t *r = (const hid_mouse_report_12bit_t *)report;
-            buttons = r->buttons;
-            int16_t x12 = r->data[0] | ((r->data[1] & 0x0F) << 8);
-            if (x12 & 0x0800) {
-                x12 |= 0xF000;
+    // A device the SET_PROTOCOL didn't stick on still sends boot reports; a
+    // descriptor with no X/Y leaves us nothing better than the boot layout.
+    bool boot = tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT;
+    if (boot || !mouse_layout.valid) {
+        if (len < 3) {
+            return;
+        }
+        buttons = report[0];
+        x_delta = (int)((int8_t)report[1] / sp);
+        y_delta = (int)((int8_t)report[2] / sp);
+        if (len > 3) {
+            wheel = (int8_t)report[3];
+        }
+    } else {
+        if (mouse_layout.uses_report_id) {
+            if (report[0] != mouse_layout.report_id) {
+                return; // another of the interface's reports (e.g. consumer keys)
             }
-            int16_t y12 = ((r->data[1] & 0xF0) >> 4) | (r->data[2] << 4);
-            if (y12 & 0x0800) {
-                y12 |= 0xF000;
-            }
-            x_delta = (int)(x12 / sp);
-            y_delta = (int)(y12 / sp);
-            wheel = r->wheel;
-            break;
+            report++;
+            len--;
         }
-        case MOUSE_TYPE_GAMING_16BIT: {
-            const hid_gaming_mouse_report_t *r = (const hid_gaming_mouse_report_t *)report;
-            buttons = r->buttons;
-            int16_t x16 = r->data[0] | (r->data[1] << 8);
-            int16_t y16 = r->data[2] | (r->data[3] << 8);
-            x_delta = (int)(x16 / sp);
-            y_delta = (int)(y16 / sp);
-            wheel = r->wheel;
-            break;
+        if (len < mouse_layout.min_len) {
+            return; // truncated report
         }
-        case MOUSE_TYPE_STANDARD_8BIT:
-        default: {
-            const hid_mouse_report_t *r = (const hid_mouse_report_t *)report;
-            buttons = r->buttons;
-            x_delta = (int)(r->x / sp);
-            y_delta = (int)(r->y / sp);
-            wheel = r->wheel;
-            break;
-        }
+        buttons = (uint8_t)report_field(report, &mouse_layout.buttons);
+        x_delta = (int)(report_field(report, &mouse_layout.x) / sp);
+        y_delta = (int)(report_field(report, &mouse_layout.y) / sp);
+        wheel = report_field(report, &mouse_layout.wheel);
     }
     mouse_accumulate(x_delta, y_delta, wheel, buttons);
 }
@@ -323,7 +462,7 @@ int usb_mouse_query(int code) {
         case MQ_W: return mouse_az;
         case MQ_B: return mouse_buttons;
         case MQ_D: { int v = mouse_dclick; mouse_dclick = 0; return v; }
-        case MQ_T: return mouse_info.has_wheel ? 3 : 0;
+        case MQ_T: return mouse_layout.wheel.present ? 3 : 0;
         case MQ_PRESENT: return mouse_present ? 1 : 0;
         case MQ_SLOT: return mouse_slot_num;
         default: return -1;

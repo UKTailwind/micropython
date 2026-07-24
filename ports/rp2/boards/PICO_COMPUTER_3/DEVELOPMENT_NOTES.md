@@ -2486,8 +2486,34 @@ hardware-validated 2026-07-24 over COM11 + TeraTerm, and in the `pc3` emulator.
   sending control chars, and fall back to TX-only `autosave()` uploads with
   the user running tests via TeraTerm.
 
+### 68. USB mouse — report-protocol switch + general HID report decoder
+
+A 12-bit-packed mouse (VID:PID 15d9:0a4c) moved erratically; diagnosed on
+hardware with temporary descriptor/raw-report dumps.
+
+- **Root cause: protocol, not parsing.** TinyUSB's host stack puts
+  boot-capable mice into **boot protocol** during enumeration (3-byte 8-bit
+  reports) while our decoder used the report-protocol layout parsed from the
+  descriptor. MMBasic works because its mount callback issues
+  `tuh_hid_set_protocol(REPORT)` (USBKeyboard.c mouse path) — now done
+  identically in `usb_mouse_mount()`. That call is the *only* mount-time
+  control transfer permitted; nothing else may be added to enumeration
+  (report requests during enumeration crash the tinyusb stack — see §30's
+  EP0-wedge history).
+- **General decoder.** The MMBasic-derived three fixed layouts (8/12/16-bit
+  X/Y in one byte order) replaced by a one-pass descriptor parse capturing
+  per-field bit offset / width / signedness / owning report ID (buttons, X,
+  Y, wheel, AC pan), with reports decoded by bit extraction (same scheme as
+  the touch parser). Fixes found in review: combo interfaces' other report
+  IDs (consumer keys) were decoded as cursor movement (only the *last*
+  Report ID in the descriptor was recorded, and the ID byte was skipped
+  unchecked); usage pages were ignored (any 0x30/0x31 counted as X/Y);
+  HID item size code 3 means 4 data bytes; no report-length validation.
+  Signedness now comes from Logical Minimum. Falls back to the fixed boot
+  layout when the device refuses SET_PROTOCOL or the descriptor has no X/Y.
+
 **v0.12 version bump**: `PICO_COMPUTER_3_VERSION` "0.11" → "0.12" — the
-usqlite-hardening firmware.
+usqlite-hardening + USB-mouse-fix firmware.
 
 ---
 
@@ -2503,7 +2529,7 @@ usqlite-hardening firmware.
 | `ports/rp2/usb_keyboard.c` + `keyboard_maps.h` | **new** `keyboard` module (`keymap()`, `keydown()`, `on_key()`, `on_usb_event()`) + vendored MMBasic layouts; rooted USB-event/key callbacks; key-code constants (§30) |
 | `ports/rp2/usb_touch.c` + `usb_touch.h` | **new** USB multi-touch: HID descriptor parser + report decode/reassembly + digitizer-init handshake + gesture machine (vendored MMBasic) |
 | `ports/rp2/usb_touch_mod.c` | **new** `touch` module (`touch()` query: X/Y, contacts, swipes, tap/hold, pinch/rotate) |
-| `ports/rp2/usb_mouse.c` + `usb_mouse.h` | **new** USB mouse: descriptor type-detect (8/12/16-bit) + report decode + cursor accumulation/buttons/wheel/double-click (vendored MMBasic) |
+| `ports/rp2/usb_mouse.c` + `usb_mouse.h` | **new** USB mouse: general HID descriptor parse (per-field bit offset/width/sign/report ID) + bit-extraction report decode + report-protocol switch at mount, boot-layout fallback (§68); cursor accumulation/buttons/wheel/double-click (vendored MMBasic) |
 | `ports/rp2/usb_mouse_mod.c` | **new** `mouse` module (`mouse()` query: X/Y/L/R/M/W/B/D/T; `mouse_speed()`) |
 | `shared/tinyusb/tusb_config.h` | `#if MICROPY_HW_USB_HOST` block (host mode, hub, enum buf 1024, HID) |
 | `ports/rp2/uart.c` | translate serial-terminal Del (`0x7f`) → `\x1b[3~` under `MICROPY_HW_UART_REPL_DEL_FORWARD`; `mp_uart_repl_mute` output-mute flag (§35) |

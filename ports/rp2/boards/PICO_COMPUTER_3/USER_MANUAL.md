@@ -1814,8 +1814,19 @@ db.close()
 Notes:
 - Use **one connection at a time** — the flash filesystem provides only loose file
   locking, so concurrent writers are not safe.
-- SQLite works in the shared PSRAM heap; very large queries use more RAM and add
-  garbage-collection pressure. `usqlite.mem_peak()` reports the peak SQLite usage.
+- **Memory.** SQLite runs in its own dedicated heap, separate from your program's,
+  so database work doesn't fragment your Python memory. `usqlite.mem_current()` and
+  `usqlite.mem_peak()` report its live and peak usage.
+- **Bulk loads.** Wrap many inserts in a transaction and `COMMIT` periodically (say
+  every 1000 rows) rather than holding one enormous transaction open — until it
+  commits, all the changed rows have to fit in memory at once.
+- **Sorts, joins and `GROUP BY`.** Put an **index** on the columns you sort, join or
+  group by: an indexed `ORDER BY` is cheap and scales to any size, whereas a large
+  *unindexed* sort or `GROUP BY` has to build a temporary table. When one grows too
+  big for memory it **spills to a temporary file automatically** — on the **SD card**
+  when a card is mounted (sparing the flash), otherwise on flash. `PRAGMA
+  temp_store_directory='/sd'` (or any writable path) chooses where; the temp files
+  are removed automatically.
 - The API is `usqlite`'s own (close to, but **not** identical to, CPython's
   `sqlite3` / DB-API 2.0). See the module's own docs for the full surface.
 

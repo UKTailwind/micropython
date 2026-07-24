@@ -129,7 +129,10 @@ interface. All other GPIOs are free for your own use with `machine.Pin`,
 
 At start-up the board adds a set of names to the interactive namespace (`__main__`)
 so they are available without an `import`. A program launched with `run()`
-inherits the same names. The most useful are:
+inherits the same names — its namespace is seeded with a copy of the REPL's.
+**Modules you `import` do not inherit them**; see
+[*Using the boot names inside imported modules*](#using-the-boot-names-inside-imported-modules)
+below. The most useful are:
 
 **Modules / objects:** `os`, `machine`, `Pin` (= `machine.Pin`), `framebuf`,
 `hdmi`, `Display`, `Turtle` (turtle graphics — section 5), and the named colour
@@ -155,6 +158,57 @@ palette (`RED`, `GREEN`, `BLUE`, `WHITE`, `BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, 
 **File transfer:** `xrecv`, `xsend` (XMODEM over the serial console).
 
 Each is described in the sections below.
+
+### Using the boot names inside imported modules
+
+The names above are injected into `__main__` only. Python resolves a name
+through the *current module's* globals and then builtins — never through
+`__main__` — so a module you `import` (from `main.py` or anywhere else) does
+not see them, and a bare `keydown()` inside it raises
+`NameError: name 'keydown' isn't defined`. This is standard Python scoping,
+not a board restriction: the REPL and `run()` programs get the names because
+they execute *in* (a copy of) `__main__`; an imported module gets its own
+fresh namespace.
+
+The fix is to import each name from the module it really lives in:
+
+```python
+# mylib.py -- imported by main.py
+import hdmi
+from keyboard import keydown
+from pcaudio import beep
+from pcgfx import GOLD
+
+class Player:
+    def poll(self):
+        return keydown(1)          # works when mylib is imported
+```
+
+Where the boot names really live:
+
+| Boot name(s) | Import in a module |
+|---|---|
+| `ls`, `run`, `edit`, `cd`, `pwd`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `rmdir`, `autosave`, `cls` | `from pcshell import ls, run, ...` |
+| `keydown`, `keymaps` | `from keyboard import keydown, keymaps` |
+| `keymap`, `screen`, `palette` | `from pcconfig import keymap, screen, palette` |
+| `console` | `from pcconsole import console` |
+| `play`, `volume`, `beep`, `stop`, `is_playing`, `pause`, `resume`, `tone`, `sound`, `mod_sample` | `from pcaudio import ...` |
+| `Display` and the colour names (`RED`, `WHITE`, `GOLD`, …) | `from pcgfx import Display, RED, ...` |
+| `draw_jpg`, `draw_bmp`, `draw_png`, `save_image`, `load_image` | `from pcimage import ...` |
+| `touch(...)` | `import touch` then `touch.query(...)` |
+| `mouse(...)`, `mouse_speed` | `import mouse` then `mouse.query(...)`, `mouse.speed(...)` |
+| `gamepad(...)` and its constants | `import gamepad` then `gamepad.query(...)`, `gamepad.A`, … |
+| `Turtle` / `TileMap` / `plot` / `fm` | `from pcturtle import Turtle` / `from pctilemap import TileMap` / `from pcplot import plot` / `from pcfm import fm` |
+| `settime`, `gettime`, `synctime` | `from ds3231 import ...` |
+| `wifi`, `ntpsync`, `tz` | `from pcnet import wifi, ntpsync, tz` |
+| `USBSerial` | `from usbserial import USBSerial` |
+| `xrecv`, `xsend` | `import xmodem` then `xmodem.recv(...)`, `xmodem.send(...)` |
+| `Pin` | `from machine import Pin` |
+| `os`, `machine`, `hdmi`, `framebuf`, `pcgui`, `pccursor`, `pcmath`, `pcgame` | ordinary modules — `import` them directly |
+
+Note the four renamed ones: at the prompt `touch`, `mouse` and `gamepad` are
+the modules' `query` functions and `xrecv`/`xsend` are `xmodem.recv`/`send`;
+inside a module use the qualified forms shown above.
 
 ---
 

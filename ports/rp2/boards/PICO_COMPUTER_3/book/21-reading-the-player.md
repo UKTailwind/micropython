@@ -40,7 +40,10 @@ keys have named constants in the `keyboard` module: `UP`, `DOWN`,
 Two facts complete the picture. Up to **six keys** register at once
 (a hardware truth of the USB keyboard protocol — experiment 5 makes it
 visible), which is why chapter 18's `held()` helper walks the list;
-give that helper a permanent home in `handy.py` today. And each
+give that helper a permanent home in `handy.py` today — complete
+with its `from keyboard import keydown` line, which chapter 20's
+rule makes essential the moment the helper lives in an imported
+file. And each
 `keydown()` call quietly **drains pending console input** — so the
 keys a game polls don't pile up and spill onto the prompt as typed
 text when the game ends. (MMBasic does the same; now you know why

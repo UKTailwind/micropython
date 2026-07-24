@@ -1,5 +1,6 @@
 # sfx.py -- game sound effects.  import sfx; sfx.coin()
 import time
+from pcaudio import sound, tone, stop
 
 def laser():
     for f in range(2000, 200, -150):        # a fast falling sweep
@@ -33,6 +34,7 @@ def siren(times=3):
 
 if __name__ == "__main__":
     import keyboard
+    from keyboard import keydown
     print("SFX BOARD -- 1 laser  2 boom  3 jump  4 coin  5 siren "
           " Esc quits")
     while True:

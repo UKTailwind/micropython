@@ -27,12 +27,19 @@ facts, book-style — copy today, master later:
   regardless of what else is:
 
 ```python
+from keyboard import keydown
+
 def held(code):
     for i in range(1, keydown(0) + 1):
         if keydown(i) == code:
             return True
     return False
 ```
+
+(The `from keyboard import keydown` line simply names where
+`keydown` really lives. It costs nothing in a program — and it is
+what lets this helper work from inside `handy.py` the day it moves
+there. Chapter 20 tells that story.)
 
 That is the whole loan. Now, sprites.
 

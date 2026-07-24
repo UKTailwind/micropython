@@ -139,6 +139,7 @@ chapter. `edit("sfx.py")`:
 ```python
 # sfx.py -- game sound effects.  import sfx; sfx.coin()
 import time
+from pcaudio import sound, tone, stop
 
 def laser():
     for f in range(2000, 200, -150):        # a fast falling sweep
@@ -172,6 +173,7 @@ def siren(times=3):
 
 if __name__ == "__main__":
     import keyboard
+    from keyboard import keydown
     print("SFX BOARD -- 1 laser  2 boom  3 jump  4 coin  5 siren "
           " Esc quits")
     while True:
@@ -204,6 +206,20 @@ file runs as a program — `run("sfx.py")` gives you the demo board,
 while `import sfx` in a game gives you silent, obedient functions and
 *no* demo. One file, both careers. Every library you write from today
 deserves this: its functions above the line, a demonstration below.
+
+And that import at the top — `from pcaudio import sound, tone, stop` —
+is the same lesson seen from the other side. At the prompt, and in any
+program you `run()`, the board has already laid the table: `sound`,
+`tone`, `keydown` and friends are simply *there*, because boot places
+them in the main program's namespace and `run()` hands each program a
+copy. An **imported** module gets no such treatment: `import sfx`
+gives `sfx.py` its own clean namespace, and a bare `sound()` inside it
+would die with `NameError: name 'sound' isn't defined`. So a library
+must import what it uses, from the module each name really lives in —
+sounds from `pcaudio`, `keydown` from `keyboard`, colours from
+`pcgfx`, the display from `hdmi` (Appendix C maps every boot name to
+its home module). Programs may eat from the table they're given;
+libraries pack their own lunch.
 
 ## Tracker music: the game soundtrack
 

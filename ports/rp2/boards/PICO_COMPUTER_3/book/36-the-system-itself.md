@@ -21,7 +21,10 @@ code* each stage is:
    at `/`.
 3. **The board's boot hook** (`_boot_board`, frozen) does everything
    you have been enjoying since chapter 2: injects the helpers
-   (`ls`, `beep`, `Turtle`, the colours...), mounts the SD card and
+   (`ls`, `beep`, `Turtle`, the colours...) into the main program's
+   namespace — which the prompt shares and `run()` copies to every
+   program, though an imported module never sees it (chapter 20's
+   rule) — mounts the SD card and
    starts its hot-swap watcher, syncs the clock from the DS3231
    (and NTP, if chapter 30's `auto(True)` is set), starts the HDMI
    scanout on core 1, and attaches the on-screen console.

@@ -2,7 +2,14 @@
 
 Everything the firmware offers, with its book chapter and its User
 Manual section for the full API. Names marked † are injected at boot —
-usable without an `import`.
+usable without an `import` at the `>>>` prompt and in any program
+launched with `run()`, which inherits a copy of the prompt's
+namespace. An **imported** module sees none of them: a library file
+must import each name from the module it belongs to — the bold name
+heading its entry below (`from keyboard import keydown`,
+`from pcaudio import beep`, `from pcgfx import GOLD`, ...). Chapter 20
+tells the story; forget it and the library dies with a `NameError`
+the moment it is imported rather than run.
 
 Everything under **"The board's own"** below is **Pico Computer 3
 specific** — these modules are this machine's, not part of standard

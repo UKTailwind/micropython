@@ -1,7 +1,11 @@
 # initials.py -- arcade name entry.  import initials; name =
 # initials.get()
+import hdmi
 import pcgame
 import keyboard
+from keyboard import keydown
+from pcaudio import beep
+from pcgfx import WHITE, GRAY, GOLD
 
 def _held(code):
     for i in range(1, keydown(0) + 1):

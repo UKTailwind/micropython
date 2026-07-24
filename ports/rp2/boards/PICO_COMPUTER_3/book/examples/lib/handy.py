@@ -12,6 +12,8 @@ def ask_int(prompt):
 
 # held() -- chapter 18's keyboard helper, given its
 # permanent home here as chapter 21 instructs.
+from keyboard import keydown
+
 def held(code):
     for i in range(1, keydown(0) + 1):
         if keydown(i) == code:

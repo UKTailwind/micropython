@@ -137,7 +137,7 @@ Regenerate after editing chapters with:
 
 ## ch18 -- Chapter 18 — Sprites
 
-- `01-handy.py` (5 lines)
+- `01-handy.py` (7 lines)
 - `02-duck1.py` (32 lines)
 - `03-listing.py` (2 lines)
 - `04-gallery.py` (105 lines)
@@ -157,7 +157,7 @@ Regenerate after editing chapters with:
 - `03-listing.py` (4 lines)
 - `04-tunes.py` (23 lines)
 - `05-listing.py` (6 lines)
-- `06-sfx.py` (53 lines)
+- `06-sfx.py` (55 lines)
 - `07-listing.py` (4 lines)
 
 ## ch21 -- Chapter 21 — Reading the player: keyboard, mouse and touch
@@ -194,7 +194,7 @@ Regenerate after editing chapters with:
 ## ch26 -- Chapter 26 — Polish: the last ten percent
 
 - `01-juice.py` (123 lines)
-- `02-initials.py` (51 lines)
+- `02-initials.py` (55 lines)
 
 ## ch27 -- Chapter 27 — Building apps: the GUI toolkit
 
@@ -240,7 +240,7 @@ Regenerate after editing chapters with:
 - `03-knob.py` (11 lines)
 - `04-sweep.py` (19 lines)
 - `05-roll_call.py` (5 lines)
-- `06-gpad.py` (39 lines)
+- `06-gpad.py` (40 lines)
 - `07-fragment.py` (5 lines) -- fragment shown mid-explanation, not standalone
 - `08-fragment.py` (1 lines) -- fragment shown mid-explanation, not standalone
 

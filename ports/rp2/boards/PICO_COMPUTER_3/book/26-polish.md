@@ -185,14 +185,19 @@ because it teaches the binding rule one more time.
 
 Every game with a high-score table meets the same problem: names,
 without `input()` breaking the arcade spell. Build it once, as a
-library (chapter 20's dual-career pattern — demo under `__main__`).
-`edit("initials.py")`:
+library (chapter 20's dual-career pattern — demo under `__main__`,
+and imports for every board name it touches, because a library packs
+its own lunch). `edit("initials.py")`:
 
 ```python
 # initials.py -- arcade name entry.  import initials; name =
 # initials.get()
+import hdmi
 import pcgame
 import keyboard
+from keyboard import keydown
+from pcaudio import beep
+from pcgfx import WHITE, GRAY, GOLD
 
 def _held(code):
     for i in range(1, keydown(0) + 1):

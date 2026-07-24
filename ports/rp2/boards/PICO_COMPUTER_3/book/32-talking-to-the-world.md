@@ -237,6 +237,7 @@ legs 3.3V/GND), a button from **GP1 to GND**. Then the driver —
 #   x = gpad.dial(0, 559)     # knob position, scaled to a range
 #   if gpad.fire(): ...       # edge-detected button press
 import machine
+from machine import Pin
 
 _knob = machine.ADC(Pin(40))
 _button = Pin(1, Pin.IN, Pin.PULL_UP)

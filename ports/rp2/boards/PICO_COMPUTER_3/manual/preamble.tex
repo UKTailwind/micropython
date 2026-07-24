@@ -1,0 +1,20 @@
+% Header/footer and index setup for the USER_MANUAL.md PDF build.
+% Used by manual/build.sh (pandoc -H); see that script for the full recipe.
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{imakeidx}
+% noautomatic: build.sh normalises the .idx (TeX writes \texttt with
+% inconsistent spacing depending on context, which would split entries)
+% and runs makeindex itself between the xelatex passes; imakeidx's
+% auto-run would clobber that sanitised .ind with an unsanitised one.
+\makeindex[intoc, columns=2, title={Index}, noautomatic]
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Pico Computer 3 --- User Manual}
+\fancyfoot[C]{\small Page \thepage\ of \pageref{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+% The TOC and index pages use the same style.
+\fancypagestyle{plain}{\fancyhf{}%
+  \fancyhead[L]{\small Pico Computer 3 --- User Manual}%
+  \fancyfoot[C]{\small Page \thepage\ of \pageref{LastPage}}}

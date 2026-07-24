@@ -2416,6 +2416,79 @@ in `checkdetailinterrupts()`).
 **v0.11 version bump**: `PICO_COMPUTER_3_VERSION` "0.10" → "0.11" (banner +
 `os.uname().machine`).
 
+### 67. usqlite hardening — full review, GC-safe lifecycle, power-fail recovery
+
+A full review of the usqlite module (§65) found and fixed three classes of
+defect. All in the fork (`UKTailwind/usqlite`, branch `pc3-micropython-1.29`);
+hardware-validated 2026-07-24 over COM11 + TeraTerm, and in the `pc3` emulator.
+
+- **Soft reset corrupted the engine (the hard one).** SQLite's C statics (and a
+  session guard) survive Ctrl-D while the MEMSYS5 pool dies with the heap, so
+  the next session allocated from memory the new Python heap owned — corruption
+  surfacing as a hard lock in the first `db.close()`. Two-stage fix:
+  `initialize()` re-runs a full `sqlite3_shutdown()`/configure/init cycle per
+  session, and — the key discovery — the session marker is cleared in the
+  module's **`__init__` hook** (runtime calls it on first import per session),
+  because **root pointers are NOT auto-zeroed on soft reset**: `mp_init()`
+  never memsets VM state; every owner must reset its own. A root-pointer
+  "session marker" survives Ctrl-D exactly like a C static. (Also:
+  `sqlite3_temp_directory` is cleared; `usqlite_files`/`usqlite_heap` roots
+  reset in the same hook.)
+- **GC-unsafe object lifecycle.** `connection.close()` called `m_free()` on
+  cursor objects Python could still reference (use-after-free);
+  `cursor.close()` left the cursor registered (freed later while referenced);
+  connection/cursor were allocated without finalisers so their `__del__` was
+  dead code (dropped connections leaked their pool memory for the session);
+  `executemany`'s error path leaked the message in the pool (raise before
+  free). Now: close only finalizes statements (the GC owns the objects),
+  deregistration is a non-raising swap-remove, both types use
+  `mp_obj_malloc_with_finaliser`, `sqlite3_close_v2`, and the message is
+  copied+freed before raising. The soft-reset sweep now fully closes an
+  abandoned connection (a `gc_is_locked()` guard stops the journal-delete from
+  allocating during the sweep, which had been aborting the close midway).
+- **API correctness.** 64-bit INTEGER both ways (`sqlite3_bind_int64` /
+  `column_int64` — was 32-bit: binds >2³¹ raised OverflowError, reads silently
+  wrapped — fatal for ms timestamps); `.description` hard-faulted on computed
+  columns (`strlen(NULL)` decltype) and was empty before the first fetch
+  (`data_count` → `column_count`); `connect("/name.db")` could truncate a
+  root-level database when the cwd was elsewhere (existence probe now a single
+  `os.stat`, which is also what makes per-transaction journal probes cheap).
+- **No exception may cross SQLite's C frames.** The VFS called `io.open` /
+  `os.remove` / `ilistdir`, which raise (missing dir, full flash, SD pulled —
+  §23 makes that a supported action) and longjmp'd through the pager. All VFS
+  entry points that touch Python are nlr-guarded and return SQLite error codes
+  (`connect` to a bad path now raises `usqlite_Error`, engine stays healthy);
+  a raising trace callback is swallowed like CPython's.
+- **Power-fail recovery — previously disabled.** The VFS answered "no" to every
+  xAccess existence probe, so a hot journal after power loss was never seen and
+  a torn database was served as valid. Enabled as a set (each is required):
+  honest `xAccess` (via the stat probe); zero-filled short reads (VFS
+  contract, recovery reads into lost tails); **real truncate-to-zero**
+  (`SQLITE_DEFAULT_LOCKING_MODE=1` finalizes the journal on *every commit* by
+  truncation — honest detection with the old no-op truncate would have
+  replayed stale journals **over committed data**; implemented by reopening
+  `"w+b"`, since MicroPython streams have no truncate); `SQLITE_OMIT_WAL`
+  (journal_mode=WAL would have called a NULL xShm method; −17 KB flash).
+  `xRandomness` now really fills its buffer (xorshift over µs ticks).
+  Emulator: snapshot "power cuts" mid-transaction/post-commit/garbage-journal
+  all recover (`integrity_check` ok). Hardware: 3 physical power pulls during
+  committed-batch writes — clean rollback each time, ledger invariant held.
+  *Caveat:* this protects the database; FAT metadata itself is not
+  power-fail-atomic (a cut mid-FAT-update can still damage the filesystem).
+- **Tests.** Emulator: `lib/usqlite/tests/` (5 suites; run `pc3` unix build
+  with `-X heapsize=8m` — must match the board's heap). On-device:
+  `tests/sqltest_a..e.py` — staged (soft reset between a/b, physical power
+  pulls between d/e); see tests/README.
+- **Tooling lessons** (details in "Driving the board over serial"): mpremote's
+  raw-paste locked the board via the CH340 console (never tested with UART
+  console; use the pyserial helper); the CH340 host-side RX can die while the
+  board still receives (TeraTerm stays fine) — prove the link duplex before
+  sending control chars, and fall back to TX-only `autosave()` uploads with
+  the user running tests via TeraTerm.
+
+**v0.12 version bump**: `PICO_COMPUTER_3_VERSION` "0.11" → "0.12" — the
+usqlite-hardening firmware.
+
 ---
 
 ## Files touched
@@ -2469,7 +2542,7 @@ in `checkdetailinterrupts()`).
 | `boards/PICO_COMPUTER_3/mpconfigboard.h` | double floats, UART console, USB off, threads off, SD + HDMI pins, reserved pins, 252 MHz clock + flash cap, MCU name + banner; `PICO_COMPUTER_3_VERSION` folded into board name (shows in banner + `os.uname().machine`) |
 | `boards/PICO_COMPUTER_3/USER_MANUAL.md` | **new** end-user manual (pins, all commands/modules, standard-module list, MicroPython doc reference) — ships with the release |
 | `boards/PICO_COMPUTER_3/mpconfigboard.cmake` | route pico-sdk default UART to UART1/GP8/GP9; `CYW43_PIO_CLOCK_DIV_DYNAMIC=1`; 12 MB flash FS; ulab **and usqlite** via `USER_C_MODULES` (§65); feature-gate vars `MICROPY_HW_ENABLE_HDMI`/`MICROPY_PY_MACHINE_SDCARD`/`MICROPY_HW_USB_HOST` (§27) |
-| `lib/usqlite` | **new** git submodule → `UKTailwind/usqlite` `7399e48` (fork of spatialdude v0.1.8 + 1.29 fix) — SQLite 3.47 C user-module; `import usqlite` (§65) |
+| `lib/usqlite` | **new** git submodule → `UKTailwind/usqlite` `d50441d` (fork of spatialdude v0.1.8 + 1.29 fix) — SQLite 3.47 C user-module; `import usqlite` (§65); MEMSYS5 pool + sort-spill (§65 follow-ups); full hardening: soft-reset session cycle, GC-safe lifecycle, 64-bit ints, exception-safe VFS, power-fail recovery + `tests/` (§67) |
 | `.gitmodules` | register `lib/usqlite` submodule (url = UKTailwind/usqlite, branch pc3-micropython-1.29) |
 | `ports/rp2/memmap_rp2350/section_extra_post_platform_end.incl` | SRAM GC-heap `ASSERT` floor 64 KB → 56 KB (PSRAM is the real heap) (§65) |
 | `boards/PICO_COMPUTER_3/manifest.py` | drop pure-Python `sdcard`; freeze `_boot_board`/`pcshell`/`pye`/`pcgfx`/`pcconsole`/`pcaudio`/`ds3231`/`pcsd`; `require` bundle-networking + `umqtt.simple`/`umqtt.robust` + `aioble` |

@@ -61,3 +61,23 @@ Optional test assets (put next to the tests, all skipped if absent):
 At the end the runner restores the saved screen mode and prints a summary;
 anything in the FAIL list is a regression (or a new bug — see
 `DEVELOPMENT_NOTES.md` for what each feature is supposed to do).
+
+## SQLite (usqlite) — staged tests
+
+The `sqltest_*.py` files validate the usqlite hardening (see
+DEVELOPMENT_NOTES §67). They are **staged** — parts are separated by a soft
+reset or a power cut, so they can't run under `test_all.py`:
+
+| stage | run | what it proves |
+|-------|-----|----------------|
+| `sqltest_a.py` | `run("sqltest_a.py")` | CRUD, executemany error-leak, close with live/closed cursors, GC finaliser reclaim; deliberately leaves a connection open |
+| — | press **Ctrl-D** | soft reset with that connection abandoned (worst case) |
+| `sqltest_b.py` | `run("sqltest_b.py")` | fresh session reinitializes the engine, data intact, churn + clean close, root-path (`/name.db` with cwd elsewhere) |
+| `sqltest_c.py` | `run("sqltest_c.py")` | 64-bit INTEGER roundtrip, `.description` on computed columns, VFS errors as `usqlite_Error`, raising trace callback |
+| `sqltest_d.py` | `run("sqltest_d.py")`, then **cut the power** mid-run | power-fail writer: atomic batches + ledger |
+| `sqltest_e.py` | after power-up, `run("sqltest_e.py")` | hot-journal rollback: `integrity_check` ok and no torn batch |
+
+Repeat the d/e pair a few times — the cut lands somewhere new each round.
+Edit `DB` in d/e to `/sd/powertest.db` to exercise the SD card instead of
+flash. Host-side equivalents live in `lib/usqlite/tests/` (run against the
+unix `pc3` emulator build with `-X heapsize=8m`).

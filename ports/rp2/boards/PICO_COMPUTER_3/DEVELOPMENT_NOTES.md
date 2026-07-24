@@ -42,6 +42,45 @@ PSRAM (split heap), so this SRAM use doesn't reduce the Python heap. (pye adds
 
 ---
 
+## Driving the board over serial (automated testing)
+
+The console is the **CH340 USB-serial adapter at 115200 baud** (UART1 on GP8/GP9;
+it enumerates as a COM port on the host — `COM11` on this machine). USB device
+mode is disabled in the app, so all scripted interaction goes over that UART.
+
+`mpremote` is the natural tool (`mpremote connect COM11 run script.py`) but was
+not installed here, so tests were driven with a small **pyserial** helper that
+speaks MicroPython's **raw REPL** protocol directly:
+
+1. `\r\x03\x03` — Ctrl-C twice to interrupt whatever is running.
+2. `\x01` — Ctrl-A to enter raw REPL; wait for the `raw REPL; CTRL-B to exit`
+   banner, then drain to the `>` prompt.
+3. `reset_input_buffer()`, then send the whole script followed by `\x04`
+   (Ctrl-D) to execute.
+4. The reply is framed `OK` + *stdout* + `\x04` + *stderr* + `\x04` + `>`.
+   Accumulate into **one** buffer until two `\x04` bytes have arrived, then split
+   on them — do *not* wait for `OK` in a separate read first, or a fast program's
+   `\x04` markers are consumed before the main read loop starts (a very fast
+   program then looks like a timeout).
+5. `\x02` — Ctrl-B back to the friendly REPL.
+
+A soft reboot — Ctrl-C then `\x04` at the *friendly* prompt — restarts the runtime
+and frees lazily-reserved pools (e.g. the `usqlite` dedicated SQLite heap), handy
+for a clean baseline between memory tests.
+
+Gotchas learned the hard way:
+
+- **Ctrl-C cannot interrupt a long C call.** MicroPython only polls for
+  KeyboardInterrupt between bytecodes, so a single `execute()` that runs a big
+  SQLite sort / index build blocks the console until it returns — a slow query is
+  indistinguishable from a hang. Use generous read timeouts, and reach for a
+  physical reset only after ruling out "still working".
+- When the raw-REPL framing gets out of sync (e.g. after a heavy run that
+  overran its timeout), a friendly-REPL byte-dump (`print('ALIVE')`, read back)
+  is a reliable liveness probe, and a soft reboot re-syncs without a power cycle.
+
+---
+
 ## Changes
 
 ### 1. 64-bit integers and double-precision floats

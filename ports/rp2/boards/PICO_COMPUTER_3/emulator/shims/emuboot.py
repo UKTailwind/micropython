@@ -50,6 +50,12 @@ __main__.machine = machine
 __main__.Pin = machine.Pin
 __main__.hdmi = hdmi
 __main__.framebuf = framebuf
+
+# Board identity (board.id()/name()/has_wifi()/led_pin()), as _boot_board.py
+# exposes it. The emulator always answers as a Pico Computer 3.
+import board
+
+__main__.board = board
 for _name in pcshell.COMMANDS:
     setattr(__main__, _name, getattr(pcshell, _name))
 

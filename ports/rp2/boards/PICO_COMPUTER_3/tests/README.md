@@ -51,6 +51,8 @@ and headless.
 | `test_tilemap.py` | visual demo | `TileMap` — builds a tileset in memory and scrolls a map via `hdmi.tilemap()` + the F buffer |
 | `breakout.py` | game | tile-map brick breaker (port of MMBasic `breakout.bas`): `TileMap` brick field + attributes/collision, `blit_tile` ball/paddle. Arrows move, Space launches, Q quits |
 | `test_plot.py` | visual demo | `plot()` (line/function/bar/multi-series) + an animated scrolling sine driven by `pcgame.Clock` (fixed fps) |
+| `solar_eclipse.py` | benchmark | line-faithful port of MMBasic `solar_eclipse.bas` (David Eagle's eclipse local-circumstances predictor, incl. its quirks so output matches MMBasic digit-for-digit); double-precision workout + speed comparison. Reference inputs `12,1,2000` / `39,40,36` / `-104,57,12` / `1644` / `30` → 25 Dec 2000 eclipse, JD 2451904.14541560/.19690359/.25420764; ~8.8 s at 378 MHz (MMBasic same chip ~12.5 s) |
+| `solar_eclipse_ulab.py` | benchmark | ulab-vectorized variant of the above (machine-generated: the 414-term lunar + solar + nutation + TDB series as `K@x+phase` coefficient tables, `np.sum(a*np.sin(...))`). Same prompts, digit-identical output; ~7.4 s at 378 MHz — remaining time is the software double-precision libm `sin`, which vectorizing cannot remove |
 
 The visual demos (`turtle_test.py`, `demo_asteroids.py`) are **not** part of
 `test_all.py`; run them standalone and watch the HDMI screen.

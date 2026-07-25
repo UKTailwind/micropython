@@ -272,7 +272,9 @@ void mp_wfe_or_timeout(uint32_t timeout_ms) {
 
 int mp_hal_is_pin_reserved(int n) {
     #if MICROPY_PY_NETWORK_CYW43
-    return n == CYW43_PIN_WL_HOST_WAKE;
+    // Nothing to reserve on a board that has no radio fitted: its CYW43 pins
+    // are ordinary GPIOs (or belong to some other peripheral).
+    return MICROPY_HW_CYW43_PRESENT() && n == CYW43_PIN_WL_HOST_WAKE;
     #else
     return false;
     #endif

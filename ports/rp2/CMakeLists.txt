@@ -207,6 +207,13 @@ if(MICROPY_HW_ENABLE_HDMI)
     )
 endif()
 
+# Runtime board identification (the `board` module): probes GP27 for the
+# Pico Computer 3's DS3231 32 kHz signal so drivers whose pinout differs
+# between boards can pick the right one at start-up.
+if(MICROPY_HW_BOARD_DETECT)
+    list(APPEND MICROPY_SOURCE_PORT board_detect.c)
+endif()
+
 # Native SD card driver (machine.SDCard).
 if(MICROPY_PY_MACHINE_SDCARD)
     list(APPEND MICROPY_SOURCE_PORT machine_sdcard.c)
@@ -266,6 +273,9 @@ if(MICROPY_HW_ENABLE_HDMI)
         ${MICROPY_PORT_DIR}/draw3d.c
         ${MICROPY_PORT_DIR}/sercon.c
     )
+endif()
+if(MICROPY_HW_BOARD_DETECT)
+    list(APPEND MICROPY_SOURCE_QSTR ${MICROPY_PORT_DIR}/board_detect.c)
 endif()
 if(MICROPY_PY_MACHINE_SDCARD)
     list(APPEND MICROPY_SOURCE_QSTR ${MICROPY_PORT_DIR}/machine_sdcard.c)

@@ -15,6 +15,10 @@ USB-host support across from the existing MMBasic (PicoMite) firmware.
 - Base board definition: `pimoroni_pico_plus2_w_rp2350`.
 - 16 MB external flash, 8 MB PSRAM (CS on GP47), CYW43 Wi-Fi/BT.
 - SD card on **SPI1**: SCK=GP30, MOSI=GP31, MISO=GP28, CS=GP33.
+- The same firmware also runs on the **Pico Computer 2** (no CYW43, LED on GP25,
+  SD on GP29/30/31/32 bit-banged; the DS3231 is fitted but its 32 kHz output is
+  not connected). Which board it is on is detected at start-up from that 32 kHz
+  clock on GP27 — see §69 and the `board` module.
 - Console UART on **UART1**: TX=GP8, RX=GP9.
 - Flash filesystem (LittleFS2) sized to **12 MB** (`MICROPY_HW_FLASH_STORAGE_BYTES`
   set in `mpconfigboard.cmake` so the linker partition and the C value agree).
@@ -2517,6 +2521,121 @@ usqlite-hardening + USB-mouse-fix firmware.
 
 ---
 
+### 69. Two boards, one firmware — runtime board identification + the Pico Computer 2
+
+The **Pico Computer 2** runs the same image as the Pico Computer 3. It differs
+in three ways, all settled at runtime:
+
+| | Pico Computer 3 | Pico Computer 2 |
+|---|---|---|
+| DS3231 RTC | fitted, **32 kHz output wired to GP27** | fitted, 32 kHz output **not connected** |
+| CYW43 radio (Wi-Fi/BT) | fitted | **not fitted** — GP23/24 free (GP25 = LED, GP29 = SD CS) |
+| LED | CYW43 GPIO0 (`Pin("LED")`) | **GP25** |
+| SD card | CS 33, SCK 30, MOSI 31, MISO 28 — hardware SPI1 | **CS 29, SCK 30, MOSI 31, MISO 32 — bit-banged** |
+
+The RTC itself works the same on both — `settime`/`gettime`/`synctime` and the
+boot clock sync are unchanged. Only the 32 kHz *signal* distinguishes them.
+
+**The probe.** The 32 kHz clock on GP27 is the signature; the Pico Computer 2
+does not route it to a pin. `ports/rp2/board_detect.c` is a direct port of MMBasic's
+`TestPicoComputer3()` (`PicoMite.c`), per [[replicate-mmbasic-exactly]]: GP27 as
+input with a **pull-up** (the DS3231 pin is open drain, and the pull-up parks a
+floating pin at a known level), then four edge waits (high→low→high→low) inside a
+**200 µs** window. Two full cycles of 32768 Hz take 61 µs, plus up to 15 µs
+waiting for the first edge, so 200 µs is a comfortable margin; with no signal the
+whole probe is a 200 µs pause and the pull-up is released again.
+
+It runs from `MICROPY_BOARD_STARTUP()` — the earliest hook in `main()`, straight
+after `set_sys_clock_khz()` and before PSRAM, the GC heap, the UART console, the
+CYW43 and every driver that claims a pin. **Once**, outside the soft-reset loop:
+hardware cannot change under us, and the result is a plain BSS variable, so it
+survives soft reset.
+
+**No clock ⇒ Pico Computer 2.** That is the only other board in the family, so
+"not a 3" identifies it; a third board would need a positive signature of its
+own. The corollary is that a Pico Computer 3 whose DS3231 has **stopped, or had
+its EN32kHz bit cleared, looks like a Pico Computer 2** —
+`board.override(board.PICO_COMPUTER_3)` is the escape hatch
+(MMBasic has the same idea in its saved `platform` option). It only affects
+hardware brought up after the call, i.e. the SD card.
+
+**API.** C: `board_detect_id()`, `board_is_pico_computer_3()`,
+`board_is_pico_computer_2()`, `board_has_cyw43()`, `board_led_pin()`
+(`board_detect.h`). Python: the `board` module — `id()`, `name()`, `has_wifi()`,
+`led_pin()`, `override()`, and the `PICO_COMPUTER_3` / `PICO_COMPUTER_2` /
+`UNKNOWN` constants. The ID values are part of that API, so **only append**.
+
+**SD card: two pin sets, one of them bit-banged.** `machine_sdcard.c` gained a
+`sd_bus_t` (pins + SPI id) resolved in `hw_init()` from the board identity; a
+**negative SPI id selects the bit-banged transport**. The Pico Computer 2 needs
+it because its MISO (GP32) is a **SPI0** pin while its SCK/MOSI (GP30/31) are
+**SPI1** — no hardware instance covers the set. The bit-bang routines are ported
+from MMBasic's `BitBangSendSPI` / `BitBangReadSPI` / `BitBangSwapSPI`
+(`misc/SDCard.c`): mode 0, MSB first, with MMBasic's three timings — 20 µs per
+half-bit while identifying the card, then NOP padding, one NOP at or below
+200 MHz (MMBasic's `slow_clock`) and three above it, which is what keeps the
+clock inside the card's limits at 252/378 MHz. `clk_sys` is read once per call,
+not per bit, because `screen(mode, clock)` can change it between transfers. One
+deliberate deviation: the read path holds **MOSI high** for the whole transfer so
+the card sees 0xFF on DI, matching what the hardware-SPI path shifts out (MMBasic
+leaves MOSI wherever the last write left it). Everything above the transport —
+the SD command set, hot-swap `check()`/`reinit()`, `pcsd.py` — is unchanged and
+board-agnostic.
+
+The pin sets are declared by the board as `MICROPY_HW_SD_*` and
+`MICROPY_HW_SD_ALT_*` with a `MICROPY_HW_SD_USE_ALT()` selector, so the driver
+itself holds no board knowledge. Pin **reservation** follows the same route:
+`MICROPY_HW_PIN_RESERVED` now calls `machine_sdcard_pin_reserved()` instead of
+listing 28/30/31/33, because the two boards reserve different pins.
+
+**CYW43 absent is a hazard, not just a missing feature.** On a Pico Computer 2
+the radio's pins are in use — **GP25 is the LED and GP29 the SD chip select** —
+so bringing the (absent) chip up would take over a live chip select mid-transfer
+and corrupt the card. A new board-agnostic hook, `MICROPY_HW_CYW43_PRESENT()`
+(default `(1)` in `mpconfigport.h`, overridden to `board_has_cyw43()` by this
+board), gates every path that touches the chip:
+
+- `main.c` — the whole start-up block (`cyw43_init` already drives WL_REG_ON).
+- `extmod/network_cyw43.c` — `network.WLAN(…)` raises `OSError: no WLAN hardware`.
+- `mpbtstackport.c` — `mp_bluetooth_btstack_port_init()` raises before the
+  transport is opened (it is the first thing `mp_bluetooth_init()` calls).
+- `machine_pin_cyw43.c` — `Pin("LED")`/`Pin("WL_GPIO*")` set/get raise.
+- `mphalport.c` — `mp_hal_is_pin_reserved()` reserves nothing when there is no
+  radio, freeing WL_HOST_WAKE.
+
+Left alone deliberately: `cyw43_ensure_up()` does fail gracefully (10 tries on
+the SPI test register, ~10 ms) — but only *after* `cyw43_spi_init()` has already
+claimed the pins, which is exactly what must not happen here.
+
+**Python side.** `_boot_board.py` exposes the `board` module, prints
+`Board: PICO COMPUTER 2` when the detected board is not the compiled-in name
+(`os.uname().machine` and the banner still say "PICO COMPUTER 3"), and binds
+`LED` to `machine.Pin(25, OUT)` **only when the LED is a real GPIO** — building
+`Pin("LED")` on a Pico Computer 3 would power the radio up on every boot, so
+there it stays a manual `Pin("LED", Pin.OUT)`. `pcnet.wifi()` reports "No Wi-Fi
+hardware on this board" and `pcnet.boot_sync()` returns silently.
+
+**Board scope kept clean** (§27): `board_detect.c` is gated on
+`MICROPY_HW_BOARD_DETECT` (set in both `mpconfigboard.cmake` and
+`mpconfigboard.h`); the four shared-file edits are all board-agnostic hooks with
+a default that preserves today's behaviour for every other rp2 board. GP27 is
+deliberately **not** reserved — on a Pico Computer 2 it is an ordinary GPIO.
+(Verified with `-fsyntax-only` against the configured `RPI_PICO` and
+`RPI_PICO2_W` build flags as well as this board's.)
+
+**RTC alarm line.** `ds3231.alarm_pin()` hands out GP32, which is the SD card's
+MISO on a Pico Computer 2 — it now raises `OSError: no RTC INT line on PICO
+COMPUTER 2` instead of colliding (the pin reservation would have stopped it
+anyway, but with a confusing message). The rest of `ds3231.py` is board-agnostic.
+
+**Known wrinkle.** `MICROPY_HW_SPI1_*` still maps `machine.SPI(1)` onto
+GP30/31/28. On a Pico Computer 3 that is deliberate — it *is* the SD bus. On a
+Pico Computer 2 the SD card bit-bangs GP30/31, so claiming `machine.SPI(1)` there
+would switch those pads to SPI function underneath it. The pins are reserved
+against `machine.Pin()`, but `machine.SPI(1)` is not routed through that check.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -2558,10 +2677,16 @@ usqlite-hardening + USB-mouse-fix firmware.
 | `ports/rp2/modules/_boot.py` | generic `import _boot_board` hook only — all PC3 boot logic moved to the board's frozen `_boot_board.py` (§27) |
 | `boards/PICO_COMPUTER_3/_boot_board.py` | **new** frozen board boot hook: REPL/shell/graphics injection, `pcsd.start()`, RTC sync, `hdmi.init` + `console()` |
 | `ports/rp2/machine_pin.c` | enforce pin reservation in the `Pin` constructor |
-| `ports/rp2/machine_sdcard.c` | **new** native `machine.SDCard` block device; `check()`/`reinit()` + activity-deferred liveness probe for hot-swap |
+| `ports/rp2/board_detect.c`/`.h` | **new** runtime board identification: GP27 32 kHz probe (MMBasic `TestPicoComputer3`) + the `board` module (`id`/`name`/`has_wifi`/`led_pin`/`override`) (§69) |
+| `ports/rp2/machine_sdcard.c` | **new** native `machine.SDCard` block device; `check()`/`reinit()` + activity-deferred liveness probe for hot-swap; two runtime pin sets + bit-banged transport for the Pico Computer 2 (MMBasic `BitBang*SPI`) (§69) |
+| `ports/rp2/mpconfigport.h` (2) | `MICROPY_HW_CYW43_PRESENT()` hook, default `(1)` (§69) |
+| `ports/rp2/mphalport.c` | `mp_hal_is_pin_reserved()` reserves nothing when no radio is fitted (§69) |
+| `ports/rp2/machine_pin_cyw43.c` | WL_GPIO set/get raise when no radio is fitted (§69) |
+| `ports/rp2/mpbtstackport.c` | `port_init()` raises when no radio is fitted (§69) |
+| `extmod/network_cyw43.c` | `network.WLAN(…)` raises when no radio is fitted (§69) |
 | `boards/PICO_COMPUTER_3/pcsd.py` | **new** `/sd` mount + hot-swap removal/insertion poll (soft Timer; replicates MMBasic `CheckSDCard`) |
 | `ports/rp2/modmachine.c` | register `machine.SDCard` |
-| `ports/rp2/CMakeLists.txt` | board-specific sources gated on `MICROPY_HW_ENABLE_HDMI` / `MICROPY_PY_MACHINE_SDCARD` / `MICROPY_HW_USB_HOST`; link `tinyusb_host` vs `_device` (§27) |
+| `ports/rp2/CMakeLists.txt` | board-specific sources gated on `MICROPY_HW_ENABLE_HDMI` / `MICROPY_PY_MACHINE_SDCARD` / `MICROPY_HW_USB_HOST` / `MICROPY_HW_BOARD_DETECT` (§69); link `tinyusb_host` vs `_device` (§27) |
 | `ports/rp2/main.c` (2) | `mp_usbh_init()` at startup when `MICROPY_HW_USB_HOST` |
 | `py/mpconfig.h` | `MICROPY_BANNER_MACHINE_SEP` default (`"; "`) |
 | `shared/runtime/pyexec.c` | banner uses `MICROPY_BANNER_MACHINE_SEP` |

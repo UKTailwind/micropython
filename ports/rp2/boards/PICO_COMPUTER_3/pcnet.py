@@ -89,7 +89,12 @@ def wifi(ssid=None, pw=None, save=True):
     success. save=False connects with the given credentials WITHOUT saving them
     (the password is otherwise stored scrambled and board-bound — see the
     module note)."""
+    import board
     import network
+
+    if not board.has_wifi():
+        print("No Wi-Fi hardware on this board (" + board.name() + ")")
+        return False
 
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
@@ -164,8 +169,13 @@ def auto(on=None):
 
 def boot_sync():
     """Called by _boot_board: if auto() is enabled and credentials are saved,
-    sync from NTP. All failures are swallowed so boot never blocks on Wi-Fi."""
+    sync from NTP. All failures are swallowed so boot never blocks on Wi-Fi.
+    A board with no radio fitted skips it silently."""
     try:
+        import board
+
+        if not board.has_wifi():
+            return
         if auto() and pcconfig.get("wifi_ssid"):
             ntpsync()
     except Exception:

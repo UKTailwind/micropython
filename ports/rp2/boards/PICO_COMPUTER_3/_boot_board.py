@@ -30,6 +30,26 @@ for _name in dir(pcgfx):
     if _name.isupper():
         setattr(__main__, _name, getattr(pcgfx, _name))
 
+# Board identity. One firmware image runs on both machines in the family: the
+# Pico Computer 3, and the Pico Computer 2 (no Wi-Fi/Bluetooth, LED on GP25, SD
+# card on different, bit-banged pins). The C side has already detected which
+# this is -- everything below that differs between them asks `board`.
+import board
+
+__main__.board = board
+if board.id() != board.PICO_COMPUTER_3:
+    # os.uname().machine (and so the REPL banner) carries the compiled-in board
+    # name, which is the 3; say what this actually is.
+    print("Board:", board.name())
+
+# LED, when it is a real GPIO (Pico Computer 2). On the Pico Computer 3 the LED
+# hangs off CYW43 GPIO0: building that Pin here would power up the radio on
+# every boot, so it is left to the user as Pin("LED", Pin.OUT).
+_led = board.led_pin()
+if _led is not None:
+    __main__.LED = machine.Pin(_led, machine.Pin.OUT, value=0)
+del _led
+
 # SD card: mount /sd (if a card is present) and start the background hot-swap
 # poll so cards can be inserted/removed while running.
 import pcsd

@@ -30,6 +30,10 @@ add_compile_definitions(
 # / ioctl timeouts.
 add_compile_definitions(CYW43_PIO_CLOCK_DIV_DYNAMIC=1)
 set(MICROPY_PY_MACHINE_SDCARD 1)
+# Runtime board identification (board_detect.c / the `board` module): the port
+# CMakeLists gates that file on this flag. Kept in step with the C-side
+# MICROPY_HW_BOARD_DETECT in mpconfigboard.h.
+set(MICROPY_HW_BOARD_DETECT 1)
 # Build the on-board multimedia C sources (HSTX DVI, PCM5102 audio, image
 # loaders); the port CMakeLists gates these files on this flag.
 set(MICROPY_HW_ENABLE_HDMI 1)

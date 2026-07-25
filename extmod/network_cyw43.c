@@ -95,6 +95,14 @@ static void network_cyw43_print(const mp_print_t *print, mp_obj_t self_in, mp_pr
 
 static mp_obj_t network_cyw43_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 0, 1, false);
+    #ifdef MICROPY_HW_CYW43_PRESENT
+    // Some boards build this driver in but ship variants with no radio fitted,
+    // where the chip's pins serve other functions. Fail here rather than let
+    // the bus bring-up take those pins over.
+    if (!MICROPY_HW_CYW43_PRESENT()) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("no WLAN hardware"));
+    }
+    #endif
     if (n_args == 0 || mp_obj_get_int(args[0]) == MOD_NETWORK_STA_IF) {
         return MP_OBJ_FROM_PTR(&network_cyw43_wl_sta);
     } else {

@@ -168,7 +168,10 @@ int main(int argc, char **argv) {
     #endif
 
     #if MICROPY_PY_NETWORK_CYW43 || MICROPY_PY_BLUETOOTH_CYW43
-    {
+    // Skipped entirely on a board that has no radio fitted (see
+    // MICROPY_HW_CYW43_PRESENT): its CYW43 pins serve other functions there,
+    // and even cyw43_init() drives WL_REG_ON.
+    if (MICROPY_HW_CYW43_PRESENT()) {
         // Scale the cyw43 gSPI PIO clock divider with clk_sys before the bus is
         // brought up (SCK = clk_sys / (2 * div)). The SDK's fixed default (2) is
         // tuned for ~125 MHz and overclocks SCK at our higher clocks, causing

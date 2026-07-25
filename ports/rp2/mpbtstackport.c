@@ -130,6 +130,15 @@ void mp_bluetooth_hci_poll(void) {
 }
 
 void mp_bluetooth_btstack_port_init(void) {
+    #if MICROPY_PY_BLUETOOTH_CYW43
+    // The controller is inside the CYW43. On a board with no radio fitted its
+    // pins belong to something else, so refuse before the transport is opened
+    // (this is the first thing mp_bluetooth_init() calls).
+    if (!MICROPY_HW_CYW43_PRESENT()) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("no Bluetooth hardware"));
+    }
+    #endif
+
     btstack_run_loop_init(&mp_btstack_runloop_rp2);
 
     #if BTSTACK_ENABLE_HCI_DUMP

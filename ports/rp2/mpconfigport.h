@@ -324,6 +324,14 @@ extern void lwip_poll_hook(void);
 #define MICROPY_BOARD_STARTUP()
 #endif
 
+// Whether the CYW43 radio is actually fitted. Boards that build the driver in
+// but may ship without the chip (one firmware image, several variants) override
+// this with a runtime test; everything that would drive the chip's pins checks
+// it first, because on such a board those pins belong to something else.
+#ifndef MICROPY_HW_CYW43_PRESENT
+#define MICROPY_HW_CYW43_PRESENT() (1)
+#endif
+
 #ifndef MICROPY_BOARD_EARLY_INIT
 #define MICROPY_BOARD_EARLY_INIT()
 #endif

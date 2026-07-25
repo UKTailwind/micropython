@@ -158,5 +158,13 @@ def clear_alarm():
 def alarm_pin():
     """GP32 (the DS3231's INT line) as a ready-made input: pull-up enabled,
     reads 0 while the alarm is asserted. Use .irq() on it for interrupt
-    wake-ups (User Manual, section 14)."""
+    wake-ups (User Manual, section 14).
+
+    Pico Computer 3 only — GP32 is the SD card's MISO on a Pico Computer 2, so
+    the INT line is not reachable there (everything else in this module,
+    including the alarm itself, works on both boards)."""
+    import board
+
+    if board.id() != board.PICO_COMPUTER_3:
+        raise OSError("no RTC INT line on " + board.name())
     return machine.Pin(INT_PIN, machine.Pin.IN, machine.Pin.PULL_UP)

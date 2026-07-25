@@ -1,10 +1,11 @@
 # Pico Computer 3 — MicroPython User Manual
 
-**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 — version **0.12** (test release).
+**Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 and Pico
+Computer 2 — version **0.14** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.12 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.14 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -109,6 +110,46 @@ Reserved GPIOs (unavailable to `machine.Pin`): **8, 9, 12–19, 23, 24, 25, 28,
 29, 30, 31, 33**. Of these, **23/24/25/29** are the CYW43 Wi-Fi/Bluetooth
 interface. All other GPIOs are free for your own use with `machine.Pin`,
 `machine.ADC`, `machine.PWM`, `machine.I2C`, `machine.SPI`, `rp2.PIO`, etc.
+
+### Running on a Pico Computer 2
+
+The same firmware runs on the **Pico Computer 2**, which the board works out for
+itself at start-up (it looks for the DS3231's 32 kHz clock on GP27, which only
+the Pico Computer 3 has). Three things differ:
+
+| | Pico Computer 3 | Pico Computer 2 |
+|---|---|---|
+| Wi-Fi / Bluetooth | yes | **none** — GP23/24 are free, GP25 is the LED and GP29 the SD chip select |
+| Status LED | CYW43 GPIO0, `Pin("LED")` | **GP25**, ready-made as `LED` |
+| SD card | SCK GP30, MOSI GP31, MISO GP28, CS GP33 | SCK **GP30**, MOSI **GP31**, MISO **GP32**, CS **GP29** |
+
+Everything else — display, audio, USB, storage, the DS3231 clock, the shell — is
+identical, and the reserved pins follow whichever board you are on. Both boards
+have the RTC; the Pico Computer 2 simply does not connect its 32 kHz output,
+which is exactly what the board test looks for. The one RTC feature that does
+not carry over is the hardware alarm's INT line (`ds3231.alarm_pin()`, section
+14): it is GP32, which the Pico Computer 2 uses for the SD card, so it raises
+there. The `board` module reports what was found:
+
+```python
+import board
+board.id()        # board.PICO_COMPUTER_3 or board.PICO_COMPUTER_2
+board.name()      # "PICO COMPUTER 3" / "PICO COMPUTER 2"
+board.has_wifi()  # False on a Pico Computer 2
+board.led_pin()   # 25 on a Pico Computer 2, None when the LED is on the CYW43
+LED.toggle()      # Pico Computer 2 only (see above for the 3)
+```
+
+On a Pico Computer 2, `wifi()` and `ntpsync()` report that there is no radio,
+and `network.WLAN(…)` / `bluetooth.BLE()` raise `OSError` rather than disturb
+the pins those functions use for the LED and the SD card.
+
+> The start-up banner always says "PICO COMPUTER 3" (it is compiled in), so a
+> Pico Computer 2 prints a `Board: PICO COMPUTER 2` line at boot. If a Pico
+> Computer 3's RTC battery/chip has failed it can be mistaken for a 2 — force it
+> with `board.override(board.PICO_COMPUTER_3)` followed by **Ctrl-D** (the
+> override survives a soft reset, so the board comes back up with the right SD
+> pins; Wi-Fi needs a power cycle).
 
 ### System configuration
 
@@ -1936,5 +1977,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.12 — based on MicroPython. See
+*Pico Computer 3 firmware v0.14 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

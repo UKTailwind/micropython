@@ -1,7 +1,7 @@
 // Board and hardware specific configuration. The firmware version is folded
 // into the board name so it appears in the REPL banner and os.uname().machine;
 // "PICO COMPUTER 3" remains a substring so the _boot.py board check still matches.
-#define PICO_COMPUTER_3_VERSION                 "0.12"
+#define PICO_COMPUTER_3_VERSION                 "0.14"
 #define MICROPY_HW_BOARD_NAME                   "PICO COMPUTER 3 v" PICO_COMPUTER_3_VERSION
 #define MICROPY_HW_MCU_NAME                     "RP2350B"
 
@@ -73,7 +73,18 @@ void mp_usbh_task(void);
 #define CYW43_GPIO                              (1)
 #define CYW43_SPI_PIO                           (1)
 
-// Heartbeat LED on CYW43 GPIO0
+// The radio is fitted on the Pico Computer 3 only. On a Pico Computer 2 its
+// pins (GP23/24/25/29) belong to that board -- GP25 is the LED, GP29 the SD
+// chip select -- so bringing the CYW43 up there would take over a live SPI
+// chip select and corrupt the card. Everything that touches the chip tests
+// this first: the start-up bring-up in main.c, network.WLAN(), Bluetooth, the
+// WL_GPIO pins and the pin reservation. See §69 in DEVELOPMENT_NOTES.md.
+#define MICROPY_HW_CYW43_PRESENT()              board_has_cyw43()
+
+// Heartbeat LED. On the Pico Computer 3 it hangs off CYW43 GPIO0 (so it is
+// reachable as Pin("LED") through the ext-pin table); the Pico Computer 2 has
+// a real GPIO for it -- board.led_pin() reports which, and _boot_board.py
+// exposes the right one as LED.
 #define MICROPY_HW_LED_PIN                      (CYW43_GPIO0)
 
 // Run the core at 252 MHz from startup (headroom for HDMI, which uses HSTX
@@ -111,13 +122,43 @@ void mp_usbh_task(void);
 
 // LVGL support enabled
 #define MICROPY_HW_ENABLE_LVGL                  (1)
-// SD card on SPI1 (driven directly by the C machine.SDCard driver).
+
+// Runtime board identification (board_detect.c, also gated on the matching
+// MICROPY_HW_BOARD_DETECT in mpconfigboard.cmake). One firmware image runs on
+// both the Pico Computer 3 and the Pico Computer 2; the DS3231 RTC's 32 kHz
+// output on GP27 is fitted only to the 3, so a short probe for that square wave
+// tells them apart -- the same test MMBasic makes in TestPicoComputer3(). The
+// differences that follow from it (SD pinout and bus type, the CYW43 radio, the
+// LED) are all settled at runtime. Probed from MICROPY_BOARD_STARTUP, the
+// earliest hook in main(), before any driver touches its pins.
+#define MICROPY_HW_BOARD_DETECT                 (1)
+void board_detect_init(void);
+bool board_has_cyw43(void);
+bool board_is_pico_computer_2(void);
+#define MICROPY_BOARD_STARTUP()                 board_detect_init()
+
+// SD card, driven directly by the C machine.SDCard driver. Two pin sets, chosen
+// at start-up from the detected board:
+//
+//   Pico Computer 3   CS 33, SCK 30, MOSI 31, MISO 28 -- all SPI1 pins, so the
+//                     hardware SPI block drives it.
+//   Pico Computer 2   CS 29, SCK 30, MOSI 31, MISO 32 -- MISO is a SPI0 pin
+//                     while SCK/MOSI are SPI1, so no hardware instance covers
+//                     the set and it is bit-banged (MMBasic does the same, see
+//                     BitBangSendSPI in misc/SDCard.c). A negative SPI id is
+//                     what selects the bit-banged transport.
 #define MICROPY_PY_MACHINE_SDCARD               (1)
 #define MICROPY_HW_SD_SPI_ID                    (1)
 #define MICROPY_HW_SD_SCK                       (30)
 #define MICROPY_HW_SD_MOSI                      (31)
 #define MICROPY_HW_SD_MISO                      (28)
 #define MICROPY_HW_SD_CS                        (33)
+#define MICROPY_HW_SD_ALT_SPI_ID                (-1)
+#define MICROPY_HW_SD_ALT_SCK                   (30)
+#define MICROPY_HW_SD_ALT_MOSI                  (31)
+#define MICROPY_HW_SD_ALT_MISO                  (32)
+#define MICROPY_HW_SD_ALT_CS                    (29)
+#define MICROPY_HW_SD_USE_ALT()                 board_is_pico_computer_2()
 // Also expose the same bus as machine.SPI(1) for general use.
 #define MICROPY_HW_SPI1_SCK                     (30)
 #define MICROPY_HW_SPI1_MOSI                    (31)
@@ -126,12 +167,16 @@ void mp_usbh_task(void);
 // Pin reservation logic (same as Pico2-W)
 #define MICROPY_HW_PIN_EXT_COUNT                CYW43_WL_GPIO_COUNT
 int mp_hal_is_pin_reserved(int n);
+bool machine_sdcard_pin_reserved(int n);
 // GPIOs protected from machine.Pin() use because they serve system functions:
 //   8, 9        = console UART1 TX/RX
 //   12..19      = HDMI HSTX (D0/D1/D2/CK differential pairs)
-//   28,30,31,33 = SD card on SPI1 (MISO/SCK/MOSI/CS)
+//   SD bus      = 28,30,31,33 on a Pico Computer 3; 29,30,31,32 on a Pico
+//                 Computer 2 -- asked at runtime, since the boards differ
+//   CYW43       = via mp_hal_is_pin_reserved(), which reserves nothing on a
+//                 board with no radio fitted
 #define MICROPY_HW_PIN_RESERVED(i) \
     (mp_hal_is_pin_reserved(i) || (i) == 8 || (i) == 9 \
      || ((i) >= 12 && (i) <= 19) \
-     || (i) == 28 || (i) == 30 || (i) == 31 || (i) == 33)
+     || machine_sdcard_pin_reserved(i))
 

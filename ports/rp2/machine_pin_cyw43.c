@@ -39,7 +39,17 @@
 void machine_pin_ext_init(void) {
 }
 
+// These pins live on the CYW43 itself. On a board variant with no radio fitted
+// the chip's bus pins serve other functions, so touching one has to fail rather
+// than bring the (absent) chip up and take those pins over.
+static void machine_pin_ext_check(void) {
+    if (!MICROPY_HW_CYW43_PRESENT()) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("no WL_GPIO on this board"));
+    }
+}
+
 void machine_pin_ext_set(machine_pin_obj_t *self, bool value) {
+    machine_pin_ext_check();
     if (value != self->last_output_value || !self->is_output) {
         cyw43_gpio_set(&cyw43_state, self->id, value);
     }
@@ -47,6 +57,7 @@ void machine_pin_ext_set(machine_pin_obj_t *self, bool value) {
 }
 
 bool machine_pin_ext_get(machine_pin_obj_t *self) {
+    machine_pin_ext_check();
     bool value = false;
     cyw43_gpio_get(&cyw43_state, self->id, &value);
     return value;

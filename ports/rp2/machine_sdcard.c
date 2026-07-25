@@ -29,7 +29,14 @@
 //
 // The low-level SPI/SD protocol is adapted from the MMBasic PicoMite SDCard
 // driver (which is itself derived from ChaN's FatFs SPI sample), simplified for
-// a single card on fixed, board-determined pins driven directly by the pico-sdk.
+// a single card driven directly by the pico-sdk.
+//
+// A board may declare two pin sets and choose between them at runtime (see
+// MICROPY_HW_SD_ALT_* below) -- the Pico Computer 2 and 3 share one firmware
+// image but wire the card differently. A pin set whose SPI id is negative is
+// driven by the bit-banged transport, which is what the Pico Computer 2 needs:
+// its MISO (GP32) is a SPI0 pin while its SCK/MOSI (GP30/31) are SPI1, so no
+// hardware instance covers the set.
 
 #include "py/runtime.h"
 #include "py/mperrno.h"
@@ -39,16 +46,24 @@
 #if MICROPY_PY_MACHINE_SDCARD
 
 #include "pico/stdlib.h"
+#include "hardware/clocks.h"
 #include "hardware/spi.h"
 #include "hardware/gpio.h"
 
-// Board configuration. The SD card lives on a fixed SPI bus and set of pins.
+// Board configuration. The SD card lives on a fixed set of pins, either on a
+// hardware SPI instance (MICROPY_HW_SD_SPI_ID 0/1) or bit-banged (a negative id).
 #if !defined(MICROPY_HW_SD_SPI_ID) || !defined(MICROPY_HW_SD_CS) || \
     !defined(MICROPY_HW_SD_SCK) || !defined(MICROPY_HW_SD_MOSI) || !defined(MICROPY_HW_SD_MISO)
 #error "machine.SDCard requires MICROPY_HW_SD_SPI_ID, MICROPY_HW_SD_CS, MICROPY_HW_SD_SCK, MICROPY_HW_SD_MOSI and MICROPY_HW_SD_MISO to be defined by the board"
 #endif
 
-#define SD_SPI (MICROPY_HW_SD_SPI_ID == 0 ? spi0 : spi1)
+// Optional second pin set, selected at runtime by MICROPY_HW_SD_USE_ALT().
+#ifdef MICROPY_HW_SD_ALT_CS
+#if !defined(MICROPY_HW_SD_ALT_SPI_ID) || !defined(MICROPY_HW_SD_ALT_SCK) || \
+    !defined(MICROPY_HW_SD_ALT_MOSI) || !defined(MICROPY_HW_SD_ALT_MISO) || !defined(MICROPY_HW_SD_USE_ALT)
+#error "the alternate SD pin set needs MICROPY_HW_SD_ALT_SPI_ID/SCK/MOSI/MISO and MICROPY_HW_SD_USE_ALT()"
+#endif
+#endif
 
 // SPI clock during card identification must be 100-400 kHz; run fast afterwards.
 #ifndef MICROPY_HW_SD_SPI_BAUD_SLOW
@@ -111,20 +126,234 @@ static machine_sdcard_obj_t machine_sdcard_obj = {
 #define SD_CHECK_MS (500)
 static uint32_t sd_last_activity;
 
+// --- Bus selection --------------------------------------------------------
+
+// The pins the card is on, and how to drive them. spi_id < 0 means bit-banged.
+typedef struct _sd_bus_t {
+    int8_t spi_id;
+    uint8_t cs;
+    uint8_t sck;
+    uint8_t mosi;
+    uint8_t miso;
+} sd_bus_t;
+
+static const sd_bus_t sd_bus_primary = {
+    .spi_id = MICROPY_HW_SD_SPI_ID,
+    .cs = MICROPY_HW_SD_CS,
+    .sck = MICROPY_HW_SD_SCK,
+    .mosi = MICROPY_HW_SD_MOSI,
+    .miso = MICROPY_HW_SD_MISO,
+};
+
+#ifdef MICROPY_HW_SD_ALT_CS
+static const sd_bus_t sd_bus_alternate = {
+    .spi_id = MICROPY_HW_SD_ALT_SPI_ID,
+    .cs = MICROPY_HW_SD_ALT_CS,
+    .sck = MICROPY_HW_SD_ALT_SCK,
+    .mosi = MICROPY_HW_SD_ALT_MOSI,
+    .miso = MICROPY_HW_SD_ALT_MISO,
+};
+#endif
+
+// Which pin set this board uses. Depends only on the board identity, so it is
+// stable from start-up and safe to ask before the card is initialised.
+static const sd_bus_t *sd_bus_for_board(void) {
+    #ifdef MICROPY_HW_SD_ALT_CS
+    if (MICROPY_HW_SD_USE_ALT()) {
+        return &sd_bus_alternate;
+    }
+    #endif
+    return &sd_bus_primary;
+}
+
+static const sd_bus_t *sd_bus = &sd_bus_primary; // resolved in hw_init()
+
+// True if GPIO n carries the SD bus on this board, for the board's pin
+// reservation macro (the two boards reserve different pins).
+bool machine_sdcard_pin_reserved(int n) {
+    const sd_bus_t *bus = sd_bus_for_board();
+    return n == bus->cs || n == bus->sck || n == bus->mosi || n == bus->miso;
+}
+
+// --- Bit-banged SPI transport ---------------------------------------------
+//
+// Ported from MMBasic's BitBangSendSPI / BitBangReadSPI / BitBangSwapSPI
+// (misc/SDCard.c): SPI mode 0, MSB first, with the same three timings --
+// 20 us per half-bit while identifying the card (MMBasic's SD_SLOW_SPI_SPEED),
+// then NOP padding, one NOP at or below 200 MHz (MMBasic's slow_clock) and
+// three above it, which is what keeps the clock inside the card's limits at
+// this board's 252/378 MHz. clk_sys is read per call, not per bit, because
+// screen(mode, clock) can change it between transfers.
+
+#define SD_BB_LOW_CLOCK_HZ (200 * 1000 * 1000)
+#define SD_BB_NOP() __asm__ volatile ("nop")
+
+static bool sd_bb_slow = true; // identification speed until the card is up
+
+static void sd_bb_write(const uint8_t *buff, size_t cnt) {
+    const uint mosi = sd_bus->mosi, sck = sd_bus->sck;
+    if (sd_bb_slow) {
+        for (size_t i = 0; i < cnt; i++) {
+            uint8_t data = buff[i];
+            for (int bit = 0; bit < 8; bit++) {
+                gpio_put(mosi, data & 0x80);
+                busy_wait_us_32(20);
+                gpio_put(sck, 1);
+                busy_wait_us_32(20);
+                gpio_put(sck, 0);
+                data <<= 1;
+            }
+        }
+    } else if (clock_get_hz(clk_sys) <= SD_BB_LOW_CLOCK_HZ) {
+        for (size_t i = 0; i < cnt; i++) {
+            uint8_t data = buff[i];
+            for (int bit = 0; bit < 8; bit++) {
+                gpio_put(mosi, data & 0x80);
+                SD_BB_NOP();
+                gpio_put(sck, 1);
+                data <<= 1;
+                gpio_put(sck, 0);
+            }
+        }
+    } else {
+        for (size_t i = 0; i < cnt; i++) {
+            uint8_t data = buff[i];
+            for (int bit = 0; bit < 8; bit++) {
+                gpio_put(mosi, data & 0x80);
+                SD_BB_NOP();
+                SD_BB_NOP();
+                SD_BB_NOP();
+                gpio_put(sck, 1);
+                data <<= 1;
+                SD_BB_NOP();
+                gpio_put(sck, 0);
+            }
+        }
+    }
+}
+
+static void sd_bb_read(uint8_t *buff, size_t cnt) {
+    const uint miso = sd_bus->miso, sck = sd_bus->sck;
+    // Hold MOSI high for the whole read: the card must see 0xFF on DI while it
+    // sends. (MMBasic leaves MOSI wherever the last write left it; the
+    // hardware-SPI path below shifts out 0xFF, so do the same here.)
+    gpio_put(sd_bus->mosi, 1);
+    gpio_put(sck, 0);
+    if (sd_bb_slow) {
+        for (size_t i = 0; i < cnt; i++) {
+            uint8_t data = 0;
+            for (int bit = 0; bit < 8; bit++) {
+                data <<= 1;
+                gpio_put(sck, 1);
+                busy_wait_us_32(20);
+                data += gpio_get(miso);
+                gpio_put(sck, 0);
+                busy_wait_us_32(20);
+            }
+            buff[i] = data;
+        }
+    } else if (clock_get_hz(clk_sys) <= SD_BB_LOW_CLOCK_HZ) {
+        for (size_t i = 0; i < cnt; i++) {
+            uint8_t data = 0;
+            for (int bit = 0; bit < 8; bit++) {
+                data <<= 1;
+                gpio_put(sck, 1);
+                SD_BB_NOP();
+                data += gpio_get(miso);
+                gpio_put(sck, 0);
+                SD_BB_NOP();
+            }
+            buff[i] = data;
+        }
+    } else {
+        for (size_t i = 0; i < cnt; i++) {
+            uint8_t data = 0;
+            for (int bit = 0; bit < 8; bit++) {
+                data <<= 1;
+                gpio_put(sck, 1);
+                SD_BB_NOP();
+                SD_BB_NOP();
+                SD_BB_NOP();
+                data += gpio_get(miso);
+                gpio_put(sck, 0);
+                SD_BB_NOP();
+                SD_BB_NOP();
+                SD_BB_NOP();
+            }
+            buff[i] = data;
+        }
+    }
+}
+
+static uint8_t sd_bb_xchg(uint8_t data_out) {
+    const uint mosi = sd_bus->mosi, miso = sd_bus->miso, sck = sd_bus->sck;
+    uint8_t data_in = 0;
+    if (sd_bb_slow) {
+        for (int bit = 0; bit < 8; bit++) {
+            gpio_put(mosi, data_out & 0x80);
+            busy_wait_us_32(20);
+            data_in <<= 1;
+            gpio_put(sck, 1);
+            busy_wait_us_32(20);
+            data_in += gpio_get(miso);
+            gpio_put(sck, 0);
+            data_out <<= 1;
+        }
+    } else if (clock_get_hz(clk_sys) <= SD_BB_LOW_CLOCK_HZ) {
+        for (int bit = 0; bit < 8; bit++) {
+            gpio_put(mosi, data_out & 0x80);
+            SD_BB_NOP();
+            data_in <<= 1;
+            gpio_put(sck, 1);
+            data_out <<= 1;
+            data_in += gpio_get(miso);
+            gpio_put(sck, 0);
+        }
+    } else {
+        for (int bit = 0; bit < 8; bit++) {
+            gpio_put(mosi, data_out & 0x80);
+            SD_BB_NOP();
+            SD_BB_NOP();
+            data_in <<= 1;
+            gpio_put(sck, 1);
+            data_out <<= 1;
+            SD_BB_NOP();
+            data_in += gpio_get(miso);
+            gpio_put(sck, 0);
+        }
+    }
+    return data_in;
+}
+
 // --- Low-level SPI helpers ------------------------------------------------
 
-static inline uint8_t sd_xchg(uint8_t tx) {
+static inline spi_inst_t *sd_spi(void) {
+    return sd_bus->spi_id == 0 ? spi0 : spi1;
+}
+
+static uint8_t sd_xchg(uint8_t tx) {
+    if (sd_bus->spi_id < 0) {
+        return sd_bb_xchg(tx);
+    }
     uint8_t rx;
-    spi_write_read_blocking(SD_SPI, &tx, &rx, 1);
+    spi_write_read_blocking(sd_spi(), &tx, &rx, 1);
     return rx;
 }
 
-static inline void sd_write_multi(const uint8_t *buff, size_t len) {
-    spi_write_blocking(SD_SPI, buff, len);
+static void sd_write_multi(const uint8_t *buff, size_t len) {
+    if (sd_bus->spi_id < 0) {
+        sd_bb_write(buff, len);
+        return;
+    }
+    spi_write_blocking(sd_spi(), buff, len);
 }
 
-static inline void sd_read_multi(uint8_t *buff, size_t len) {
-    spi_read_blocking(SD_SPI, 0xFF, buff, len);
+static void sd_read_multi(uint8_t *buff, size_t len) {
+    if (sd_bus->spi_id < 0) {
+        sd_bb_read(buff, len);
+        return;
+    }
+    spi_read_blocking(sd_spi(), 0xFF, buff, len);
 }
 
 static uint8_t sd_crc7(const uint8_t *message, size_t length) {
@@ -151,12 +380,12 @@ static bool sd_wait_ready(uint32_t timeout_ms) {
 }
 
 static void sd_deselect(void) {
-    gpio_put(MICROPY_HW_SD_CS, 1);
+    gpio_put(sd_bus->cs, 1);
     sd_xchg(0xFF); // Dummy clock to force DO to hi-z.
 }
 
 static bool sd_select(void) {
-    gpio_put(MICROPY_HW_SD_CS, 0);
+    gpio_put(sd_bus->cs, 0);
     sd_xchg(0xFF); // Dummy clock to force DO enabled.
     if (sd_wait_ready(500)) {
         return true;
@@ -240,7 +469,13 @@ static uint8_t sd_send_cmd(uint8_t cmd, uint32_t arg) {
 }
 
 static void sd_spi_set_baud(uint32_t baud) {
-    spi_set_baudrate(SD_SPI, baud);
+    if (sd_bus->spi_id < 0) {
+        // The bit-banged transport has two speeds, not a baud rate: the slow
+        // one for card identification, free-running otherwise.
+        sd_bb_slow = baud <= MICROPY_HW_SD_SPI_BAUD_SLOW;
+        return;
+    }
+    spi_set_baudrate(sd_spi(), baud);
 }
 
 // --- Card initialisation and I/O -----------------------------------------
@@ -410,22 +645,40 @@ static bool sd_probe_alive(void) {
 // --- Python bindings ------------------------------------------------------
 
 static void machine_sdcard_hw_init(void) {
-    // Configure CS as a GPIO output (de-asserted) and the bus pins for SPI.
-    gpio_init(MICROPY_HW_SD_CS);
-    gpio_set_dir(MICROPY_HW_SD_CS, GPIO_OUT);
-    gpio_put(MICROPY_HW_SD_CS, 1);
-    spi_init(SD_SPI, MICROPY_HW_SD_SPI_BAUD_SLOW);
-    spi_set_format(SD_SPI, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
-    gpio_set_function(MICROPY_HW_SD_SCK, GPIO_FUNC_SPI);
-    gpio_set_function(MICROPY_HW_SD_MOSI, GPIO_FUNC_SPI);
-    gpio_set_function(MICROPY_HW_SD_MISO, GPIO_FUNC_SPI);
+    // Pick the pin set for the board we are actually running on.
+    sd_bus = sd_bus_for_board();
+
+    // Configure CS as a GPIO output (de-asserted).
+    gpio_init(sd_bus->cs);
+    gpio_set_dir(sd_bus->cs, GPIO_OUT);
+    gpio_put(sd_bus->cs, 1);
+
+    if (sd_bus->spi_id < 0) {
+        // Bit-banged: SCK and MOSI are plain outputs, idle low (mode 0).
+        gpio_init(sd_bus->sck);
+        gpio_put(sd_bus->sck, 0);
+        gpio_set_dir(sd_bus->sck, GPIO_OUT);
+        gpio_init(sd_bus->mosi);
+        gpio_put(sd_bus->mosi, 0);
+        gpio_set_dir(sd_bus->mosi, GPIO_OUT);
+        gpio_init(sd_bus->miso);
+        gpio_set_dir(sd_bus->miso, GPIO_IN);
+        sd_bb_slow = true;
+    } else {
+        spi_init(sd_spi(), MICROPY_HW_SD_SPI_BAUD_SLOW);
+        spi_set_format(sd_spi(), 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+        gpio_set_function(sd_bus->sck, GPIO_FUNC_SPI);
+        gpio_set_function(sd_bus->mosi, GPIO_FUNC_SPI);
+        gpio_set_function(sd_bus->miso, GPIO_FUNC_SPI);
+    }
+
     // A pull-up on MISO is essential: while no card is driving the line (during
     // identification and between transfers) it must idle high so wait_ready()
     // sees 0xFF. Match MMBasic's drive strength and input hysteresis too.
-    gpio_pull_up(MICROPY_HW_SD_MISO);
-    gpio_set_drive_strength(MICROPY_HW_SD_MOSI, GPIO_DRIVE_STRENGTH_8MA);
-    gpio_set_drive_strength(MICROPY_HW_SD_SCK, GPIO_DRIVE_STRENGTH_8MA);
-    gpio_set_input_hysteresis_enabled(MICROPY_HW_SD_MISO, true);
+    gpio_pull_up(sd_bus->miso);
+    gpio_set_drive_strength(sd_bus->mosi, GPIO_DRIVE_STRENGTH_8MA);
+    gpio_set_drive_strength(sd_bus->sck, GPIO_DRIVE_STRENGTH_8MA);
+    gpio_set_input_hysteresis_enabled(sd_bus->miso, true);
 }
 
 static mp_obj_t machine_sdcard_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *all_args) {

@@ -1,8 +1,13 @@
-// Board and hardware specific configuration. The firmware version is folded
-// into the board name so it appears in the REPL banner and os.uname().machine;
-// "PICO COMPUTER 3" remains a substring so the _boot.py board check still matches.
+// Board and hardware specific configuration. The firmware version (shared by
+// both machines in the family) is folded into the board name so it appears in
+// the REPL banner and os.uname().machine.
 #define PICO_COMPUTER_3_VERSION                 "0.14"
 #define MICROPY_HW_BOARD_NAME                   "PICO COMPUTER 3 v" PICO_COMPUTER_3_VERSION
+// The name the same image reports when it finds itself on the other board. The
+// banner and os.uname().machine pick between the two at run time (see
+// MICROPY_BANNER_MACHINE_STR below); sys.implementation._machine has to be a
+// compile-time constant, so it always names the 3.
+#define MICROPY_HW_BOARD_NAME_ALT               "PICO COMPUTER 2 v" PICO_COMPUTER_3_VERSION
 #define MICROPY_HW_MCU_NAME                     "RP2350B"
 
 // RP2350B has 48 GPIOs with ADC on GP40-47 (help() text).
@@ -135,7 +140,15 @@ void mp_usbh_task(void);
 void board_detect_init(void);
 bool board_has_cyw43(void);
 bool board_is_pico_computer_2(void);
+const char *board_machine_name(void);
 #define MICROPY_BOARD_STARTUP()                 board_detect_init()
+
+// Report the machine we are actually on, not the one the image was compiled
+// for: the REPL banner and os.uname().machine both come from the detected
+// board (MICROPY_HW_BOARD_NAME / MICROPY_HW_BOARD_NAME_ALT above).
+#define MICROPY_BANNER_MACHINE_STR              board_machine_name()
+#define MICROPY_PY_OS_UNAME_MACHINE_DYNAMIC     (1)
+#define mp_os_uname_machine()                   board_machine_name()
 
 // SD card, driven directly by the C machine.SDCard driver. Two pin sets, chosen
 // at start-up from the detected board:

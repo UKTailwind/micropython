@@ -2607,9 +2607,29 @@ Left alone deliberately: `cyw43_ensure_up()` does fail gracefully (10 tries on
 the SPI test register, ~10 ms) — but only *after* `cyw43_spi_init()` has already
 claimed the pins, which is exactly what must not happen here.
 
-**Python side.** `_boot_board.py` exposes the `board` module, prints
-`Board: PICO COMPUTER 2` when the detected board is not the compiled-in name
-(`os.uname().machine` and the banner still say "PICO COMPUTER 3"), and binds
+**The banner names the machine it is on.** `MICROPY_HW_BOARD_NAME` is compiled
+in, so the REPL banner and `os.uname().machine` said "PICO COMPUTER 3" on both
+boards. Both are now resolved at run time from `board_machine_name()`, via two
+board-agnostic hooks that default to today's behaviour:
+
+- `MICROPY_BANNER_MACHINE_STR` (new, `py/mpconfig.h`, defaults to
+  `MICROPY_BANNER_MACHINE`) — `pyexec.c` prints the separator and the machine
+  name as two calls instead of one concatenated literal, so a board may supply
+  an expression. `MICROPY_BANNER_MACHINE` itself must stay a literal:
+  `sys.implementation._machine` is a `static const` str object built from it.
+- `MICROPY_PY_OS_UNAME_MACHINE_DYNAMIC` + `mp_os_uname_machine()`
+  (`extmod/modos.c`) — an exact mirror of the existing
+  `MICROPY_PY_OS_UNAME_RELEASE_DYNAMIC` idiom: the str object drops `const` and
+  `os.uname()` repoints it on each call.
+
+The board defines `MICROPY_HW_BOARD_NAME_ALT` ("PICO COMPUTER 2 v0.14") beside
+the compiled-in name and points both hooks at `board_machine_name()`, which
+returns one of two string literals — so the pointer `os.uname()` keeps is valid
+for the life of the program. **`sys.implementation._machine` still names the 3
+on both boards** (it is a compile-time constant object with no init hook);
+`board.name()` and `os.uname().machine` are the honest answers.
+
+**Python side.** `_boot_board.py` exposes the `board` module and binds
 `LED` to `machine.Pin(25, OUT)` **only when the LED is a real GPIO** — building
 `Pin("LED")` on a Pico Computer 3 would power the radio up on every boot, so
 there it stays a manual `Pin("LED", Pin.OUT)`. `pcnet.wifi()` reports "No Wi-Fi
@@ -2684,6 +2704,9 @@ against `machine.Pin()`, but `machine.SPI(1)` is not routed through that check.
 | `ports/rp2/machine_pin_cyw43.c` | WL_GPIO set/get raise when no radio is fitted (§69) |
 | `ports/rp2/mpbtstackport.c` | `port_init()` raises when no radio is fitted (§69) |
 | `extmod/network_cyw43.c` | `network.WLAN(…)` raises when no radio is fitted (§69) |
+| `py/mpconfig.h` (2) | `MICROPY_BANNER_MACHINE_STR` hook, defaults to `MICROPY_BANNER_MACHINE` (§69) |
+| `shared/runtime/pyexec.c` (2) | banner prints separator + machine name separately so the latter may be a runtime expression (§69) |
+| `extmod/modos.c` | `MICROPY_PY_OS_UNAME_MACHINE_DYNAMIC` / `mp_os_uname_machine()`, mirroring the release-dynamic idiom (§69) |
 | `boards/PICO_COMPUTER_3/pcsd.py` | **new** `/sd` mount + hot-swap removal/insertion poll (soft Timer; replicates MMBasic `CheckSDCard`) |
 | `ports/rp2/modmachine.c` | register `machine.SDCard` |
 | `ports/rp2/CMakeLists.txt` | board-specific sources gated on `MICROPY_HW_ENABLE_HDMI` / `MICROPY_PY_MACHINE_SDCARD` / `MICROPY_HW_USB_HOST` / `MICROPY_HW_BOARD_DETECT` (§69); link `tinyusb_host` vs `_device` (§27) |

@@ -449,7 +449,8 @@ static int pyexec_friendly_repl_process_char(int c) {
             // reset friendly REPL
             mp_hal_stdout_tx_str("\r\n");
             mp_hal_stdout_tx_str(MICROPY_BANNER_NAME_AND_VERSION);
-            mp_hal_stdout_tx_str(MICROPY_BANNER_MACHINE_SEP MICROPY_BANNER_MACHINE);
+            mp_hal_stdout_tx_str(MICROPY_BANNER_MACHINE_SEP);
+            mp_hal_stdout_tx_str(MICROPY_BANNER_MACHINE_STR);
             mp_hal_stdout_tx_str("\r\n");
             #if MICROPY_PY_BUILTINS_HELP
             mp_hal_stdout_tx_str("Type \"help()\" for more information.\r\n");
@@ -622,7 +623,8 @@ int pyexec_friendly_repl(void) {
 
 friendly_repl_reset:
     mp_hal_stdout_tx_str(MICROPY_BANNER_NAME_AND_VERSION);
-    mp_hal_stdout_tx_str(MICROPY_BANNER_MACHINE_SEP MICROPY_BANNER_MACHINE);
+    mp_hal_stdout_tx_str(MICROPY_BANNER_MACHINE_SEP);
+    mp_hal_stdout_tx_str(MICROPY_BANNER_MACHINE_STR);
     mp_hal_stdout_tx_str("\r\n");
     #if MICROPY_PY_BUILTINS_HELP
     mp_hal_stdout_tx_str("Type \"help()\" for more information.\r\n");

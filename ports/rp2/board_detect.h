@@ -83,4 +83,9 @@ int board_led_pin(void);
 // Human-readable name for the detected board.
 const char *board_detect_name(void);
 
+// The same, as the full "<board> vX.Y with <MCU>" text used by the REPL banner
+// and os.uname().machine (see MICROPY_BANNER_MACHINE_STR /
+// MICROPY_PY_OS_UNAME_MACHINE_DYNAMIC).
+const char *board_machine_name(void);
+
 #endif // MICROPY_INCLUDED_RP2_BOARD_DETECT_H

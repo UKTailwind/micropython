@@ -37,10 +37,6 @@ for _name in dir(pcgfx):
 import board
 
 __main__.board = board
-if board.id() != board.PICO_COMPUTER_3:
-    # os.uname().machine (and so the REPL banner) carries the compiled-in board
-    # name, which is the 3; say what this actually is.
-    print("Board:", board.name())
 
 # LED, when it is a real GPIO (Pico Computer 2). On the Pico Computer 3 the LED
 # hangs off CYW43 GPIO0: building that Pin here would power up the radio on

@@ -94,6 +94,15 @@ MP_DEFINE_CONST_FUN_OBJ_0(mp_os_sync_obj, mp_os_sync);
 #define CONST_RELEASE const
 #endif
 
+// As above for the machine name, for a board that only learns which machine it
+// is at run time (one firmware image, several variants). The port supplies
+// mp_os_uname_machine().
+#if MICROPY_PY_OS_UNAME_MACHINE_DYNAMIC
+#define CONST_MACHINE
+#else
+#define CONST_MACHINE const
+#endif
+
 static const qstr mp_os_uname_info_fields[] = {
     MP_QSTR_sysname,
     MP_QSTR_nodename,
@@ -105,7 +114,7 @@ static const MP_DEFINE_STR_OBJ(mp_os_uname_info_sysname_obj, MICROPY_PY_SYS_PLAT
 static const MP_DEFINE_STR_OBJ(mp_os_uname_info_nodename_obj, MICROPY_PY_SYS_PLATFORM);
 static CONST_RELEASE MP_DEFINE_STR_OBJ(mp_os_uname_info_release_obj, MICROPY_VERSION_STRING);
 static const MP_DEFINE_STR_OBJ(mp_os_uname_info_version_obj, MICROPY_GIT_TAG " on " MICROPY_BUILD_DATE MICROPY_BUILD_TYPE_PAREN);
-static const MP_DEFINE_STR_OBJ(mp_os_uname_info_machine_obj, MICROPY_HW_BOARD_NAME " with " MICROPY_HW_MCU_NAME);
+static CONST_MACHINE MP_DEFINE_STR_OBJ(mp_os_uname_info_machine_obj, MICROPY_HW_BOARD_NAME " with " MICROPY_HW_MCU_NAME);
 
 static MP_DEFINE_ATTRTUPLE(
     mp_os_uname_info_obj,
@@ -123,6 +132,11 @@ static mp_obj_t mp_os_uname(void) {
     const char *release = mp_os_uname_release();
     mp_os_uname_info_release_obj.len = strlen(release);
     mp_os_uname_info_release_obj.data = (const byte *)release;
+    #endif
+    #if MICROPY_PY_OS_UNAME_MACHINE_DYNAMIC
+    const char *machine = mp_os_uname_machine();
+    mp_os_uname_info_machine_obj.len = strlen(machine);
+    mp_os_uname_info_machine_obj.data = (const byte *)machine;
     #endif
     return MP_OBJ_FROM_PTR(&mp_os_uname_info_obj);
 }

@@ -133,6 +133,20 @@ const char *board_detect_name(void) {
     }
 }
 
+// The "<board> vX.Y with <MCU>" text for the REPL banner and
+// os.uname().machine, naming the machine this actually is rather than the one
+// the image was compiled for. Both arms are string literals, so the pointer is
+// good for the life of the program (os.uname() keeps it, and the banner is
+// printed from it directly).
+const char *board_machine_name(void) {
+    #ifdef MICROPY_HW_BOARD_NAME_ALT
+    if (board_id == BOARD_ID_PICO_COMPUTER_2) {
+        return MICROPY_HW_BOARD_NAME_ALT " with " MICROPY_HW_MCU_NAME;
+    }
+    #endif
+    return MICROPY_HW_BOARD_NAME " with " MICROPY_HW_MCU_NAME;
+}
+
 // --- Python interface -------------------------------------------------------
 
 static mp_obj_t board_id_fun(void) {

@@ -144,12 +144,17 @@ On a Pico Computer 2, `wifi()` and `ntpsync()` report that there is no radio,
 and `network.WLAN(…)` / `bluetooth.BLE()` raise `OSError` rather than disturb
 the pins those functions use for the LED and the SD card.
 
-> The start-up banner always says "PICO COMPUTER 3" (it is compiled in), so a
-> Pico Computer 2 prints a `Board: PICO COMPUTER 2` line at boot. If a Pico
-> Computer 3's RTC battery/chip has failed it can be mistaken for a 2 — force it
-> with `board.override(board.PICO_COMPUTER_3)` followed by **Ctrl-D** (the
-> override survives a soft reset, so the board comes back up with the right SD
-> pins; Wi-Fi needs a power cycle).
+The start-up banner and `os.uname().machine` name the board that was found, so
+a Pico Computer 2 greets you with:
+
+```
+MicroPython v1.29.0-preview on PICO COMPUTER 2 v0.14 with RP2350B
+```
+
+> If a Pico Computer 3's RTC battery/chip has failed it can be mistaken for a
+> 2 — force it with `board.override(board.PICO_COMPUTER_3)` followed by
+> **Ctrl-D** (the override survives a soft reset, so the board comes back up
+> with the right SD pins; Wi-Fi needs a power cycle).
 
 ### System configuration
 

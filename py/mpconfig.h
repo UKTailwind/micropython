@@ -2300,6 +2300,15 @@ typedef time_t mp_timestamp_t;
 #define MICROPY_BANNER_MACHINE_SEP "; "
 #endif
 
+// The machine name printed in the REPL banner. Defaults to the compile-time
+// MICROPY_BANNER_MACHINE; a board that only learns which machine it is at run
+// time (one firmware image, several variants) overrides this with an
+// expression yielding a const char *. MICROPY_BANNER_MACHINE itself must stay a
+// string literal -- sys.implementation._machine is built from it.
+#ifndef MICROPY_BANNER_MACHINE_STR
+#define MICROPY_BANNER_MACHINE_STR MICROPY_BANNER_MACHINE
+#endif
+
 // Number of bytes in an object word: mp_obj_t, mp_uint_t, mp_uint_t
 #ifndef MP_BYTES_PER_OBJ_WORD
 #define MP_BYTES_PER_OBJ_WORD (sizeof(mp_uint_t))

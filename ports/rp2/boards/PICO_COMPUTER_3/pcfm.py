@@ -32,6 +32,24 @@ def _rd():
     return sys.stdin.read(1)
 
 
+def _kbd_intr(ch):
+    """Set the console interrupt character: 3 = Ctrl-C raises KeyboardInterrupt,
+    -1 = it arrives as an ordinary byte.
+
+    fm keeps it OFF while its panels are up, so _key() can read Ctrl-C as QUIT.
+    Anything fm hands the console to turns the normal Ctrl-C back ON -- pye and
+    pcshell's key readers both end with kbd_intr(3), and a user program *needs*
+    it on or it can't be stopped -- so fm re-asserts its own mode on the way
+    back. (Before this, a program launched from fm inherited fm's disabled
+    Ctrl-C and ran unstoppably, unless an edit or view had happened to turn it
+    back on first.)"""
+    try:
+        from micropython import kbd_intr
+    except ImportError:
+        return
+    kbd_intr(ch)
+
+
 def _key():
     """One logical key, decoding ANSI escapes with blocking reads (an arrow's
     bytes arrive together). select.poll can't see the USB-keyboard ring buffer
@@ -359,10 +377,15 @@ class _FM:
 
         before = (hdmi.width(), hdmi.height(), hdmi.bpp())
         _w("\x1b[2J\x1b[H\x1b[?25h")
+        _kbd_intr(3)          # the program must be stoppable with Ctrl-C
         try:
             pcshell.run(full)
+        except KeyboardInterrupt:
+            _w("\r\nstopped\r\n")
         except Exception as e:
             sys.print_exception(e)
+        finally:
+            _kbd_intr(-1)     # back to fm's own key handling
         if (hdmi.width(), hdmi.height(), hdmi.bpp()) != before:
             self._restore_display()
         else:
@@ -426,6 +449,8 @@ class _FM:
             pcshell.cat(full)
         except Exception as e:
             sys.print_exception(e)
+        finally:
+            _kbd_intr(-1)     # cat's pager leaves the normal Ctrl-C on
         self._pause()
 
     def edit(self):
@@ -439,6 +464,8 @@ class _FM:
             pcshell.edit(self.act.full(name))
         except Exception as e:
             sys.print_exception(e)
+        finally:
+            _kbd_intr(-1)     # pye's deinit_tty leaves the normal Ctrl-C on
         self.act.load()
         self.redraw()
 
@@ -614,15 +641,9 @@ def fm(path=None):
     """Open the dual-panel file manager (MMBasic FM). `path` is the starting
     directory (default: the current directory). Tab switches panes; Space
     selects several files for one C/M/D copy/move/delete; Q exits."""
-    try:
-        from micropython import kbd_intr
-    except ImportError:
-        kbd_intr = None
-    if kbd_intr:
-        kbd_intr(-1)
+    _kbd_intr(-1)             # Ctrl-C is a key here (QUIT), not an interrupt
     try:
         _FM(path).loop()
     finally:
-        if kbd_intr:
-            kbd_intr(3)
+        _kbd_intr(3)          # hand the normal Ctrl-C back to the REPL
         _w("\x1b[2J\x1b[H\x1b[?25h\x1b[0m")

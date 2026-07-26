@@ -328,7 +328,9 @@ fm("/sd")     # both panes start on the SD card
 - **Manage:** **E** edit (opens `pye`), **D** delete (confirms; a multi-file
   delete confirms once with the count), **R** rename, **N** new directory.
   **S** stops audio, **+/-** adjust volume.
-- **Q** exits.
+- **Q** exits. **Ctrl-C** is a key here, not an interrupt — it also quits.
+- **Stopping a program you started from fm:** press **Ctrl-C**, exactly as at
+  the command line. The program stops and you return to the panels.
 
 The bottom **status line shows the selected file's full name** (so a name too
 long to fit its pane is still readable), and the **key legend** just above wraps

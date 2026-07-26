@@ -2656,6 +2656,40 @@ against `machine.Pin()`, but `machine.SPI(1)` is not routed through that check.
 
 ---
 
+### 70. `fm` — a program launched from the file manager could not be Ctrl-C'd
+
+Reported from a v0.14 board: run a program from `fm()` and **Ctrl-C does
+nothing**; run the same file with `run()` from the REPL and it stops normally.
+Stranger still, **editing the file first made Ctrl-C work** — the clue that
+solved it.
+
+`fm` reads Ctrl-C as a *key* (`_key()` returns `"QUIT"`), so `fm()` sets
+`micropython.kbd_intr(-1)` for its whole session and only restores `3` when you
+quit. `_FM.run()` then called `pcshell.run()` **inside** that window, so the
+program inherited a console where Ctrl-C is an ordinary byte and no
+`KeyboardInterrupt` is ever raised. Editing first "fixed" it because pye's
+`IO_DEVICE.deinit_tty()` ends with `kbd_intr(3)` — leaving the interrupt char
+*on* when control returned to fm. The same accident applied after a view
+(`pcshell.cat`'s pager ends in `_getkey`, which also restores `3`), and it cut
+both ways: after an edit or view, Ctrl-C in fm's own panels raised
+`KeyboardInterrupt` and dumped the user out of the file manager with a
+traceback.
+
+The invariant is now explicit, in one helper (`pcfm._kbd_intr`) with the rule in
+its docstring: **fm owns `kbd_intr(-1)` while its panels are up; everything it
+hands the console to restores `3`, so fm re-asserts its own mode on the way
+back.** `run()` deliberately turns the normal Ctrl-C back **on** for the
+duration of the program (it must, or the program cannot be stopped), catches the
+resulting `KeyboardInterrupt`, prints `stopped`, and returns to the panels
+rather than unwinding out of `fm()`. `edit()` and `view()` re-assert `-1` in a
+`finally`.
+
+Verified on the emulator by stubbing `micropython.kbd_intr` and `pcshell` and
+tracing the call sequence: `fm()` → `-1`; run → `3`, program, Ctrl-C caught,
+`-1`; edit/view → shim sets `3`, fm restores `-1`.
+
+---
+
 ## Files touched
 
 | File | Purpose |
@@ -2725,6 +2759,7 @@ against `machine.Pin()`, but `machine.SPI(1)` is not routed through that check.
 | `boards/PICO_COMPUTER_3/pcturtle.py` | **new** `Turtle` graphics class (MMBasic TURTLE on the pcgfx primitives) (§42) |
 | `boards/PICO_COMPUTER_3/pcshell.py` | **new** shell commands (`ls`/`run`/`edit`/file ops) + `COMMANDS` |
 | `boards/PICO_COMPUTER_3/pye.py` | **new** vendored pye editor (MIT, V2.79) with one local Backspace patch |
+| `boards/PICO_COMPUTER_3/pcfm.py` | **new** dual-panel file manager (MMBasic FM): `fm()` browses/runs/plays/views; `_kbd_intr()` keeps the Ctrl-C mode straight across run/edit/view (§70) |
 
 ## Quick REPL smoke test (over UART, 115200 8N1)
 

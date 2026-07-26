@@ -140,7 +140,17 @@ class _Panel:
         try:
             for e in os.ilistdir(self.path):
                 isdir = bool(e[1] & 0x4000)
+                # The size is ilistdir's OPTIONAL 4th element. FAT and littlefs
+                # supply it, but VfsPosix (the emulator's host filesystem) and
+                # the root mount-point listing return 3-tuples -- fall back to
+                # stat() rather than report every file as 0 bytes. Only files
+                # with no size are stat'ed, so a normal listing costs nothing.
                 size = e[3] if len(e) > 3 else 0
+                if not isdir and not size:
+                    try:
+                        size = os.stat(self.full(e[0]))[6]
+                    except OSError:
+                        pass
                 (dirs if isdir else files).append((e[0], isdir, size))
         except OSError:
             pass

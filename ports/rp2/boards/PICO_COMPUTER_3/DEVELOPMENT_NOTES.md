@@ -2690,6 +2690,36 @@ tracing the call sequence: `fm()` → `-1`; run → `3`, program, Ctrl-C caught,
 
 ---
 
+### 71. `fm` — file sizes shown as 0
+
+Reported alongside §70: every file listed as 0 bytes, though all of them open
+fine. Not the reporter's mistake — `_Panel.load()` took the size from
+`os.ilistdir()`'s **optional** 4th element and fell back to `0` when it was
+absent:
+
+```python
+size = e[3] if len(e) > 3 else 0
+```
+
+That element is not part of the contract. `vfs_fat.c` and the littlefs bindings
+build 4-tuples including `fsize`, but **`vfs_posix.c` builds 3-tuples** (no
+size), as does the synthesised root listing of mount points in `vfs.c`. So on
+the emulator, whose `/sd` is a host directory, *every* file read as 0 bytes —
+reproduced exactly.
+
+`load()` now falls back to `os.stat(...)[6]` for any file whose listing carries
+no size. Only sizeless files are stat'ed, so a FAT or littlefs listing costs
+nothing extra, and a genuinely empty file still shows 0.
+
+Verified on the emulator: `ilistdir` gives `('bubble.py', 32768, 5070)` (3-tuple,
+no size) and the panel now shows `1K`. Note that a controlled test against a
+**real FAT filesystem** (`VfsFat` over a RAM block device) does return the size —
+`('bubble.py', 32768, 0, 1234)` — so if a board's SD listing is also showing
+zeros, the stat() fallback fixes the display but there is a second cause worth
+chasing in the FatFS layer.
+
+---
+
 ## Files touched
 
 | File | Purpose |

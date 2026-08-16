@@ -16,9 +16,45 @@
 #include "hardware/gpio.h"
 #include "hardware/ticks.h"
 #include "hardware/vreg.h"
+#include "hardware/timer.h"     // busy_wait_us_32, for the voltage settle
 #if HAS_RP2040_RTC
 #include "hardware/rtc.h"
 #endif
+
+// Core voltage for a target clk_sys, following MMBasic's ladder in
+// PicoMite.c so a board behaves the same under both firmwares.
+//
+// The RP2350 comes out of reset at 1.10 V, which is not enough for the
+// speeds this port runs at. The Pico Computer 3 itself does not depend on
+// this - DVDD there comes from an external 1.3 V regulator and the internal
+// one is not what feeds the core - but a CLONE built on a stock module such
+// as the Pimoroni PGA2350 has only the chip's own regulator, and at 252 MHz
+// on 1.10 V it simply does not run. That is the reported failure.
+//
+// MMBasic uses 1.60 V above 320 MHz. This uses 1.40 V: enough headroom over
+// the 1.30 V the PC3 supplies externally at 378 MHz, without asking a clone
+// to dissipate what MMBasic asks for until someone reports needing it.
+//
+// vreg_disable_voltage_limit() first because anything above 1.30 V is behind
+// POWMAN's limit - the SDK's VREG_VOLTAGE_MAX is 1.30 and vreg_set_voltage()
+// would otherwise clamp.
+void set_core_voltage_for_khz(uint32_t khz) {
+    enum vreg_voltage v;
+
+    if (khz <= 200000) {
+        v = VREG_VOLTAGE_1_15;
+    } else if (khz <= 320000) {
+        v = VREG_VOLTAGE_1_30;
+    } else {
+        v = VREG_VOLTAGE_1_40;
+    }
+    vreg_disable_voltage_limit();
+    vreg_set_voltage(v);
+    // It must SETTLE before anything runs at the new speed. MMBasic waits
+    // 10 ms here and so do we; a busy wait rather than sleep_ms so this is
+    // safe to call before the alarm pool exists and with interrupts off.
+    busy_wait_us_32(10000);
+}
 
 static void start_all_ticks(void) {
     uint32_t cycles = clock_get_hz(clk_ref) / MHZ;

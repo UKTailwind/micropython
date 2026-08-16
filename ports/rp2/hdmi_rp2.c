@@ -44,6 +44,7 @@
 #include "uart.h"          // mp_uart_init
 #include "rp2_flash.h"     // rp2_flash_set_timing_for_freq
 #include "rp2_psram.h"     // psram_init
+#include "clocks_extra.h"  // set_core_voltage_for_khz
 
 #if MICROPY_PY_NETWORK_CYW43 || MICROPY_PY_BLUETOOTH_CYW43
 #include "hardware/pio.h"
@@ -489,6 +490,13 @@ static void hdmi_set_clock(uint32_t khz) {
     if (freq == old_freq) {
         return;
     }
+    // Core voltage goes UP before the clock does, and comes down only after
+    // (below): the core must never run at the new speed on the old, lower
+    // voltage. Deliberately outside the masked region that follows - it needs
+    // 10 ms to settle and that window has to stay short.
+    if (freq > old_freq) {
+        set_core_voltage_for_khz(khz);
+    }
     // Whole switch runs with interrupts masked (like MMBasic): the PLL park is
     // brief, and it guarantees the cyw43 gSPI SM is idle when we retune it below
     // (no transfer mid-flight) and that nothing touches PSRAM/flash while their
@@ -529,6 +537,11 @@ static void hdmi_set_clock(uint32_t khz) {
         #endif
     }
     restore_interrupts(irqs);
+    // Coming down: drop the voltage only once the core is already slow, and
+    // only if the clock actually moved.
+    if (ok && freq < old_freq) {
+        set_core_voltage_for_khz(khz);
+    }
     if (!ok) {
         mp_raise_ValueError(MP_ERROR_TEXT("cannot set clock"));
     }

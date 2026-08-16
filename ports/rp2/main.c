@@ -49,6 +49,7 @@
 #include "genhdr/mpversion.h"
 #include "mp_usbd.h"
 #include "rp2_psram.h"
+#include "clocks_extra.h"
 
 #include "pico/stdlib.h"
 #include "pico/binary_info.h"
@@ -101,6 +102,14 @@ int main(int argc, char **argv) {
     // frequency *before* moving the PLL, so XIP flash is never briefly overclocked
     // during the switch; rp2_flash_set_timing() below reasserts it for the final
     // clk_sys (set_sys_clock can rewrite the QSPI pads).
+    #if MICROPY_HW_CLK_SYS_KHZ != SYS_CLK_KHZ
+    // ...and raise the core voltage before the clock, with time to settle: the
+    // chip leaves reset at 1.10 V, which will not carry these speeds on a board
+    // whose DVDD comes from the internal regulator. Only for boards that ask to
+    // run faster than the SDK default - a board at the default keeps the stock
+    // voltage. See set_core_voltage_for_khz().
+    set_core_voltage_for_khz(MICROPY_HW_CLK_SYS_KHZ);
+    #endif
     rp2_flash_set_timing_for_freq(MICROPY_HW_CLK_SYS_KHZ * 1000);
     set_sys_clock_khz(MICROPY_HW_CLK_SYS_KHZ, false);
 

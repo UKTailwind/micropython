@@ -30,4 +30,9 @@
 
 void runtime_init_clocks_optional_usb(bool init_usb);
 
+// Raise (or lower) the core voltage for a target clk_sys, MMBasic's ladder.
+// Call it BEFORE raising the clock and AFTER lowering it, so the core never
+// runs fast on the lower voltage. It includes the 10 ms settle.
+void set_core_voltage_for_khz(uint32_t khz);
+
 #endif // MICROPY_INCLUDED_RP2_CLOCKS_EXTRA_H

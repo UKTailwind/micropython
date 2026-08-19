@@ -1,11 +1,11 @@
 # Pico Computer 3 — MicroPython User Manual
 
 **Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 and Pico
-Computer 2 — version **0.14** (test release).
+Computer 2 — version **0.15** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.14 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.15 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -148,7 +148,7 @@ The start-up banner and `os.uname().machine` name the board that was found, so
 a Pico Computer 2 greets you with:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 2 v0.14 with RP2350B
+MicroPython v1.29.0-preview on PICO COMPUTER 2 v0.15 with RP2350B
 ```
 
 > If a Pico Computer 3's RTC battery/chip has failed it can be mistaken for a
@@ -1009,6 +1009,12 @@ keymaps()         # list available layouts
 ```
 
 Layouts: **US, UK, DE, FR, ES, BE**. The choice is saved and restored at boot.
+
+**AltGr** (the right Alt key) types the third character engraved on a key —
+`@`, `#`, `€`, `{`, `}`, `\` and so on, depending on the layout. Dead-key
+combinations behave as they do on a PC.
+
+Keys auto-repeat after **600 ms**, then every **150 ms**.
 
 ### Lock LEDs and Num Lock
 
@@ -2011,5 +2017,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.14 — based on MicroPython. See
+*Pico Computer 3 firmware v0.15 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

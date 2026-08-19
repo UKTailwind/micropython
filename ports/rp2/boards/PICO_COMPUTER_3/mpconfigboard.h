@@ -1,7 +1,7 @@
 // Board and hardware specific configuration. The firmware version (shared by
 // both machines in the family) is folded into the board name so it appears in
 // the REPL banner and os.uname().machine.
-#define PICO_COMPUTER_3_VERSION                 "0.14"
+#define PICO_COMPUTER_3_VERSION                 "0.15"
 #define MICROPY_HW_BOARD_NAME                   "PICO COMPUTER 3 v" PICO_COMPUTER_3_VERSION
 // The name the same image reports when it finds itself on the other board. The
 // banner and os.uname().machine pick between the two at run time (see

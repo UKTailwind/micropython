@@ -523,6 +523,51 @@ static mp_obj_t audio_sound_set(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(audio_sound_set_obj, 6, 6, audio_sound_set);
 
+// polyBLEP for the computed waveforms.  A square edge or sawtooth wrap that
+// can only land on a sample tick carries alias images that beat against the
+// true harmonics - an audible pitch-dependent shimmer on sustained notes.
+// The band-limited edge differs from the naive one only within one tick of
+// the step, where the residual is (1-t)^2 of the step toward its midpoint
+// (t = distance from the edge in ticks).  The sine and triangle tables roll
+// off fast enough to leave alone; both noises are broadband by design.
+// Phase is 0..4096 with the wrap already applied, so an edge-adjacent sample
+// shows up either just past the edge (distance < phinc) or just before it.
+static inline int snd_blep_square(int j, float ph, float inc) {
+    float d;
+    if (inc <= 0.0f) {
+        return j;
+    }
+    if (ph < inc) {
+        d = ph;                 // just after the wrap edge
+    } else if (4096.0f - ph < inc) {
+        d = 4096.0f - ph;       // just before the wrap edge
+    } else if (ph >= 2048.0f && ph - 2048.0f < inc) {
+        d = ph - 2048.0f;       // just after the half-cycle edge
+    } else if (ph < 2048.0f && 2048.0f - ph < inc) {
+        d = 2048.0f - ph;       // just before the half-cycle edge
+    } else {
+        return j;
+    }
+    d = 1.0f - d / inc;         // 1 at the edge, 0 a tick away
+    return 2000 + (int)((float)(j - 2000) * (1.0f - d * d));
+}
+
+static inline int snd_blep_saw(int j, float ph, float inc) {
+    float d;
+    if (inc <= 0.0f) {
+        return j;
+    }
+    if (ph < inc) {             // just after the wrap: lift toward the midpoint
+        d = 1.0f - ph / inc;
+        return j + (int)(1900.0f * d * d);
+    }
+    if (4096.0f - ph < inc) {   // just before the wrap: pull toward the midpoint
+        d = 1.0f - (4096.0f - ph) / inc;
+        return j - (int)(1900.0f * d * d);
+    }
+    return j;
+}
+
 // One side of one voice -> raw table value 100..3900 (MMBasic getsound), then
 // scaled by the ramped volume to roughly +/-480 per voice at full volume.
 static inline int snd_sample(snd_voice_t *v) {
@@ -536,9 +581,11 @@ static inline int snd_sample(snd_voice_t *v) {
             break;
         case SND_SQUARE:
             j = (v->phase > 2047.0f) ? 3900 : 100;
+            j = snd_blep_square(j, v->phase, v->phinc);
             break;
         case SND_SAW:
             j = (int)v->phase * 3800 / 4096 + 100;
+            j = snd_blep_saw(j, v->phase, v->phinc);
             break;
         case SND_PNOISE:
             j = snd_noisetable[(int)v->phase];

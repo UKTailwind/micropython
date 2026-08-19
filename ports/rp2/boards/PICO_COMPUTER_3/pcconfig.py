@@ -59,6 +59,71 @@ def keymap(name=None):
     return name
 
 
+def _kbd_key(vid=None, pid=None):
+    """"vvvv:pppp" for the given VID/PID, or for the keyboard that's plugged in
+    (None if there isn't one)."""
+    if vid is None:
+        import keyboard
+
+        id = keyboard.kbd_id()
+        if id is None:
+            return None
+        vid, pid = id
+    return "%04x:%04x" % (vid, pid)
+
+
+def numlock(on=None):
+    """Get the num-lock state, or set it for the keyboard that's plugged in --
+    saved per keyboard, so each of yours keeps its own setting.
+
+    A keyboard with no numeric keypad (a Raspberry Pi keyboard, most laptop-style
+    boards) overlays one onto 7890/uiop/jkl;/m whenever num-lock is on: its own
+    firmware does that, triggered by the num-lock LED we send it. Such a keyboard
+    wants numlock(False); a full-size one wants the default, True. Nothing in the
+    USB descriptors tells the two apart -- a Pi keyboard and a full-size Lenovo
+    send byte-identical HID report descriptors -- so the answer is remembered per
+    keyboard rather than detected. Simply pressing Num Lock saves it too."""
+    import keyboard
+
+    if on is None:
+        return keyboard.numlock()
+    on = bool(on)
+    keyboard.numlock(on)  # applies now and pushes the LEDs
+    key = _kbd_key()
+    if key:
+        m = get("numlock", {})
+        m[key] = on
+        set("numlock", m)
+    return on
+
+
+def _numlock_saver(ev):
+    """keyboard.on_numlock hook: the user pressed Num Lock, so remember what they
+    chose for that keyboard. Scheduled, so keep it short and never raise."""
+    try:
+        vid, pid, on = ev
+        m = get("numlock", {})
+        m[_kbd_key(vid, pid)] = bool(on)
+        set("numlock", m)
+    except Exception:
+        pass
+
+
+def apply_numlock():
+    """Push the saved per-keyboard num-lock settings down to the USB driver and
+    arm the save hook. Called at boot, before any keyboard is mounted, so the
+    first LED report a keyboard gets already carries its own setting."""
+    try:
+        import keyboard
+
+        for k, v in get("numlock", {}).items():
+            vid, _, pid = k.partition(":")
+            keyboard.numlock_pref(int(vid, 16), int(pid, 16), bool(v))
+        keyboard.on_numlock(_numlock_saver)
+    except Exception:
+        pass
+
+
 def palette(index=None, rgb=None):
     """Get or set an RGB1024 palette entry, persisted across reboots. Only the
     RGB1024 (1024x600x4, RGB121 format) mode uses the palette.

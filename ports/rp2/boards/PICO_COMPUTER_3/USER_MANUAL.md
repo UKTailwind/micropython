@@ -187,7 +187,8 @@ palette (`RED`, `GREEN`, `BLUE`, `WHITE`, `BLACK`, `YELLOW`, `CYAN`, `MAGENTA`, 
 **Shell commands:** `ls`, `run`, `edit`, `pwd`, `cd`, `mkdir`, `rmdir`, `rm`,
 `cat`, `cp`, `mv`, `cls`.
 
-**Display / settings:** `screen`, `palette`, `keymap`, `keymaps`, `console`.
+**Display / settings:** `screen`, `palette`, `keymap`, `keymaps`, `numlock`,
+`console`.
 
 **Audio:** `play`, `volume`, `beep`, `stop`, `is_playing`, `pause`, `resume`,
 `tone`, `sound`, `mod_sample`.
@@ -236,7 +237,7 @@ Where the boot names really live:
 |---|---|
 | `ls`, `run`, `edit`, `cd`, `pwd`, `cat`, `cp`, `mv`, `rm`, `mkdir`, `rmdir`, `autosave`, `cls` | `from pcshell import ls, run, ...` |
 | `keydown`, `keymaps` | `from keyboard import keydown, keymaps` |
-| `keymap`, `screen`, `palette` | `from pcconfig import keymap, screen, palette` |
+| `keymap`, `screen`, `palette`, `numlock` | `from pcconfig import keymap, screen, palette, numlock` |
 | `console` | `from pcconsole import console` |
 | `play`, `volume`, `beep`, `stop`, `is_playing`, `pause`, `resume`, `tone`, `sound`, `mod_sample` | `from pcaudio import ...` |
 | `Display` and the colour names (`RED`, `WHITE`, `GOLD`, …) | `from pcgfx import Display, RED, ...` |
@@ -1015,6 +1016,32 @@ Caps Lock, Num Lock and Scroll Lock toggle the keyboard's physical LEDs, and the
 correct LED state is set when a keyboard is plugged in. Num Lock starts **on**;
 turning it off makes the numeric keypad act as a navigation cluster
 (arrows/Home/End/PgUp/PgDn/Ins/Del), like a PC.
+
+**Compact keyboards.** A keyboard with no numeric keypad — a Raspberry Pi
+keyboard, and most laptop-style boards — usually overlays one onto
+`7890`/`uiop`/`jkl;`/`m` whenever Num Lock is on, so those letters type digits.
+That is the keyboard's own doing.
+
+A keyboard with **no Num Lock light** is taken to have no keypad, and starts with
+Num Lock off automatically (you'll see `no Num Lock LED declared` when it's
+plugged in). Not every such keyboard can be spotted that way — one that has no
+keypad but still reports a Num Lock light looks exactly like a full-size keyboard
+— so the setting is also remembered per keyboard:
+
+```python
+numlock(False)    # this keyboard has no keypad — save it and turn the overlay off
+numlock()         # current state
+```
+
+Simply **pressing Num Lock is enough** — the new state is saved against the
+keyboard that's plugged in and restored the next time you plug it in. Each of your
+keyboards keeps its own setting, so a compact keyboard and a full-size one can
+both be right without touching anything when you swap. A saved setting always
+beats the automatic guess.
+
+For diagnosing a keyboard: `keyboard.kbd_id()` gives the `(vid, pid)` the setting
+is filed under, `keyboard.numlock_led()` says whether it reports a Num Lock light,
+and `keyboard.kbd_desc()` returns its raw USB report descriptor.
 
 ### Reading keys directly — `keydown()`
 

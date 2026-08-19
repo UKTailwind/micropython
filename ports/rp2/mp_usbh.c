@@ -41,6 +41,20 @@
 #include "kbd_decode.h" // the shared HID keyboard decoder
 static void hid_poll(void);
 
+// Diagnostic (temporary): dump a keyboard's VID:PID and HID report descriptor
+// at mount, to settle whether a compact keyboard's descriptor differs from a
+// full-size one's -- i.e. whether "has a numeric keypad" is discoverable, so
+// num-lock could be defaulted per keyboard. Pure memory reads from the buffer
+// TinyUSB already handed us: no control transfers, no bus traffic during
+// enumeration. Set to 0 to silence.
+// Answered 2026-08-14: a Raspberry Pi keyboard (04d9:0006, no keypad) and a
+// full-size Lenovo (04b3:3025) return BYTE-IDENTICAL 65-byte descriptors, both
+// declaring the whole key usage page (19 00 2a ff 00, Usage Max 0x00FF) and a
+// Num Lock LED. There is no signal; the setting is remembered per keyboard
+// instead (kbd_numlock_pref below). Left in, off, as the way to check a new
+// keyboard.
+#define PC3_KBD_DESC_DUMP 0
+
 static bool usbh_inited = false;
 static repeating_timer_t usbh_wake_timer;
 
@@ -59,6 +73,7 @@ typedef struct {
     volatile bool active;
     uint8_t addr;
     uint8_t inst;
+    uint16_t vid, pid;              // identifies the device across unplugs
     uint8_t type;                   // HID_*
     volatile bool report_requested; // a tuh_hid_receive_report is in flight
     volatile int report_timer;      // ms since last report (++ in the 1 ms timer)
@@ -124,6 +139,23 @@ static void usbh_notify_event(bool connect) {
     }
 }
 
+// Schedule the registered Python num-lock callback (keyboard.on_numlock),
+// called as cb((vid, pid, on)) when the user presses Num Lock, so the choice
+// can be written to /settings.json. Runs from tuh_task() (thread context), so
+// both the tuple allocation and mp_sched_schedule are safe; a missing callback
+// or a full scheduler queue is silently ignored (the in-RAM table is already
+// updated, so only persistence is lost).
+static void usbh_notify_numlock(uint16_t vid, uint16_t pid, int on) {
+    mp_obj_t cb = MP_STATE_PORT(usbh_numlock_cb);
+    if (cb == MP_OBJ_NULL || cb == mp_const_none) {
+        return;
+    }
+    mp_obj_t items[3] = {
+        MP_OBJ_NEW_SMALL_INT(vid), MP_OBJ_NEW_SMALL_INT(pid), mp_obj_new_bool(on),
+    };
+    mp_sched_schedule(cb, mp_obj_new_tuple(3, items));
+}
+
 void tuh_mount_cb(uint8_t dev_addr) {
     uint16_t vid = 0, pid = 0;
     tuh_vid_pid_get(dev_addr, &vid, &pid);
@@ -135,6 +167,67 @@ void tuh_mount_cb(uint8_t dev_addr) {
 void tuh_umount_cb(uint8_t dev_addr) {
     mp_printf(&mp_plat_print, "USB: unmounted addr=%u\n", dev_addr);
     usbh_notify_event(false);
+}
+
+// --- Per-keyboard num-lock preference ---------------------------------------
+// Nothing in the USB descriptors reveals whether a keyboard has a numeric
+// keypad (see the note in kbd_decode.h), so the setting is remembered per
+// keyboard instead of guessed. This table is seeded from /settings.json at
+// boot (keyboard.numlock_pref, once per saved entry, from _boot_board) and
+// updated whenever the user presses Num Lock. It is deliberately small and
+// static: the mount callback reads it, so it must not allocate.
+#define KBD_NUMLOCK_PREFS 8
+static struct {
+    uint16_t vid, pid;
+    uint8_t on;
+} kbd_numlock_pref[KBD_NUMLOCK_PREFS];
+static uint8_t kbd_numlock_pref_n;
+
+
+// Whether a keyboard has a numeric keypad is not in its descriptors — see the
+// note on kbd_has_numlock_led in the shared decoder, which is where the one
+// readable signal (the LED block) is parsed, so the Fuzix kernel gets it too.
+
+// The mounted keyboard's report descriptor, kept so it can be read back from
+// Python (keyboard.kbd_desc) without a rebuild, and whether it declared a Num
+// Lock LED. Static: the mount callback must not allocate. 256 bytes covers a
+// keyboard descriptor several times over (the two dumped are 65); a longer one
+// is truncated for display only — the Num Lock scan reads the original in full.
+#define KBD_DESC_MAX 256
+static uint8_t kbd_desc[KBD_DESC_MAX];
+static uint16_t kbd_desc_len;
+static bool kbd_desc_numlock_led = true;
+
+// Remember `on` for this keyboard, replacing any existing entry. A full table
+// drops its oldest entry; the cost of that is one more Num Lock press on the
+// keyboard that got evicted.
+void usb_kbd_numlock_pref(uint16_t vid, uint16_t pid, int on) {
+    for (int i = 0; i < kbd_numlock_pref_n; i++) {
+        if (kbd_numlock_pref[i].vid == vid && kbd_numlock_pref[i].pid == pid) {
+            kbd_numlock_pref[i].on = on ? 1 : 0;
+            return;
+        }
+    }
+    if (kbd_numlock_pref_n == KBD_NUMLOCK_PREFS) {
+        memmove(&kbd_numlock_pref[0], &kbd_numlock_pref[1],
+            sizeof(kbd_numlock_pref) - sizeof(kbd_numlock_pref[0]));
+        kbd_numlock_pref_n--;
+    }
+    kbd_numlock_pref[kbd_numlock_pref_n].vid = vid;
+    kbd_numlock_pref[kbd_numlock_pref_n].pid = pid;
+    kbd_numlock_pref[kbd_numlock_pref_n].on = on ? 1 : 0;
+    kbd_numlock_pref_n++;
+}
+
+// The remembered setting for this keyboard; failing that, `dflt` — what the
+// descriptor's LED block suggests. An explicit choice always beats the guess.
+static int kbd_numlock_for(uint16_t vid, uint16_t pid, int dflt) {
+    for (int i = 0; i < kbd_numlock_pref_n; i++) {
+        if (kbd_numlock_pref[i].vid == vid && kbd_numlock_pref[i].pid == pid) {
+            return kbd_numlock_pref[i].on;
+        }
+    }
+    return dflt;
 }
 
 // --- HID keyboard decode: shared code in kbd_decode.c ----------------------
@@ -151,13 +244,64 @@ static void kbd_set_leds(int slot) {
         HID_REPORT_TYPE_OUTPUT, &hid_slots[slot].sendlights, 1);
 }
 
-// The decoder's lock-key seam: record the new bitmap and push it out.
+// The decoder's lock-key seam: record the new bitmap and push it out. Reached
+// only from a Caps/Num/Scroll keypress, so a change in the num bit here IS the
+// user telling us what this keyboard wants -- remember it against the
+// keyboard's VID:PID and let Python persist it.
 void kbd_backend_set_leds(int slot, uint8_t leds) {
     if (slot < 0) {
         return;
     }
+    if ((leds ^ hid_slots[slot].sendlights) & 0x01) {
+        usb_kbd_numlock_pref(hid_slots[slot].vid, hid_slots[slot].pid, leds & 0x01);
+        usbh_notify_numlock(hid_slots[slot].vid, hid_slots[slot].pid, leds & 0x01);
+    }
     hid_slots[slot].sendlights = leds;
     kbd_set_leds(slot);
+}
+
+// keyboard.numlock() -- the current num-lock state.
+int usb_kbd_get_numlock(void) {
+    return kbd_led_bitmap() & 0x01;
+}
+
+// keyboard.numlock(on) -- apply it now, remember it for the mounted keyboard,
+// and push the LEDs so an overlay keyboard drops/raises its embedded keypad
+// immediately rather than at the next mount.
+void usb_kbd_set_numlock(int on) {
+    kbd_set_numlock(on);
+    for (int i = 0; i < HID_NSLOTS; i++) {
+        if (hid_slots[i].active && hid_slots[i].type == HID_KBD) {
+            usb_kbd_numlock_pref(hid_slots[i].vid, hid_slots[i].pid, on);
+            hid_slots[i].sendlights = kbd_led_bitmap();
+            kbd_set_leds(i);
+        }
+    }
+}
+
+// keyboard.kbd_desc() -- the mounted keyboard's HID report descriptor, so a new
+// keyboard can be inspected at the REPL rather than by rebuilding with
+// PC3_KBD_DESC_DUMP. Returns the length and points *p at the bytes.
+uint16_t usb_kbd_desc(const uint8_t **p) {
+    *p = kbd_desc;
+    return kbd_desc_len;
+}
+
+// keyboard.numlock_led() -- whether the mounted keyboard declared a Num Lock LED,
+// i.e. what the num-lock default was derived from.
+int usb_kbd_numlock_led(void) {
+    return kbd_desc_numlock_led ? 1 : 0;
+}
+
+// The mounted keyboard as (vid << 16) | pid, or 0 if there isn't one. Python
+// keys the saved settings on this.
+uint32_t usb_kbd_id(void) {
+    for (int i = 0; i < HID_NSLOTS; i++) {
+        if (hid_slots[i].active && hid_slots[i].type == HID_KBD) {
+            return ((uint32_t)hid_slots[i].vid << 16) | hid_slots[i].pid;
+        }
+    }
+    return 0;
 }
 
 static int hid_slot_find(uint8_t addr, uint8_t inst) {
@@ -220,9 +364,38 @@ static void hid_poll(void) {
 
 // --- HID class callbacks ---------------------------------------------------
 
+#if PC3_KBD_DESC_DUMP
+// Print a mounted keyboard's identity and raw report descriptor, 16 bytes per
+// line. Read it with a full-size keyboard and with a compact one and diff the
+// two: what matters is the key-array item near the end -- 05 07 19 00 29 XX
+// 81 00 (Usage Page Key Codes, Usage Min 0, Usage Max XX, Input Array). If XX
+// differs between the two keyboards the keypad IS discoverable; if both say
+// 0x65 (or 0xFF) it is not, because an Array item declares the range of values
+// an element may carry, not which keys the device physically has.
+static void kbd_dump_descriptor(uint8_t dev_addr, uint8_t instance,
+    uint8_t const *desc, uint16_t len) {
+    uint16_t vid = 0, pid = 0;
+    tuh_vid_pid_get(dev_addr, &vid, &pid);
+    mp_printf(&mp_plat_print, "USB kbd: addr=%u inst=%u VID:PID=%04x:%04x desc_len=%u\n",
+        dev_addr, instance, vid, pid, len);
+    if (desc == NULL) {
+        return; // boot interface whose report descriptor fetch didn't stick
+    }
+    for (uint16_t i = 0; i < len; i += 16) {
+        mp_printf(&mp_plat_print, "  %03x:", i);
+        for (uint16_t j = i; j < i + 16 && j < len; j++) {
+            mp_printf(&mp_plat_print, " %02x", desc[j]);
+        }
+        mp_printf(&mp_plat_print, "\n");
+    }
+}
+#endif
+
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
     uint8_t const *desc_report, uint16_t desc_len) {
     uint8_t proto = tuh_hid_interface_protocol(dev_addr, instance);
+    uint16_t vid = 0, pid = 0;
+    tuh_vid_pid_get(dev_addr, &vid, &pid); // cached by TinyUSB — no bus traffic
     mp_printf(&mp_plat_print, "USB HID: addr=%u instance=%u protocol=%u\n",
         dev_addr, instance, proto);
 
@@ -239,6 +412,9 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
         // mount callback wedges EP0 and blocks any device enumerating behind
         // the keyboard — the "keyboard first = nothing else enumerates" bug.
         type = HID_KBD;
+        #if PC3_KBD_DESC_DUMP
+        kbd_dump_descriptor(dev_addr, instance, desc_report, desc_len);
+        #endif
     } else if (proto == HID_ITF_PROTOCOL_MOUSE) {
         type = HID_MOUSE;
         usb_mouse_mount(dev_addr, instance, desc_report, desc_len);
@@ -259,8 +435,6 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
             // composite keyboard exposes, as on the Raspberry Pi keyboard's
             // built-in hub) that must NOT be grabbed as a phantom gamepad.
             // MMBasic filters unknown devices the same way.
-            uint16_t vid = 0, pid = 0;
-            tuh_vid_pid_get(dev_addr, &vid, &pid);
             if (!usb_gamepad_is_gamepad(vid, pid)) {
                 mp_printf(&mp_plat_print,
                     "USB HID: ignored addr=%u inst=%u VID:PID=%04x:%04x (not a gamepad)\n",
@@ -274,6 +448,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
     hid_slots[slot].active = true;
     hid_slots[slot].addr = dev_addr;
     hid_slots[slot].inst = instance;
+    hid_slots[slot].vid = vid;
+    hid_slots[slot].pid = pid;
     hid_slots[slot].type = type;
     hid_slots[slot].report_requested = false;
     hid_slots[slot].report_rate = (type == HID_TOUCH) ? 5 : 20; // ms, as MMBasic
@@ -282,6 +458,26 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
     // handshake time to complete before polling begins.
     hid_slots[slot].report_timer = -(10 + (slot + 2) * 500);
     hid_slots[slot].notfirsttime = false;
+    // Settle num-lock BEFORE seeding the LED bitmap, so the very first LED report
+    // carries it: a keyboard that overlays a keypad onto its letter keys never
+    // gets the chance to turn the overlay on. The saved setting for this keyboard
+    // wins; failing that, a keyboard that declares no Num Lock LED is taken to
+    // have no keypad. Both are cheap lookups — the mount callback must not
+    // allocate or wait.
+    if (type == HID_KBD) {
+        kbd_desc_numlock_led = kbd_has_numlock_led(desc_report, desc_len);
+        kbd_desc_len = (desc_len < KBD_DESC_MAX) ? desc_len : KBD_DESC_MAX;
+        if (desc_report != NULL) {
+            memcpy(kbd_desc, desc_report, kbd_desc_len);
+        } else {
+            kbd_desc_len = 0;
+        }
+        kbd_set_numlock(kbd_numlock_for(vid, pid, kbd_desc_numlock_led ? 1 : 0));
+        if (!kbd_desc_numlock_led) {
+            mp_printf(&mp_plat_print,
+                "USB kbd: no Num Lock LED declared -- assuming no numeric keypad\n");
+        }
+    }
     // Seed the keyboard LED bitmap from the current lock states so the panel's
     // LEDs match on the first poll (MMBasic seeds from Option.capslock/numlock).
     hid_slots[slot].sendlights = (type == HID_KBD) ? kbd_led_bitmap() : 0;

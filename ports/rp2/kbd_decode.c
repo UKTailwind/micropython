@@ -39,13 +39,26 @@
 #define KBD_CTRL  (0x11) // left|right ctrl
 
 // Auto-repeat (typematic): HID keyboards only report on state change, so
-// we synthesise repeats from the held key.  Defaults are MMBasic's
-// (OPTION KEYBOARD REPEAT 600,150): a long wait before the first repeat
-// so a deliberate keypress never doubles, then a comfortable rate.
+// we synthesise repeats from the held key.
+//
+// These were MMBasic's (OPTION KEYBOARD REPEAT 600,150), and 150ms - under
+// seven characters a second - is a typewriter's rate, not a machine's.  It
+// is fine for typing and wrong for anything HELD: PETSCII Robots played
+// from the keyboard crawled beside the same game played from the Game*Mite
+// switches, which are read fresh every pass of the game loop with no
+// typematic delay at all.  The player waited 600ms for the first step and
+// then got one every 150ms.
+//
+// So: the Linux console's delay, and the fast repeat rate a PC keyboard
+// controller offers (20 a second).  250ms is still far longer than a
+// deliberate tap, so a keypress does not double.
+//
 // Runtime-adjustable through kbd_set_repeat (Fuzix: the KBRATE ioctl,
-// /bin/kbdrate, in tenths of a second; kept in ms here).
-#define KBD_REPEAT_FIRST_DEFAULT (600)
-#define KBD_REPEAT_NEXT_DEFAULT  (150)
+// /bin/kbdrate, in tenths of a second; kept in ms here) - note that the
+// standard interface's TENTHS cannot express 50ms, which is why this is a
+// default and not a program's job.
+#define KBD_REPEAT_FIRST_DEFAULT (250)
+#define KBD_REPEAT_NEXT_DEFAULT  (50)
 uint16_t kbd_repeat_first = KBD_REPEAT_FIRST_DEFAULT;
 uint16_t kbd_repeat_next = KBD_REPEAT_NEXT_DEFAULT;
 // A poll gap longer than this means a release could have been missed,
@@ -414,6 +427,97 @@ void kbd_set_repeat(unsigned first_tenths, unsigned next_tenths)
 uint8_t kbd_led_bitmap(void)
 {
     return (uint8_t)((kbd_num ? 0x01 : 0) | (kbd_caps ? 0x02 : 0) | (kbd_scroll ? 0x04 : 0));
+}
+
+// Seed num-lock (see kbd_decode.h): the platform's saved setting for the
+// keyboard that just arrived.  LEDs are pushed by the caller.
+void kbd_set_numlock(int on)
+{
+    kbd_num = on ? true : false;
+}
+
+// Does this keyboard declare a Num Lock LED?  A keyboard with no Num
+// Lock LIGHT is very likely a keyboard with no numeric keypad, and both
+// keyboards dumped so far declare exactly the lights they have
+// (19 01 29 03 = Num/Caps/Scroll) rather than the HID spec's boilerplate
+// 29 05 - so the LED block carries information the key block does not.
+//
+// This is the CONVERSE of what those dumps disprove, and only the
+// converse holds: a declared Num Lock LED means nothing (the Raspberry
+// Pi keyboard declares one and has no keypad), but an absent one is good
+// evidence.  So it supplies the DEFAULT for a keyboard the platform has
+// no setting for, never an override - and one Num Lock press corrects
+// it either way, which is what makes guessing safe here at all.
+//
+// Walks the descriptor's short items tracking the current usage page and
+// the pending local usages, and asks at each Output main item whether
+// Num Lock (LED page 0x08, usage 0x01) is among the usages declared for
+// it.  Returns 1 for "declares one", and for "cannot tell" - an absent
+// descriptor must not be read as an absent keypad.
+int kbd_has_numlock_led(const uint8_t *d, uint16_t len)
+{
+    if (d == NULL || len == 0) {
+        return 1; // nothing to go on - MMBasic's default
+    }
+    uint16_t page = 0;      // current Usage Page (global)
+    bool loc_num = false;   // Num Lock is among the pending local usages
+    uint16_t umin = 0;      // pending Usage Minimum...
+    uint16_t umin_page = 0; // ...and the page it was declared on
+    bool umin_set = false;
+    uint16_t i = 0;
+    while (i < len) {
+        uint8_t b = d[i];
+        if (b == 0xfe) { // long item: [0xfe][data size][tag][data...]
+            if (i + 1 >= len) {
+                break;
+            }
+            i += 3 + d[i + 1];
+            continue;
+        }
+        uint8_t size = b & 0x03;
+        if (size == 3) {
+            size = 4; // 0,1,2,3 encodes 0,1,2,4 data bytes
+        }
+        uint8_t type = (b >> 2) & 0x03; // 0 main, 1 global, 2 local
+        uint8_t tag = (b >> 4) & 0x0f;
+        if ((uint32_t)i + 1 + size > len) {
+            break; // truncated item - stop rather than read past the end
+        }
+        uint32_t v = 0;
+        for (uint8_t k = 0; k < size; k++) {
+            v |= (uint32_t)d[i + 1 + k] << (8 * k);
+        }
+        if (type == 1 && tag == 0x0) { // Global: Usage Page
+            page = (uint16_t)v;
+        } else if (type == 2 && tag <= 0x2) { // Local: Usage / Minimum / Maximum
+            // A 4-byte usage carries its own page in the top 16 bits.
+            uint16_t upage = (size == 4) ? (uint16_t)(v >> 16) : page;
+            uint16_t u = (uint16_t)v;
+            if (tag == 0x0) {
+                if (upage == 0x08 && u == 0x01) {
+                    loc_num = true;
+                }
+            } else if (tag == 0x1) {
+                umin = u;
+                umin_page = upage;
+                umin_set = true;
+            } else { // Usage Maximum closes the range
+                if (umin_set && umin_page == 0x08 && upage == 0x08
+                    && umin <= 0x01 && u >= 0x01) {
+                    loc_num = true;
+                }
+                umin_set = false;
+            }
+        } else if (type == 0) { // any Main item consumes the local state
+            if (tag == 0x9 && loc_num) { // Output
+                return 1;
+            }
+            loc_num = false;
+            umin_set = false;
+        }
+        i += 1 + size;
+    }
+    return 0;
 }
 
 // A keyboard went away (MMBasic clearrepeat): stop the auto-repeat...

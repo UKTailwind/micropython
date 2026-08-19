@@ -68,10 +68,15 @@ __main__.keymaps = keyboard.keymaps
 __main__.keydown = keyboard.keydown
 __main__.screen = pcconfig.screen
 __main__.palette = pcconfig.palette
+# numlock(False) for a keyboard whose letter keys turn into a numeric keypad
+# (Raspberry Pi and other compact boards); saved per keyboard, and pressing
+# Num Lock saves it too.
+__main__.numlock = pcconfig.numlock
 try:
     keyboard.keymap(pcconfig.get("keymap", "US"))  # apply saved layout
 except Exception:
     pass
+pcconfig.apply_numlock()  # saved per-keyboard num-lock + the save hook
 
 # Audio: WAV/MP3/FLAC/MOD playback, tone generator and 4-voice synth over the
 # PCM5102 I2S DAC.

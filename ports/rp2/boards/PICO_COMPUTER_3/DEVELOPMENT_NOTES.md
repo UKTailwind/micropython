@@ -2720,6 +2720,124 @@ chasing in the FatFS layer.
 
 ---
 
+### 72. Num Lock is a property of the keyboard — remembered per VID:PID
+
+A Raspberry Pi keyboard on the PC3 typed digits for `7890/uiop/jkl;/m`. That is
+the keyboard's own firmware overlaying an embedded numeric keypad onto the letter
+keys, and the only thing that triggers it is the **Num Lock bit in the LED output
+report we send** — `kbd_set_leds()` at the slot's first poll, seeded from
+`kbd_num`, which defaulted to `true` (MMBasic's `Option.numlock`). Our decoder
+never sees a letter: the keyboard sends keypad usages (`u` arrives as 0x5C).
+
+**Can it be detected?** No, and the descriptors say so directly. Dumping
+`desc_report` at mount (`PC3_KBD_DESC_DUMP`, still in mp_usbh.c, off) for two
+keyboards:
+
+| | Raspberry Pi (no keypad) | Lenovo full-size |
+| --- | --- | --- |
+| VID:PID | `04d9:0006` (Holtek) | `04b3:3025` (IBM) |
+| descriptor | 65 bytes | 65 bytes, **byte-identical** |
+
+Both declare `19 00 2a ff 00 … 81 00` — Usage Minimum 0, **Usage Maximum 0x00FF**,
+`Input (Data, Array)`. A HID *Array* item declares the range of values an element
+may carry, not which keys exist, and the compact keyboard already claims the
+entire usage page, so no full-size keyboard can declare a wider one. Both also
+declare a Num Lock LED (`05 08 19 01 29 03`) despite one having no keypad. The
+other candidates fail too: `bCountryCode` encodes layout country, and Physical
+Descriptors (the one HID feature that would answer this) are essentially never
+implemented. A *Variable*/bitmap key report could in principle omit absent keys,
+but only NKRO keyboards use one, on their report-protocol interface — and we stay
+in boot protocol deliberately (§25: a `set_protocol` from the mount callback
+wedges EP0).
+
+A VID:PID quirk table was the obvious fallback and is a trap here: `04d9` is
+Holtek, a generic keyboard-controller vendor shared across unrelated OEM designs,
+so quirking `04d9:0006` would break somebody's full-size Holtek keyboard.
+
+**So it is remembered, not detected — and the user's own Num Lock press is the
+authority.** No guessing, and both keyboards are right at the same time.
+
+**The one thing that IS readable: the LED block.** Peter's follow-up — a keyboard
+with no Num Lock *light* almost certainly has no numeric keypad. That is the
+**converse** of what the dumps disproved, and only the converse holds: a declared
+Num Lock LED means nothing (the Pi keyboard declares one), but an absent one is
+good evidence. It is also plausible *here* specifically, because both dumped
+keyboards declare `19 01 29 03` — exactly the three lights they have — rather than
+the HID spec's boilerplate `29 05`. These vendors trim the LED block to the
+hardware, so unlike the key array it carries information.
+
+`kbd_has_numlock_led()` walks the descriptor's short items tracking the usage
+page and pending local usages, and asks at each **Output** main item whether
+LED-page usage 0x01 is among them (handling `Usage`, `Usage Minimum/Maximum`
+ranges, 4-byte usages carrying their own page, and long items). It supplies the
+**default only** — a saved preference still wins, and one Num Lock press corrects
+and saves it either way, which is what makes guessing safe at all. A keyboard
+with no Num Lock LED also prints `no Num Lock LED declared -- assuming no numeric
+keypad` at mount.
+
+It lives in **kbd_decode.c**, not mp_usbh.c: it is pure descriptor arithmetic with
+no platform in it, which is exactly what that file is for, and putting it there
+means the Fuzix kernel gets the same one copy with `kbdsync.sh` guarding it
+rather than a second implementation to keep in step.
+
+Host-tested against the extracted function (`sed` pulls it straight out of
+kbd_decode.c so the test can't drift, and covers both trees at once), under
+ASan/UBSan: the real descriptor → true;
+the same with `19 02` → false; individual usages with and without Num Lock;
+the spec's five-LED block; Num Lock usages consumed by an **Input** item → false
+(the local set must be cleared by the main item); a 4-byte usage; a long item;
+NULL/zero length → MMBasic's default; and every truncated prefix plus garbage
+terminates without reading past the end.
+
+- `kbd_set_numlock(int)` added to the shared decoder (`kbd_decode.{c,h}`, vendored
+  byte-identical into the Fuzix kernel — `kbdsync.sh` re-run, all three ok). It
+  only sets the state; the caller pushes the LEDs at its own safe moment. No new
+  backend seam was needed: `kbd_backend_set_leds` is *already* called on every
+  lock keypress, so mp_usbh.c detects a change in the num bit there.
+- `hid_slot_t` carries `vid`/`pid` (hoisted the `tuh_vid_pid_get` out of the
+  protocol-NONE branch — it's cached by TinyUSB, no bus traffic, so it is safe in
+  the mount callback per §25).
+- `kbd_numlock_pref[8]` in mp_usbh.c: a static table, looked up at mount **before**
+  the LED bitmap is seeded, so a compact keyboard's very first LED report already
+  says "off" and the overlay never comes on. Static and allocation-free because
+  the mount callback must not allocate or wait — which also rules out asking
+  Python for the answer there. `kbd_numlock_for(vid, pid, dflt)` falls back to the
+  LED-block guess when the keyboard is unknown.
+- `keyboard.kbd_desc()` returns the mounted keyboard's report descriptor (kept in
+  a 256-byte static, copied at mount) and `keyboard.numlock_led()` says what the
+  default was derived from — so a new keyboard can be diagnosed at the REPL
+  instead of by rebuilding with `PC3_KBD_DESC_DUMP`.
+- On a Num Lock press mp_usbh.c updates the table and schedules
+  `keyboard.on_numlock`, called as `cb((vid, pid, on))`; `pcconfig._numlock_saver`
+  writes it to `/settings.json` under `"numlock": {"04d9:0006": false, …}`.
+  `_boot_board` calls `pcconfig.apply_numlock()`, which pushes every saved entry
+  down through `keyboard.numlock_pref(vid, pid, on)` and arms the hook.
+- `numlock()` / `numlock(False)` is the explicit control (injected into the REPL,
+  and `keyboard.numlock()` underneath); `keyboard.kbd_id()` gives the mounted
+  keyboard as `(vid, pid)`. Default for an unknown keyboard stays **on**, so
+  nothing changes for a full-size keyboard.
+- The emulator builds `usb_keyboard.c` but not `mp_usbh.c`, so `kbd_sdl.c` gained
+  the four accessors. Only the decoder's num-lock state is real there (enough for
+  the keypad remap); `kbd_id()` returns 0 → `None`, which tells pcconfig there is
+  no keyboard to save a setting against.
+
+**Ported to the Fuzix kernel** the same day (FUZIX `PC3-DEVNOTES.md`): same two
+rules, `kbd_has_numlock_led` shared through kbd_decode.c, `kbd_numlock_pref[4]` in
+usbkbd.c, and `PICOIOC_NUMLOCK` 0x0037 behind `picoctl numlock [on|off
+[vvvv:pppp]]`. The one thing that does not port is persistence — a kernel does not
+write files, so the table is per-session and `/etc/rc` is what makes a setting
+permanent.
+
+Verified on the emulator: `numlock()` defaults True, set/get round-trips,
+`keydown(8)` tracks it, a bad VID raises, and the settings round-trip is
+`{"numlock": {"04d9:0006": false, "04b3:3025": true}}` on disk and back through
+`apply_numlock()`. **Board verification outstanding** — the C table lookup at
+mount only runs on real hardware: plug in the Pi keyboard, press Num Lock once,
+reboot, and the letters must still be letters; then plug in the Lenovo and its
+keypad must still type digits.
+
+---
+
 ## Files touched
 
 | File | Purpose |

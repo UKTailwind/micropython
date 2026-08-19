@@ -33,6 +33,14 @@
 
 // Held-key state, maintained by the HID report decoder in mp_usbh.c.
 extern int usb_kbd_keydown(int n);
+// Num-lock state and the per-keyboard memory of it, in mp_usbh.c (declared
+// here rather than included, as that file pulls in tusb.h).
+extern int usb_kbd_get_numlock(void);
+extern void usb_kbd_set_numlock(int on);
+extern void usb_kbd_numlock_pref(uint16_t vid, uint16_t pid, int on);
+extern uint32_t usb_kbd_id(void);
+extern uint16_t usb_kbd_desc(const uint8_t **p);
+extern int usb_kbd_numlock_led(void);
 // The REPL input ring buffer: keydown() drains it, as MMBasic's KEYDOWN() does.
 extern ringbuf_t stdin_ringbuf;
 
@@ -98,6 +106,81 @@ static mp_obj_t kbd_keydown(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(kbd_keydown_obj, 0, 1, kbd_keydown);
 
+// numlock() -> current state; numlock(True/False) -> set it, and remember it
+// for the keyboard that is plugged in. MMBasic's Option.numlock, except that
+// the setting is per keyboard: a compact keyboard (Raspberry Pi, most laptop
+// boards) overlays a numeric keypad onto 7890/uiop/jkl;/m while num-lock is on,
+// driven by its own firmware from the LED report we send, and NOTHING in the
+// USB descriptors distinguishes such a keyboard from a full-size one -- their
+// HID report descriptors are byte-identical. So this is remembered per VID:PID
+// rather than detected, and pressing Num Lock is itself enough to save it.
+static mp_obj_t kbd_numlock(size_t n_args, const mp_obj_t *args) {
+    if (n_args == 0) {
+        return mp_obj_new_bool(usb_kbd_get_numlock());
+    }
+    usb_kbd_set_numlock(mp_obj_is_true(args[0]));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(kbd_numlock_obj, 0, 1, kbd_numlock);
+
+// numlock_pref(vid, pid, on) -- seed the remembered setting for a keyboard that
+// isn't plugged in (yet). _boot_board calls this once per entry saved in
+// /settings.json, so a keyboard is right from the first LED report after mount.
+static mp_obj_t kbd_numlock_pref(mp_obj_t vid_in, mp_obj_t pid_in, mp_obj_t on_in) {
+    mp_int_t vid = mp_obj_get_int(vid_in), pid = mp_obj_get_int(pid_in);
+    if (vid < 0 || vid > 0xffff || pid < 0 || pid > 0xffff) {
+        mp_raise_ValueError(MP_ERROR_TEXT("vid/pid must be 0..65535"));
+    }
+    usb_kbd_numlock_pref((uint16_t)vid, (uint16_t)pid, mp_obj_is_true(on_in));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_3(kbd_numlock_pref_obj, kbd_numlock_pref);
+
+// kbd_id() -> (vid, pid) of the mounted keyboard, or None if there isn't one.
+// What the saved num-lock settings are keyed on.
+static mp_obj_t kbd_id(void) {
+    uint32_t id = usb_kbd_id();
+    if (id == 0) {
+        return mp_const_none;
+    }
+    mp_obj_t items[2] = {
+        MP_OBJ_NEW_SMALL_INT(id >> 16), MP_OBJ_NEW_SMALL_INT(id & 0xffff),
+    };
+    return mp_obj_new_tuple(2, items);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(kbd_id_obj, kbd_id);
+
+// kbd_desc() -> the mounted keyboard's HID report descriptor as bytes (empty if
+// no keyboard). For working out what a new keyboard reports without rebuilding.
+static mp_obj_t kbd_desc(void) {
+    const uint8_t *p = NULL;
+    uint16_t len = usb_kbd_desc(&p);
+    return mp_obj_new_bytes(p, len);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(kbd_desc_obj, kbd_desc);
+
+// numlock_led() -> True if the mounted keyboard declares a Num Lock LED. This is
+// where the num-lock default comes from for a keyboard with no saved setting: a
+// keyboard with no Num Lock light almost certainly has no numeric keypad. Note
+// the reverse doesn't follow — plenty of keyboards declare the LED and have no
+// keypad — so this only ever supplies a default, never overrides a saved choice.
+static mp_obj_t kbd_numlock_led(void) {
+    return mp_obj_new_bool(usb_kbd_numlock_led());
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(kbd_numlock_led_obj, kbd_numlock_led);
+
+// Python callback invoked (via the scheduler) when the user presses Num Lock,
+// called as cb((vid, pid, on)) so the choice can be persisted. Rooted so the GC
+// keeps it alive; scheduled from mp_usbh.c's lock-key seam.
+MP_REGISTER_ROOT_POINTER(mp_obj_t usbh_numlock_cb);
+
+// on_numlock(cb) registers cb; on_numlock(None) or on_numlock() clears it.
+static mp_obj_t kbd_on_numlock(size_t n_args, const mp_obj_t *args) {
+    MP_STATE_PORT(usbh_numlock_cb) = (n_args == 0) ? mp_const_none : args[0];
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(kbd_on_numlock_obj, 0, 1, kbd_on_numlock);
+
 // Python callback invoked (via the scheduler) on every keypress and auto-repeat,
 // called as cb(code) with the same key codes keydown() reports. Rooted so the GC
 // keeps it alive (registered here, not mp_usbh.c, for QSTR/root scanning).
@@ -129,6 +212,12 @@ static const mp_rom_map_elem_t keyboard_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_keymap), MP_ROM_PTR(&kbd_keymap_obj) },
     { MP_ROM_QSTR(MP_QSTR_keymaps), MP_ROM_PTR(&kbd_keymaps_obj) },
     { MP_ROM_QSTR(MP_QSTR_keydown), MP_ROM_PTR(&kbd_keydown_obj) },
+    { MP_ROM_QSTR(MP_QSTR_numlock), MP_ROM_PTR(&kbd_numlock_obj) },
+    { MP_ROM_QSTR(MP_QSTR_numlock_pref), MP_ROM_PTR(&kbd_numlock_pref_obj) },
+    { MP_ROM_QSTR(MP_QSTR_numlock_led), MP_ROM_PTR(&kbd_numlock_led_obj) },
+    { MP_ROM_QSTR(MP_QSTR_kbd_id), MP_ROM_PTR(&kbd_id_obj) },
+    { MP_ROM_QSTR(MP_QSTR_kbd_desc), MP_ROM_PTR(&kbd_desc_obj) },
+    { MP_ROM_QSTR(MP_QSTR_on_numlock), MP_ROM_PTR(&kbd_on_numlock_obj) },
     { MP_ROM_QSTR(MP_QSTR_on_key), MP_ROM_PTR(&kbd_on_key_obj) },
     { MP_ROM_QSTR(MP_QSTR_on_usb_event), MP_ROM_PTR(&kbd_on_usb_event_obj) },
     // Key codes reported by keydown(1..6) / on_key for the non-printing keys

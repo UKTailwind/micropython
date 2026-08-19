@@ -54,6 +54,40 @@ void kbd_backend_set_leds(int slot, uint8_t leds) {
     (void)leds;
 }
 
+// The keyboard module's num-lock surface. On the machine these live in
+// mp_usbh.c, where they also remember the setting per USB keyboard and push the
+// LED report that makes a compact keyboard drop its embedded keypad. Here there
+// is no USB keyboard to identify or light up -- SDL delivers the host's keys --
+// so only the decoder's own num-lock state is real, which is enough for the
+// keypad digit/navigation remap to behave as it does on the board. kbd_id()
+// returning 0 tells pcconfig there is no keyboard to save a setting against.
+int usb_kbd_get_numlock(void) {
+    return kbd_led_bitmap() & 0x01;
+}
+
+void usb_kbd_set_numlock(int on) {
+    kbd_set_numlock(on);
+}
+
+void usb_kbd_numlock_pref(uint16_t vid, uint16_t pid, int on) {
+    (void)vid;
+    (void)pid;
+    (void)on;
+}
+
+uint32_t usb_kbd_id(void) {
+    return 0;
+}
+
+uint16_t usb_kbd_desc(const uint8_t **p) {
+    *p = NULL; // SDL, not USB: there is no report descriptor to show
+    return 0;
+}
+
+int usb_kbd_numlock_led(void) {
+    return 1; // no descriptor to read, so the board's default for "unknown"
+}
+
 // --- SDL keys -> HID boot reports -------------------------------------------
 
 static uint8_t sdl_held[6]; // pressed usages, report order (0 = free)

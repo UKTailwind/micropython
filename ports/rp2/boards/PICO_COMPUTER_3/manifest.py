@@ -19,6 +19,12 @@ require("aioble")
 # runs the hot-swap removal/insertion poll (replicates MMBasic's CheckSDCard).
 freeze("$(BOARD_DIR)", "pcsd.py")
 
+# USB flash drive support is provided by the native C machine.USBDrive driver
+# (machine_usbdrive.c / usb_msc.c). pcusb.py mounts /usb and reacts to
+# USBDrive.on_change -- USB enumeration gives a definitive plug/unplug event,
+# so unlike pcsd.py this needs no poll.
+freeze("$(BOARD_DIR)", "pcusb.py")
+
 # Shell-style REPL helpers (ls, ...), injected into __main__ by _boot.py.
 freeze("$(BOARD_DIR)", "pcshell.py")
 

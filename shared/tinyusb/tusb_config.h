@@ -238,6 +238,13 @@ enum _USBD_EP {
 #define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM (0x03) // assert DTR|RTS on enumerate
 #define CFG_TUH_CDC_LINE_CODING_ON_ENUM  { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
 
+// USB mass-storage (flash drive) host: a plugged-in USB stick is presented to
+// MicroPython as a machine.USBDrive block device (usb_msc.c /
+// machine_usbdrive.c), mountable with vfs.VfsFat exactly like machine.SDCard.
+// One LUN is enough for the flash drives this board targets.
+#define CFG_TUH_MSC                 (1)
+#define CFG_TUH_MSC_MAXLUN          (1)
+
 #endif // MICROPY_HW_USB_HOST
 
 #endif // MICROPY_INCLUDED_SHARED_TINYUSB_TUSB_CONFIG_H

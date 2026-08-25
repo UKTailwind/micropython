@@ -1,7 +1,7 @@
 // Board and hardware specific configuration. The firmware version (shared by
 // both machines in the family) is folded into the board name so it appears in
 // the REPL banner and os.uname().machine.
-#define PICO_COMPUTER_3_VERSION                 "0.15"
+#define PICO_COMPUTER_3_VERSION                 "0.16"
 #define MICROPY_HW_BOARD_NAME                   "PICO COMPUTER 3 v" PICO_COMPUTER_3_VERSION
 // The name the same image reports when it finds itself on the other board. The
 // banner and os.uname().machine pick between the two at run time (see
@@ -13,7 +13,7 @@
 // RP2350B has 48 GPIOs with ADC on GP40-47 (help() text).
 #define MICROPY_HW_HELP_PIN_TEXT                "Pins are numbered 0-47, and 40-47 have ADC capabilities\n"
 
-// Tidy REPL banner: "MicroPython v1.29.0 on PICO COMPUTER 3 v0.15 with
+// Tidy REPL banner: "MicroPython v1.29.0 on PICO COMPUTER 3 v0.16 with
 // RP2350B" -- drops the git hash / build date and uses " on " instead of "; ".
 // MICROPY_VERSION_STRING carries whatever upstream's version defines say: it
 // read "1.29.0-preview" while MICROPY_VERSION_PRERELEASE was set, and reads

@@ -67,6 +67,15 @@ list(REMOVE_DUPLICATES USER_C_MODULES)
 # at half the pool.
 add_compile_definitions(MEMSYS5_HEAP_SIZE=0x400000)
 
+# 8 MB PSRAM. The SDK's hardware_psram library brings it up during runtime_init;
+# the chip-select (GP47) and the size both come from the pico-sdk board header
+# (pimoroni_pico_plus2_w_rp2350.h). MICROPY_HW_PSRAM_CS_PIN is given as well so
+# main.c can assert the two agree. The GC heap lives in PSRAM (see main.c) and
+# its QMI timing is re-tuned on every clk_sys change (main.c, modmachine.c and
+# hdmi_rp2.c).
+set(MICROPY_HW_ENABLE_PSRAM 1)
+set(MICROPY_HW_PSRAM_CS_PIN 47)
+
 # Board specific version of the frozen manifest
 set(MICROPY_FROZEN_MANIFEST ${MICROPY_BOARD_DIR}/manifest.py)
 

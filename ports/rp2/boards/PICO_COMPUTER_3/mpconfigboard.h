@@ -13,11 +13,11 @@
 // RP2350B has 48 GPIOs with ADC on GP40-47 (help() text).
 #define MICROPY_HW_HELP_PIN_TEXT                "Pins are numbered 0-47, and 40-47 have ADC capabilities\n"
 
-// Tidy REPL banner: "MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.2 with
-// RP2350B" (drops the git hash / build date, but keeps the "-preview" marker so
-// the build doesn't masquerade as an unreleased 1.29.0; " on " separator
-// instead of "; "). MICROPY_VERSION_STRING appends "-preview" while upstream's
-// MICROPY_VERSION_PRERELEASE is set.
+// Tidy REPL banner: "MicroPython v1.29.0 on PICO COMPUTER 3 v0.15 with
+// RP2350B" -- drops the git hash / build date and uses " on " instead of "; ".
+// MICROPY_VERSION_STRING carries whatever upstream's version defines say: it
+// read "1.29.0-preview" while MICROPY_VERSION_PRERELEASE was set, and reads
+// "1.29.0" now that this branch is merged up to the released tag.
 #define MICROPY_BANNER_NAME_AND_VERSION         "MicroPython v" MICROPY_VERSION_STRING
 #define MICROPY_BANNER_MACHINE_SEP              " on "
 
@@ -111,10 +111,10 @@ void mp_usbh_task(void);
 // External Flash (16 MB)
 #define MICROPY_HW_FLASH_SIZE_BYTES             (16 * 1024 * 1024)
 
-// External PSRAM (8 Mb = 1 MB)
-#define MICROPY_HW_PSRAM_CS_PIN                 (47)
-#define MICROPY_HW_PSRAM_SIZE_BYTES             (8 * 1024 * 1024)
-#define MICROPY_HW_ENABLE_PSRAM                 (1)
+// External PSRAM (8 MB) is configured in mpconfigboard.cmake -- the SDK's
+// hardware_psram library brings it up during runtime_init, and the port needs
+// the chip-select at CMake time to feed it (MICROPY_HW_ENABLE_PSRAM and
+// MICROPY_HW_PSRAM_CS_PIN are defined for C from there).
 
 // HDMI support enabled
 #define MICROPY_HW_ENABLE_HDMI                  (1)

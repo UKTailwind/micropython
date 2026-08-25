@@ -43,7 +43,7 @@
 #include "pico/stdlib.h"   // set_sys_clock_khz, setup_default_uart
 #include "uart.h"          // mp_uart_init
 #include "rp2_flash.h"     // rp2_flash_set_timing_for_freq
-#include "rp2_psram.h"     // psram_init
+#include "hardware/psram.h" // psram_configure_params / psram_reinitialize
 #include "clocks_extra.h"  // set_core_voltage_for_khz
 
 #if MICROPY_PY_NETWORK_CYW43 || MICROPY_PY_BLUETOOTH_CYW43
@@ -483,7 +483,7 @@ static void __not_in_flash_func(hdmi_core1_entry)(void) {
 // derives from it. Mirrors machine.freq()'s proven sequence (flash timing,
 // set_sys_clock, UART baud, PSRAM QMI re-time) and adds the cyw43 gSPI PIO
 // divider. Runs on core0 while core1 (the scanout) is stopped. The GC heap
-// lives in PSRAM, so psram_init() must re-run after the PLL moves.
+// lives in PSRAM, so its QMI window must be re-timed after the PLL moves.
 static void hdmi_set_clock(uint32_t khz) {
     int old_freq = clock_get_hz(clk_sys);
     int freq = (int)(khz * 1000);
@@ -507,15 +507,23 @@ static void hdmi_set_clock(uint32_t khz) {
     rp2_flash_set_timing_for_freq(freq > old_freq ? freq : old_freq);
     bool ok = set_sys_clock_khz(khz, false);
     if (ok) {
-        if (freq < old_freq) {
-            rp2_flash_set_timing_for_freq(freq);
+        #if MICROPY_HW_ENABLE_PSRAM
+        // Re-time the PSRAM QMI window (the GC heap lives there).  Must come
+        // before the flash timing below: psram_reinitialize() goes through
+        // flash_start_xip(), which restores the bootrom's XIP configuration
+        // for CS0 and discards ours.
+        if (psram_is_available()) {
+            psram_configure_params(PICO_DEFAULT_PSRAM_MAX_FREQ, PICO_DEFAULT_PSRAM_MAX_SELECT, PICO_DEFAULT_PSRAM_MIN_DESELECT);
+            psram_reinitialize();
         }
+        #endif
+        // Now the divider for the new clock, unconditionally: on the way up the
+        // conservative one set before the switch is replaced, on the way down the
+        // slower clock allows a smaller divisor.
+        rp2_flash_set_timing_for_freq(freq);
         #if MICROPY_HW_ENABLE_UART_REPL
         setup_default_uart();
         mp_uart_init(); // clk_peri follows clk_sys, so re-derive the REPL baud
-        #endif
-        #if MICROPY_HW_ENABLE_PSRAM
-        psram_init(MICROPY_HW_PSRAM_CS_PIN); // re-time the PSRAM QMI window (heap!)
         #endif
         #if CYW43_PIO_CLOCK_DIV_DYNAMIC
         extern void cyw43_set_pio_clkdiv_int_frac8(uint32_t clock_div_int, uint8_t clock_div_frac8);

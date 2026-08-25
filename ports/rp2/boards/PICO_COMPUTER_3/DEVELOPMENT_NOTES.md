@@ -269,12 +269,13 @@ re-injects them.
 
 Banner changed from
 `MicroPython v1.29.0-preview.450.g562d6be365.dirty on 2026-07-02; PICO COMPUTER 3 with RP2350`
-to `MicroPython v1.29.0-preview on PICO COMPUTER 3 with RP2350B`.
+to `MicroPython v1.29.0 on PICO COMPUTER 3 with RP2350B`.
 
 - `mpconfigboard.h`: `MICROPY_HW_MCU_NAME "RP2350B"`;
   `MICROPY_BANNER_NAME_AND_VERSION "MicroPython v" MICROPY_VERSION_STRING`
-  (drops the git hash / date but keeps the `-preview` marker so the build does
-  not masquerade as an unreleased 1.29.0); `MICROPY_BANNER_MACHINE_SEP " on "`.
+  (drops the git hash / date; the version itself comes from upstream's defines,
+  so it read `1.29.0-preview` until this branch merged the released v1.29.0 tag
+  and `1.29.0` after); `MICROPY_BANNER_MACHINE_SEP " on "`.
 - `mpconfigport.h`: `#ifndef`-guard the MCU name so the board can override it.
 - `py/mpconfig.h`: added a `MICROPY_BANNER_MACHINE_SEP` default (`"; "`); used in
   `shared/runtime/pyexec.c`. So only this board opts into `" on "`; every other

@@ -22,6 +22,15 @@
 // in step with PICO_COMPUTER_3_VERSION in the board's mpconfigboard.h.
 #define MICROPY_BANNER_MACHINE "PICO COMPUTER 3 v0.15 emulator"
 
+// ...and reads like the firmware's too: the version alone, no `git describe`
+// suffix or build date, and " on " as the separator (the board does the same in
+// mpconfigboard.h). Without this the emulator banner carries the tag the build
+// descends from, which is how it kept saying "-preview" after 1.29.0 was cut.
+#undef MICROPY_BANNER_NAME_AND_VERSION
+#define MICROPY_BANNER_NAME_AND_VERSION "MicroPython v" MICROPY_VERSION_STRING
+#undef MICROPY_BANNER_MACHINE_SEP
+#define MICROPY_BANNER_MACHINE_SEP " on "
+
 // os.dupterm: pcconsole mirrors REPL output to the display window, and the
 // emulator's combined stream feeds window keystrokes back into the REPL.
 // One slot (all unix_mphal supports).

@@ -5,7 +5,7 @@ Computer 2 — version **0.15** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 3 v0.15 with RP2350B
+MicroPython v1.29.0 on PICO COMPUTER 3 v0.15 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -148,7 +148,7 @@ The start-up banner and `os.uname().machine` name the board that was found, so
 a Pico Computer 2 greets you with:
 
 ```
-MicroPython v1.29.0-preview on PICO COMPUTER 2 v0.15 with RP2350B
+MicroPython v1.29.0 on PICO COMPUTER 2 v0.15 with RP2350B
 ```
 
 > If a Pico Computer 3's RTC battery/chip has failed it can be mistaken for a

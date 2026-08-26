@@ -67,9 +67,13 @@
 #define BYTES_PER_SAMPLE (2 * NUM_CHANNELS)  // 16-bit stereo
 #define AUDIO_TIMEOUT_MS 10
 #define SBC_STORAGE_SIZE 1030
-// ~185ms of 44.1kHz 16-bit stereo audio -- enough slack for Python-side
-// feeding jitter without needing a huge RAM buffer.
-#define PCM_RINGBUF_SIZE (16384)
+// ~46ms of 44.1kHz 16-bit stereo audio. Kept deliberately small: this
+// board's SRAM GC arena is already tuned to a tight minimum (see the
+// ASSERT in memmap_rp2350/section_extra_post_platform_end.incl -- adding
+// classic Bluetooth's own static buffers already ate most of the slack
+// upstream left). Revisit upward only alongside checking that assert still
+// holds, and only if real playback shows underruns needing more slack.
+#define PCM_RINGBUF_SIZE (4096)
 
 typedef struct {
     uint16_t a2dp_cid;
@@ -102,7 +106,7 @@ static uint8_t media_sbc_codec_capabilities[] = {
 static bool btaudio_inited = false;
 static a2dp_media_sending_context_t media_tracker;
 static btstack_sbc_encoder_state_t sbc_encoder_state;
-static media_codec_configuration_sbc_t sbc_configuration;
+static avdtp_configuration_sbc_t sbc_configuration;
 static uint32_t negotiated_sample_rate;
 
 static btstack_packet_callback_registration_t hci_event_callback_registration;
@@ -275,8 +279,6 @@ static void a2dp_source_packet_handler(uint8_t packet_type, uint16_t channel, ui
                 return;
             }
             media_tracker.remote_seid = a2dp_subevent_signaling_media_codec_sbc_configuration_get_remote_seid(packet);
-            sbc_configuration.reconfigure = a2dp_subevent_signaling_media_codec_sbc_configuration_get_reconfigure(packet);
-            sbc_configuration.num_channels = a2dp_subevent_signaling_media_codec_sbc_configuration_get_num_channels(packet);
             sbc_configuration.sampling_frequency = a2dp_subevent_signaling_media_codec_sbc_configuration_get_sampling_frequency(packet);
             sbc_configuration.block_length = a2dp_subevent_signaling_media_codec_sbc_configuration_get_block_length(packet);
             sbc_configuration.subbands = a2dp_subevent_signaling_media_codec_sbc_configuration_get_subbands(packet);
@@ -430,14 +432,16 @@ static void btaudio_ensure_init(void) {
     hci_event_callback_registration.callback = &hci_packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
 
-    ringbuf_init(&pcm_rb, pcm_rb_store, sizeof(pcm_rb_store));
+    pcm_rb.buf = pcm_rb_store;
+    pcm_rb.size = sizeof(pcm_rb_store);
+    pcm_rb.iget = pcm_rb.iput = 0;
 
     btaudio_inited = true;
 }
 
 static void raise_if_not_working(void) {
     if (hci_get_state() != HCI_STATE_WORKING) {
-        mp_raise_OSError_msg(MP_ERROR_TEXT("bluetooth.BLE().active(True) must be called first"));
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("bluetooth.BLE().active(True) must be called first"));
     }
 }
 
@@ -484,7 +488,7 @@ static mp_obj_t btaudio_connect(mp_obj_t addr_obj) {
     memcpy(addr, bufinfo.buf, 6);
     uint8_t status = a2dp_source_establish_stream(addr, &media_tracker.a2dp_cid);
     if (status != ERROR_CODE_SUCCESS) {
-        mp_raise_OSError_msg_varg(MP_ERROR_TEXT("a2dp connect failed, status 0x%02x"), status);
+        mp_raise_msg_varg(&mp_type_OSError, MP_ERROR_TEXT("a2dp connect failed, status 0x%02x"), status);
     }
     return mp_const_none;
 }

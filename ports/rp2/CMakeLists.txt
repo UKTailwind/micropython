@@ -503,9 +503,11 @@ if (MICROPY_HW_ENABLE_BT_A2DP)
         ${BTSTACK_LIB_DIR}/src/classic/a2dp.c
         ${BTSTACK_LIB_DIR}/src/classic/a2dp_source.c
         ${BTSTACK_LIB_DIR}/src/classic/avdtp.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp_acceptor.c
         ${BTSTACK_LIB_DIR}/src/classic/avdtp_initiator.c
         ${BTSTACK_LIB_DIR}/src/classic/avdtp_source.c
         ${BTSTACK_LIB_DIR}/src/classic/avdtp_util.c
+        ${BTSTACK_LIB_DIR}/src/classic/sdp_client.c
         ${BTSTACK_LIB_DIR}/src/classic/sdp_server.c
         ${BTSTACK_LIB_DIR}/src/classic/sdp_util.c
         ${BTSTACK_LIB_DIR}/src/classic/btstack_sbc_encoder_bluedroid.c

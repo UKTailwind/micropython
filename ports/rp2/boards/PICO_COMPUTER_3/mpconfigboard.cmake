@@ -48,6 +48,11 @@ set(MICROPY_PY_NETWORK_CYW43 ON)
 set(MICROPY_PY_BLUETOOTH ON)
 set(MICROPY_BLUETOOTH_BTSTACK ON)
 set(MICROPY_PY_BLUETOOTH_CYW43 ON)
+# Classic Bluetooth A2DP source (stream audio out to a Bluetooth speaker),
+# the `btaudio` module -- see CMakeLists.txt for why this needs ENABLE_CLASSIC
+# on the shared BTstack/HCI instance rather than pico-sdk's separate
+# pico_btstack_classic library.
+set(MICROPY_HW_ENABLE_BT_A2DP 1)
 
 # Pull in ulab (numpy-like ndarray/linalg) as a user C module for this board.
 # ulab's own micropython.cmake defines MODULE_ULAB_ENABLED and links itself into

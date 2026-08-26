@@ -25,6 +25,12 @@ freeze("$(BOARD_DIR)", "pcsd.py")
 # so unlike pcsd.py this needs no poll.
 freeze("$(BOARD_DIR)", "pcusb.py")
 
+# BLE keyboard/mouse (HID over GATT) support -- scan/pair/connect on demand
+# (unlike pcsd.py/pcusb.py, this doesn't auto-start at boot: pairing is a
+# deliberate user action). Feeds reports into keyboard.inject_report() /
+# mouse.inject_report(), the same decoders USB keyboards/mice use.
+freeze("$(BOARD_DIR)", "pcblekbd.py")
+
 # Shell-style REPL helpers (ls, ...), injected into __main__ by _boot.py.
 freeze("$(BOARD_DIR)", "pcshell.py")
 

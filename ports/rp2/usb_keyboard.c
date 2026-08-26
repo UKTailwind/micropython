@@ -30,6 +30,7 @@
 
 #include <string.h>
 #include "keyboard_maps.h" // vendored MMBasic layout tables (US/UK/DE/FR/ES/BE)
+#include "kbd_decode.h" // kbd_process_report -- no tusb dependency, unlike mp_usbh.c
 
 // Held-key state, maintained by the HID report decoder in mp_usbh.c.
 extern int usb_kbd_keydown(int n);
@@ -207,6 +208,19 @@ static mp_obj_t kbd_on_usb_event(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(kbd_on_usb_event_obj, 0, 1, kbd_on_usb_event);
 
+// keyboard.inject_report(data) -- feed an externally-sourced 8-byte HID boot
+// keyboard report (e.g. from a Bluetooth LE HID-over-GATT keyboard, see
+// pcbtkbd.py) into the same decoder USB keyboards use. slot -1: no lock-LED
+// handling on this path -- a BLE keyboard's LEDs (if it has any) are pushed
+// by writing its GATT Report characteristic directly, not through here.
+static mp_obj_t kbd_inject_report(mp_obj_t data) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(data, &bufinfo, MP_BUFFER_READ);
+    kbd_process_report(bufinfo.buf, bufinfo.len, -1);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(kbd_inject_report_obj, kbd_inject_report);
+
 static const mp_rom_map_elem_t keyboard_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_keyboard) },
     { MP_ROM_QSTR(MP_QSTR_keymap), MP_ROM_PTR(&kbd_keymap_obj) },
@@ -220,6 +234,7 @@ static const mp_rom_map_elem_t keyboard_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_on_numlock), MP_ROM_PTR(&kbd_on_numlock_obj) },
     { MP_ROM_QSTR(MP_QSTR_on_key), MP_ROM_PTR(&kbd_on_key_obj) },
     { MP_ROM_QSTR(MP_QSTR_on_usb_event), MP_ROM_PTR(&kbd_on_usb_event_obj) },
+    { MP_ROM_QSTR(MP_QSTR_inject_report), MP_ROM_PTR(&kbd_inject_report_obj) },
     // Key codes reported by keydown(1..6) / on_key for the non-printing keys
     // (MMBasic's codes, from the vendored layout tables). Shift-variants of some
     // exist too, e.g. Shift-Down = 0xA1, Shift-F1 = 0xB1.

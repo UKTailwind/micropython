@@ -62,10 +62,42 @@ static mp_obj_t mouse_speed(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mouse_speed_obj, 0, 1, mouse_speed);
 
+// mouse.inject_mount(desc) / inject_report(data) / inject_umount() -- feed a
+// non-USB mouse (e.g. Bluetooth LE HID-over-GATT, see pcbtkbd.py) through the
+// same descriptor-driven decoder USB mice use: desc is the HID report
+// descriptor from the GATT Report Map characteristic (byte-for-byte the same
+// language a USB mouse's descriptor uses), data is one Report-characteristic
+// notification. All three use the fixed USB_MOUSE_BLE_ADDR sentinel so a real
+// USB mouse and a BLE one are never confused with each other.
+static mp_obj_t mouse_inject_mount(mp_obj_t desc) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(desc, &bufinfo, MP_BUFFER_READ);
+    usb_mouse_mount(USB_MOUSE_BLE_ADDR, 0, bufinfo.buf, bufinfo.len);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(mouse_inject_mount_obj, mouse_inject_mount);
+
+static mp_obj_t mouse_inject_report(mp_obj_t data) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(data, &bufinfo, MP_BUFFER_READ);
+    usb_mouse_on_report(USB_MOUSE_BLE_ADDR, 0, bufinfo.buf, bufinfo.len);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(mouse_inject_report_obj, mouse_inject_report);
+
+static mp_obj_t mouse_inject_umount(void) {
+    usb_mouse_on_umount(USB_MOUSE_BLE_ADDR, 0);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(mouse_inject_umount_obj, mouse_inject_umount);
+
 static const mp_rom_map_elem_t mouse_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_mouse) },
     { MP_ROM_QSTR(MP_QSTR_query), MP_ROM_PTR(&mouse_query_obj) },
     { MP_ROM_QSTR(MP_QSTR_speed), MP_ROM_PTR(&mouse_speed_obj) },
+    { MP_ROM_QSTR(MP_QSTR_inject_mount), MP_ROM_PTR(&mouse_inject_mount_obj) },
+    { MP_ROM_QSTR(MP_QSTR_inject_report), MP_ROM_PTR(&mouse_inject_report_obj) },
+    { MP_ROM_QSTR(MP_QSTR_inject_umount), MP_ROM_PTR(&mouse_inject_umount_obj) },
 };
 static MP_DEFINE_CONST_DICT(mouse_module_globals, mouse_module_globals_table);
 

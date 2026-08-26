@@ -29,6 +29,13 @@ enum {
 
 int usb_mouse_query(int code);
 
+// Sentinel dev_addr for a non-USB (e.g. Bluetooth LE HID-over-GATT) mouse fed
+// in via mouse.inject_mount()/inject_report() (usb_mouse_mod.c). TinyUSB
+// addresses are small positive integers (<= CFG_TUH_DEVICE_MAX), so this can
+// never collide with a real device; usb_mouse.c skips its TinyUSB-only control
+// transfers (set/get protocol) when it sees this address.
+#define USB_MOUSE_BLE_ADDR 0xFE
+
 // --- called from the mp_usbh.c HID callbacks (USB / thread context) ---------
 void usb_mouse_mount(uint8_t dev_addr, uint8_t instance,
     const uint8_t *desc_report, uint16_t desc_len);

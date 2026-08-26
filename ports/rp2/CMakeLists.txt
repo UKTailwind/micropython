@@ -244,6 +244,8 @@ if(MICROPY_HW_USB_HOST)
         usb_gamepad_mod.c
         usb_cdc.c
         usb_cdc_mod.c
+        usb_msc.c
+        machine_usbdrive.c
     )
 endif()
 
@@ -298,6 +300,7 @@ if(MICROPY_HW_USB_HOST)
         ${MICROPY_PORT_DIR}/usb_mouse_mod.c
         ${MICROPY_PORT_DIR}/usb_gamepad_mod.c
         ${MICROPY_PORT_DIR}/usb_cdc_mod.c
+        ${MICROPY_PORT_DIR}/machine_usbdrive.c
     )
 endif()
 if(MICROPY_HW_ENABLE_XMODEM)
@@ -477,6 +480,66 @@ if (MICROPY_BLUETOOTH_BTSTACK)
     # For modbluetooth_btstack.c includes
     get_target_property(BTSTACK_INCLUDE micropy_extmod_btstack INTERFACE_INCLUDE_DIRECTORIES)
     list(APPEND MICROPY_INC_CORE ${BTSTACK_INCLUDE})
+endif()
+
+# Bluetooth Classic A2DP source (stream audio out to a Bluetooth speaker),
+# the `btaudio` module. Adds just the classic-profile BTstack sources this
+# needs (a2dp/avdtp source role + SDP + the SBC encoder) directly to the
+# firmware target, rather than linking pico-sdk's pico_btstack_classic
+# library -- that would pull in its own copy of hci.c/l2cap.c, duplicating
+# the ones micropy_extmod_btstack above already compiles for BLE. Classic and
+# LE share ONE BTstack/HCI instance (that's the whole point of dual-mode) --
+# hci.c/l2cap.c just need ENABLE_CLASSIC=1 applied to their one compilation,
+# which target_compile_definitions on the firmware target itself achieves
+# (it applies to every source pulled into this target, including
+# micropy_extmod_btstack's INTERFACE sources).
+if (MICROPY_HW_ENABLE_BT_A2DP)
+    if (NOT MICROPY_BLUETOOTH_BTSTACK)
+        message(FATAL_ERROR "MICROPY_HW_ENABLE_BT_A2DP requires MICROPY_BLUETOOTH_BTSTACK")
+    endif()
+
+    list(APPEND MICROPY_SOURCE_PORT
+        btaudio.c
+        ${BTSTACK_LIB_DIR}/src/classic/a2dp.c
+        ${BTSTACK_LIB_DIR}/src/classic/a2dp_source.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp_acceptor.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp_initiator.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp_source.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp_util.c
+        ${BTSTACK_LIB_DIR}/src/classic/sdp_client.c
+        ${BTSTACK_LIB_DIR}/src/classic/sdp_server.c
+        ${BTSTACK_LIB_DIR}/src/classic/sdp_util.c
+        ${BTSTACK_LIB_DIR}/src/classic/btstack_sbc_encoder_bluedroid.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_analysis.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_dct.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_dct_coeffs.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_enc_bit_alloc_mono.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_enc_bit_alloc_ste.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_enc_coeffs.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_encoder.c
+        ${BTSTACK_LIB_DIR}/3rd-party/bluedroid/encoder/srce/sbc_packing.c
+    )
+    list(APPEND MICROPY_SOURCE_QSTR ${MICROPY_PORT_DIR}/btaudio.c)
+
+    target_compile_definitions(${MICROPY_TARGET} PRIVATE
+        MICROPY_HW_ENABLE_BT_A2DP=1
+        ENABLE_CLASSIC=1
+    )
+    # Quiets known-noisy but harmless warnings in this vendored code (same
+    # suppressions pico-sdk's own pico_btstack_classic target applies).
+    set_source_files_properties(
+        ${BTSTACK_LIB_DIR}/src/classic/a2dp.c
+        ${BTSTACK_LIB_DIR}/src/classic/a2dp_source.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp.c
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp_source.c
+        ${BTSTACK_LIB_DIR}/src/classic/sdp_server.c
+        PROPERTIES COMPILE_OPTIONS "-Wno-cast-qual"
+    )
+    set_source_files_properties(
+        ${BTSTACK_LIB_DIR}/src/classic/avdtp_util.c
+        PROPERTIES COMPILE_OPTIONS "-Wno-unused-parameter"
+    )
 endif()
 
 if(MICROPY_BLUETOOTH_NIMBLE)

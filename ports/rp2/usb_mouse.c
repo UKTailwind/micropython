@@ -372,12 +372,17 @@ void usb_mouse_mount(uint8_t dev_addr, uint8_t instance,
     mouse_inst = instance;
     mouse_present = true;
     analyze_mouse_descriptor(desc_report, desc_len, &mouse_layout);
-    // Switch from boot protocol to report protocol so the reports match the
-    // descriptor layout decoded above. TinyUSB puts boot-capable mice into
-    // boot protocol during enumeration; MMBasic issues exactly this call from
-    // its mount callback (USBKeyboard.c mouse path) and it's the only
-    // mount-time control transfer allowed here.
-    tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+    if (dev_addr != USB_MOUSE_BLE_ADDR) {
+        // Switch from boot protocol to report protocol so the reports match the
+        // descriptor layout decoded above. TinyUSB puts boot-capable mice into
+        // boot protocol during enumeration; MMBasic issues exactly this call from
+        // its mount callback (USBKeyboard.c mouse path) and it's the only
+        // mount-time control transfer allowed here. A BLE mouse has no TinyUSB
+        // device behind it, so there is nothing to issue this to -- its reports
+        // always arrive already in the descriptor's report format (GATT, not a
+        // USB boot/report protocol split).
+        tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+    }
     // Start the cursor centred on the current screen so it's visible.
     int w = hdmi_get_width(), h = hdmi_get_height();
     mouse_ax = (w > 0) ? w / 2 : 0;
@@ -401,7 +406,9 @@ void usb_mouse_on_report(uint8_t dev_addr, uint8_t instance,
 
     // A device the SET_PROTOCOL didn't stick on still sends boot reports; a
     // descriptor with no X/Y leaves us nothing better than the boot layout.
-    bool boot = tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT;
+    // A BLE mouse (see USB_MOUSE_BLE_ADDR) is never in USB boot protocol.
+    bool boot = (dev_addr != USB_MOUSE_BLE_ADDR) &&
+        tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT;
     if (boot || !mouse_layout.valid) {
         if (len < 3) {
             return;

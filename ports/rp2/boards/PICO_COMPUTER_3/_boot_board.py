@@ -52,6 +52,12 @@ import pcsd
 
 pcsd.start()
 
+# USB flash drive: mount /usb (if one is already plugged in) and react to
+# further plug/unplug events -- see pcusb.py for why this needs no poll.
+import pcusb
+
+pcusb.start()
+
 # On-screen console: console() mirrors REPL output to the HDMI screen.
 import pcconsole
 

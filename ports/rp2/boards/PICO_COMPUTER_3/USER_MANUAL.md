@@ -52,7 +52,7 @@ over the artwork otherwise) and restore `console()` in a `finally:`. XMODEM
 transfers use the serial port directly and work in any mode.
 
 The USB device port is disabled (there is no USB-CDC prompt); the USB port is a
-**host** port for keyboards, mice and touch panels.
+**host** port for keyboards, mice, touch panels and USB flash drives.
 
 At the prompt you can type Python directly, or use the shell-style helpers
 (section 4). To run a program from the SD card or flash:
@@ -94,7 +94,7 @@ cannot be claimed with `machine.Pin()`.
 | PSRAM chip-select | **GP47** | 8 MB PSRAM |
 | Wi-Fi / Bluetooth (CYW43) | REG_ON **GP23**, DATA **GP24**, CS **GP25**, CLK **GP29** | wireless chip over PIO-SPI — *reserved* |
 | Status LED | CYW43 **GPIO0** | on the wireless chip (not an RP2350 pin) — named pin `"LED"` |
-| USB host | native USB port | keyboard / mouse / touch |
+| USB host | native USB port | keyboard / mouse / touch / flash drive |
 
 The **status LED** is on the CYW43 wireless chip, not on an RP2350 GPIO. It is
 exposed as the named pin `"LED"` (an "extended" pin) and driven like any output —
@@ -166,6 +166,7 @@ MicroPython v1.29.0 on PICO COMPUTER 2 v0.16 with RP2350B
 - **Floats:** double precision (64-bit). Integers are arbitrary precision.
 - **Flash filesystem:** 12 MB LittleFS mounted at `/`.
 - **SD card:** FAT, mounted at `/sd`, hot-swappable (section 12).
+- **USB flash drive:** FAT, mounted at `/usb`, hot-pluggable (section 12).
 - **PSRAM:** 8 MB — the Python heap lives here, so large data/images/audio
   buffers are fine.
 
@@ -1536,6 +1537,16 @@ background check (~twice a second) notices when a card is removed and unmounts i
 ```python
 ls("/sd")
 f = open("/sd/data.txt", "w"); f.write("hello"); f.close()
+```
+
+A USB flash drive works the same way, mounted at **`/usb`**: plug one into the
+host port and it appears (`USB drive mounted at /usb`); unplugging it unmounts
+it (`Warning: USB drive removed`). Unlike the SD card, no polling is
+involved — USB tells the board directly when a drive appears or disappears.
+
+```python
+ls("/usb")
+cp("/usb/prog.py", "/sd")
 ```
 
 ---

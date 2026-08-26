@@ -37,6 +37,7 @@
 #include "usb_mouse.h" // USB mouse support (usb_mouse.c)
 #include "usb_gamepad.h" // USB HID gamepad support (usb_gamepad.c)
 #include "usb_cdc.h" // USB CDC (serial) host support (usb_cdc.c)
+#include "usb_msc.h" // USB mass-storage (flash drive) host support (usb_msc.c)
 
 #include "kbd_decode.h" // the shared HID keyboard decoder
 static void hid_poll(void);
@@ -104,6 +105,7 @@ void mp_usbh_init(void) {
     }
     tuh_init(0); // native controller, root-hub port 0
     usb_cdc_init(); // set up the CDC receive ring buffers before enumeration
+    usb_msc_init(); // reset mass-storage host state before enumeration
     add_repeating_timer_us(-1000, usbh_wake_cb, NULL, &usbh_wake_timer);
     usbh_inited = true;
 }

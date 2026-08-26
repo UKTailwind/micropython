@@ -33,9 +33,8 @@ uint32_t usb_msc_block_size(void);
 bool usb_msc_read10(uint32_t lba, uint16_t count, uint8_t *buf);
 bool usb_msc_write10(uint32_t lba, uint16_t count, const uint8_t *buf);
 
-// Register a callback fired as cb() on mount and on unmount -- the handler
-// checks USBDrive().present() for the new state, exactly like
-// USBSerial.on_change(). NULL/None clears it.
+// Register a callback fired as cb(connected) on mount (True) and unmount
+// (False). NULL/None clears it.
 void usb_msc_set_change_cb(mp_obj_t cb);
 
 #endif // MICROPY_INCLUDED_RP2_USB_MSC_H

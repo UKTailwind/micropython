@@ -34,7 +34,7 @@
 //   d = machine.USBDrive()
 //   if d.present():
 //       vfs.mount(vfs.VfsFat(d), "/usb")
-//   machine.USBDrive.on_change(lambda: ...)
+//   machine.USBDrive.on_change(lambda connected: ...)
 
 #include "py/runtime.h"
 #include "py/mperrno.h"
@@ -89,9 +89,10 @@ static mp_obj_t machine_usbdrive_info(mp_obj_t self_in) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(machine_usbdrive_info_obj, machine_usbdrive_info);
 
-// USBDrive.on_change(fn) -- fn() called on any USB-drive connect/disconnect;
-// the handler checks USBDrive().present() for the new state, exactly like
-// USBSerial.on_change(). A single (module-wide) callback.
+// USBDrive.on_change(fn) -- fn(connected) called on any USB-drive connect/
+// disconnect (True/False); the handler can also just check USBDrive().present()
+// for the current state, exactly like USBSerial.on_change(). A single
+// (module-wide) callback.
 static mp_obj_t machine_usbdrive_on_change(mp_obj_t fn) {
     usb_msc_set_change_cb(fn == mp_const_none ? MP_OBJ_NULL : fn);
     return mp_const_none;

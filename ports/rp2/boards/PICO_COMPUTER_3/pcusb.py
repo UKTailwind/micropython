@@ -42,8 +42,10 @@ def _umount():
     _mounted = False
 
 
-def _on_change():
+def _on_change(connected):
     # Runs in scheduler context (mp_sched_schedule), like USBSerial.on_change.
+    # `connected` isn't used directly -- present() is re-checked instead, so
+    # a stale/coalesced event can't leave the mount state wrong.
     try:
         if _drive.present():
             if not _mounted:

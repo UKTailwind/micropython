@@ -64,10 +64,15 @@ void usb_msc_init(void) {
     // callbacks below, exactly like usb_cdc's per-interface state.
 }
 
-static void notify_change(void) {
+// Called as cb(True) on mount / cb(False) on unmount -- mp_sched_schedule
+// always calls its target with exactly one argument, so the callback (see
+// pcusb.py) must take one positional parameter, matching keyboard's
+// on_usb_event(connect) and usb_cdc's on_change(idx) conventions elsewhere
+// in this port.
+static void notify_change(bool connected) {
     mp_obj_t cb = MP_STATE_PORT(usb_msc_change_cb);
     if (cb != MP_OBJ_NULL && cb != mp_const_none) {
-        mp_sched_schedule(cb, mp_const_none);
+        mp_sched_schedule(cb, mp_obj_new_bool(connected));
     }
 }
 
@@ -80,14 +85,14 @@ void tuh_msc_mount_cb(uint8_t dev_addr) {
         dev_addr,
         (unsigned long)tuh_msc_get_block_count(dev_addr, 0),
         (unsigned long)tuh_msc_get_block_size(dev_addr, 0));
-    notify_change();
+    notify_change(true);
 }
 
 void tuh_msc_umount_cb(uint8_t dev_addr) {
     (void)dev_addr;
     msc_mounted = false;
     mp_printf(&mp_plat_print, "USB drive: unmounted addr=%u\n", dev_addr);
-    notify_change();
+    notify_change(false);
 }
 
 // --- API for machine.USBDrive ------------------------------------------

@@ -238,6 +238,11 @@ enum _USBD_EP {
 #define CFG_TUH_CDC_LINE_CONTROL_ON_ENUM (0x03) // assert DTR|RTS on enumerate
 #define CFG_TUH_CDC_LINE_CODING_ON_ENUM  { 115200, CDC_LINE_CODING_STOP_BITS_1, CDC_LINE_CODING_PARITY_NONE, 8 }
 
+// USB mass storage (flash drives): one drive at a time, presented as the
+// usbdrive.Drive block device (usb_msc.c) and mounted at /usb by pcusb.py.
+// MMBasic's C: drive (RP2350 builds), same TinyUSB class driver.
+#define CFG_TUH_MSC                 (1)
+
 #endif // MICROPY_HW_USB_HOST
 
 #endif // MICROPY_INCLUDED_SHARED_TINYUSB_TUSB_CONFIG_H

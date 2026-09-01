@@ -52,6 +52,12 @@ import pcsd
 
 pcsd.start()
 
+# USB flash drive: mount /usb when a drive is plugged in (or already is), and
+# unmount when it is pulled. Event-driven from the USB host stack.
+import pcusb
+
+pcusb.start()
+
 # On-screen console: console() mirrors REPL output to the HDMI screen.
 import pcconsole
 

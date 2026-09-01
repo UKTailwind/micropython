@@ -1538,6 +1538,34 @@ ls("/sd")
 f = open("/sd/data.txt", "w"); f.write("hello"); f.close()
 ```
 
+### USB flash drive — `/usb`
+
+A USB flash drive plugged into the hub is mounted at **`/usb`** as soon as it
+is recognised (`USB drive mounted at /usb (59153 MB)`), and unmounted when it
+is pulled (`Warning: USB drive removed`). One drive at a time; the keyboard
+and the other USB devices carry on alongside it. Use the normal file API and
+the shell commands on `/usb`, exactly as on `/sd`:
+
+```python
+ls("/usb")
+with open("/usb/notes.txt") as f: print(f.read())
+```
+
+The drive must be **FAT32** — the same rule as the SD card. A large stick as
+sold is usually exFAT and will not mount until it is reformatted FAT32 on a
+PC (Windows offers exFAT only for drives over 32 GB; use a third-party
+formatter or `format /FS:FAT32` from a command prompt). Speed is what a
+full-speed USB port allows: about 1.1 MB/s reading, and writing at the
+stick's own pace (a few hundred KB/s). Files being written when the drive is
+pulled are lost, as with any removable drive: close them first.
+
+For programs that want the raw device, `usbdrive.Drive()` is a block device
+(`readblocks` / `writeblocks` / `ioctl`) that `vfs.VfsFat` mounts;
+`usbdrive.present()` says whether a drive is there, `usbdrive.info()` gives
+`(block_count, block_size, vid, pid)`, and `usbdrive.on_change(fn)` calls
+`fn(True)` / `fn(False)` on plug-in and removal. The automatic mounting is
+`pcusb` (`pcusb.mounted()`, `pcusb.verbose = False` to silence the notices).
+
 ---
 
 ## 13. File transfer (XMODEM)

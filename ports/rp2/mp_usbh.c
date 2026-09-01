@@ -38,6 +38,7 @@
 #include "usb_mouse.h" // USB mouse support (usb_mouse.c)
 #include "usb_gamepad.h" // USB HID gamepad support (usb_gamepad.c)
 #include "usb_cdc.h" // USB CDC (serial) host support (usb_cdc.c)
+#include "usb_msc.h" // USB mass storage (flash drive) host support (usb_msc.c)
 
 #include "kbd_decode.h" // the shared HID keyboard decoder
 static void hid_poll(void);
@@ -121,6 +122,8 @@ void mp_usbh_init(void) {
     usbh_inited = true;
 }
 
+static volatile bool usbh_in_task = false;
+
 void mp_usbh_task(void) {
     // Reentrancy guard: tuh_task() is NOT reentrant. It can be reached twice
     // because an enumeration mp_printf() goes through dupterm to the on-screen
@@ -128,15 +131,22 @@ void mp_usbh_task(void) {
     // mp_usbh_task() again while the outer tuh_task() is still on the stack.
     // Re-entering there corrupts USB enumeration (notably a second device such
     // as a touch panel plugged in alongside the keyboard). Skip the nested call.
-    static bool in_task = false;
-    if (usbh_inited && !in_task) {
-        in_task = true;
+    if (usbh_inited && !usbh_in_task) {
+        usbh_in_task = true;
         tuh_task();
         hid_poll();       // MMBasic hid_app_task: request the next report per slot
         kbd_repeat_check();
         usb_touch_task(); // touch digitizer-init handshake + no-report watchdog
-        in_task = false;
+        usbh_in_task = false;
+        usb_msc_task();   // USB drive mount/unmount notification, now that we are outside the stack
     }
+}
+
+// True while tuh_task() is on the stack. The USB drive's block transfers pump
+// the stack while they wait, so one asked for from inside it (a filesystem
+// call reached from a USB callback) cannot be served; usb_msc.c refuses it.
+bool mp_usbh_in_task(void) {
+    return usbh_in_task;
 }
 
 // --- TinyUSB host callbacks (weak in TinyUSB; defined here) ----------------

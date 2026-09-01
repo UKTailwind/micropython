@@ -2931,6 +2931,83 @@ the bring-up handshake), gamepad, `USBSerial` — and the num-lock LED push
 `usbh` now underlies. MMBasic stays on 0.20; the kernel and this firmware are on
 0.21.
 
+### 74. USB flash drives — `usbdrive` + `/usb` (MMBasic's `C:` drive)
+
+A user asked for it; MMBasic has it on RP2350 builds and is known to be slow
+there. `PLAN-usbmsc.md` is the review that preceded this; the short form:
+
+**What it is.** `CFG_TUH_MSC 1`; `usb_msc.c` is the TinyUSB MSC-host glue
+(one drive at a time, LUN 0, geometry read in `tuh_msc_mount_cb` — TinyUSB has
+already done TEST UNIT READY and READ CAPACITY by then); `usb_msc_mod.c` is
+the `usbdrive` module: `Drive()` is a block device with the same protocol as
+`machine.SDCard` (`readblocks` / `writeblocks` / `ioctl`, `0` or `-errno`),
+plus `present()`, `info()` → `(block_count, block_size, vid, pid)` and
+`on_change(fn)`. `pcusb.py` (frozen, started from `_boot_board.py`) mounts
+`vfs.VfsFat(usbdrive.Drive())` at **`/usb`** when a drive appears and
+unmounts on removal — event-driven, unlike `pcsd.py`, because the stack
+reports both. FAT32 only (exFAT is not built in, as for the SD card).
+
+**Transfers**, from MMBasic's measured design: TinyUSB's per-transfer length
+is a `uint16_t`, so a command carries at most 65535 bytes — 127 blocks of 512,
+15 of 4096 — and longer requests are a chain of chunks. A failed command gets
+REQUEST SENSE (clears the drive's check condition) and up to four tries, one
+second per chunk; a drive pulled mid-chain fails it with `ENODEV`. The wait
+loop pumps the port's own `mp_usbh_task()`, so the keyboard is still polled
+through a long copy. Buffers go straight through: the rp2 hcd copies packet by
+packet with the CPU, no DMA, so a PSRAM-heap `bytearray` is fine and nothing is
+staged. Write-through, no cache: a stick gets pulled.
+
+**Measured (2026-09-01, HP 64 GB stick `03f0:a240`, FAT32, 32 KB clusters,
+`usbbench.py`):**
+
+| raw `readblocks`, ~1 MB total | KB/s | per command |
+|---|---|---|
+| 1 block per command | 729 | 701 µs |
+| 8 blocks | 1112 | 3.7 ms |
+| 32 blocks | 1162 | 14.1 ms |
+| 64 blocks | 1169 | 28.0 ms |
+| 127 blocks | 1190 | 54.6 ms |
+
+| file, 1 MB | KB/s |
+|---|---|
+| write, 32 KB chunks | 295 |
+| read, 512-byte chunks | 666 |
+| read, 4 KB chunks | 1039 |
+| read, 32 KB chunks | 1128 |
+
+`listdir` of the root: 5 ms. Content verified after the write. So: 0.7 ms per
+command, and everything from eight blocks up runs at the full-speed wire
+ceiling (~1.2 MB/s). The read-ahead cache and the in-loop interrupt polling
+the plan held in reserve are not needed; the "SDK driver" floor MMBasic met
+on 0.20 is not present on 0.21 with this pump. Writes are the stick's own
+pace.
+
+**The bug the first build had — and the rule it leaves.** The notification
+to Python was scheduled from inside `tuh_msc_mount_cb`. The generic
+`tuh_mount_cb` then printed `USB: mounted addr=…`, that print went through
+dupterm to the on-screen console, which runs the VM, which runs the
+scheduler — so `pcusb._on_change` executed *inside* `tuh_task()`, its first
+`readblocks` was refused (`EBUSY`, the reentrancy rule doing its job), FatFS
+reported `EIO`, and the console showed `USB: mounted addr=` cut in half by
+"cannot mount". Fix: the callbacks only record the event; `usb_msc_task()`,
+called from `mp_usbh_task()` **after** `tuh_task()` returns, schedules it.
+`pcusb` also retries a failed mount three times, 300 ms apart, from a one-shot
+soft timer (a stick can be slow to answer its first reads). The rule: **never
+schedule Python from a TinyUSB callback if that Python might touch USB** —
+record, and schedule from the pump once the stack has returned.
+
+**Seen on the board with the fixed build (2026-09-01).** Reset with the stick
+attached: `USB drive: addr=1, 121145344 blocks of 512 bytes (59153 MB)` →
+`USB: mounted addr=1 VID:PID=03f0:a240` (intact) → `USB drive mounted at /usb
+(59153 MB)`; `/usb` lists the stick, 59,113 MB free. Pull and replug: the
+remount fired, which only happens after pcusb's own unmount has run. And the
+realistic read path — `pcaudio.play("/usb/mp3/Bombora.mp3")`, the `dr_mp3`
+decoder pulling the file from the drive out of the I2S feed callback while the
+REPL was idle — played the whole 573 KB track to the end with a quiet console,
+`is_playing()` False afterwards and `/usb` still mounted. That is a block
+device being read from a scheduled callback, the case the reentrancy rule
+exists for, working.
+
 ## Files touched
 
 | File | Purpose |
@@ -2947,7 +3024,11 @@ the bring-up handshake), gamepad, `USBSerial` — and the num-lock LED push
 | `ports/rp2/usb_touch_mod.c` | **new** `touch` module (`touch()` query: X/Y, contacts, swipes, tap/hold, pinch/rotate) |
 | `ports/rp2/usb_mouse.c` + `usb_mouse.h` | **new** USB mouse: general HID descriptor parse (per-field bit offset/width/sign/report ID) + bit-extraction report decode + report-protocol switch at mount, boot-layout fallback (§68); cursor accumulation/buttons/wheel/double-click (vendored MMBasic) |
 | `ports/rp2/usb_mouse_mod.c` | **new** `mouse` module (`mouse()` query: X/Y/L/R/M/W/B/D/T; `mouse_speed()`) |
-| `shared/tinyusb/tusb_config.h` | `#if MICROPY_HW_USB_HOST` block (host mode, hub, enum buf 1024, HID) |
+| `shared/tinyusb/tusb_config.h` | `#if MICROPY_HW_USB_HOST` block (host mode, hub, enum buf 1024, HID); CDC; `CFG_TUH_MSC 1` for the USB drive (§74) |
+| `ports/rp2/usb_msc.c` + `usb_msc.h` | **new** TinyUSB MSC-host glue: one drive, LUN 0, chunked READ/WRITE(10) ≤65535 bytes, REQUEST SENSE + 4 retries, 1 s per chunk, ENODEV on removal, EBUSY from inside the stack; mount/unmount notified from `usb_msc_task()` after `tuh_task()` returns (§74) |
+| `ports/rp2/usb_msc_mod.c` | **new** `usbdrive` module: `Drive()` block device (`readblocks`/`writeblocks`/`ioctl`), `present()`, `info()`, `on_change()` (§74) |
+| `ports/rp2/boards/PICO_COMPUTER_3/pcusb.py` | **new** frozen: mounts `/usb` on plug-in (with a 3 × 300 ms retry from a soft timer), unmounts on removal; `_boot_board.py` starts it (§74) |
+| `ports/rp2/boards/PICO_COMPUTER_3/PLAN-usbmsc.md` | **new** the review that preceded §74: MMBasic's USB drive, where the speed goes, the design |
 | `ports/rp2/uart.c` | translate serial-terminal Del (`0x7f`) → `\x1b[3~` under `MICROPY_HW_UART_REPL_DEL_FORWARD`; `mp_uart_repl_mute` output-mute flag (§35) |
 | `ports/rp2/sercon.c` | **new** `_sercon` module: serial-console output mute for `console()` routing (§35) |
 | `ports/rp2/audio.c` | **new** `audio` module: `scale()` volume + `{wav,mp3,flac}_{open,read,close}` via dr_* + GC/rooted allocator; `usb_sound()` decodes the plug-in/unplug WAVs; tone generator + 4-voice synth + MOD player backends (§31) |

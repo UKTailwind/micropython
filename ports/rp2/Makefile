@@ -60,6 +60,18 @@ ifdef MICROPY_C_HEAP_SIZE
 CMAKE_ARGS += -DMICROPY_C_HEAP_SIZE=$(MICROPY_C_HEAP_SIZE)
 endif
 
+# Pico Computer 3 USB host: TinyUSB's enumeration / hub / class trace on the
+# console (debug builds only; see shared/tinyusb/tusb_config.h).
+ifdef PC3_USB_TRACE
+CMAKE_ARGS += -DPC3_USB_TRACE=1
+endif
+ifdef PC3_USB_TRACE_LEVEL
+CMAKE_ARGS += -DPC3_USB_TRACE_LEVEL=$(PC3_USB_TRACE_LEVEL)
+endif
+ifdef PC3_USB_EVLOG
+CMAKE_ARGS += -DPC3_USB_EVLOG=1
+endif
+
 ifdef MICROPY_HW_FLASH_STORAGE_BYTES
 CMAKE_ARGS += -DMICROPY_HW_FLASH_STORAGE_BYTES=$(MICROPY_HW_FLASH_STORAGE_BYTES)
 endif

@@ -1,0 +1,22 @@
+--- usbh.c	(TinyUSB 0.21.0-micropython1, lib/tinyusb)
++++ usbh.c	(Pico Computer 3 MicroPython, ports/rp2/usbh.patch)
+@@ -1695,7 +1695,18 @@
+   ENUM_RESET_ROOT_DELAY_MS           = 50,  // T(DRSTr)  minimum 50 ms for reset from root port
+   ENUM_RESET_ROOT_POST_DELAY_MS      = 2,   // 2 ms delay after root port reset before getting speed/status
+   ENUM_RESET_HUB_DELAY_MS            = 20,  // T(DRST)   10-20 ms for hub reset
+-  ENUM_RESET_RECOVERY_DELAY_MS       = 10,  // T(RSTRCY) minimum 10 ms for reset recovery
++  /* PC3: 100, not the 10 ms minimum.  Behind the Pico Computer 3's hub a
++   * flash drive and a touch panel were not answering their first SETUP
++   * 10 ms after the port reset was cleared; the rp2 controller retried,
++   * every retry timed out, the 0.21 hcd failed the transfer on the first
++   * timeout, and the stack abandoned the device (no retry of a failed
++   * enumeration).  An event log showed it: seven RX timeouts in 120 us,
++   * four FAILED, then a STALL on the next device.  0.20 waited longer and
++   * tolerated timeouts, and the same devices enumerate under it; so did
++   * 0.21 whenever a debug print stretched this gap.  Ten devices at 90 ms
++   * each is under a second of boot; a device still not ready after 100 ms
++   * is a device to replug.  (2026-09-01, ports/rp2/usbh.patch) */
++  ENUM_RESET_RECOVERY_DELAY_MS       = 100, // T(RSTRCY) minimum 10 ms for reset recovery - PC3: 100
+   ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2,   // USB 2.0 Spec 9.2.6.3 min is 2 ms
+ };
+ 

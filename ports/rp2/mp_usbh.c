@@ -24,6 +24,7 @@
 // the runtime waits, e.g. at the REPL. This first cut just enumerates and prints
 // mount/unmount diagnostics; HID/keyboard handling comes next.
 
+#include <stdarg.h> // before py/runtime.h: mpprint.h declares mp_vprintf only once va_start exists
 #include "py/runtime.h"
 #include "py/mphal.h"
 #include "py/ringbuf.h"
@@ -123,6 +124,30 @@ void mp_usbh_init(void) {
 }
 
 static volatile bool usbh_in_task = false;
+
+#ifdef PC3_USB_TRACE
+#include <stdio.h>
+#include "uart.h"
+// TinyUSB's trace (CFG_TUSB_DEBUG_PRINTF, see tusb_config.h) onto the console
+// UART ONLY - not mp_printf. mp_printf goes through dupterm to the on-screen
+// console, which runs the VM, from inside tuh_task(); three devices' worth of
+// enumeration chatter that way wedged the board solid (2026-09-01). Format
+// into a local buffer and write it below dupterm, as the REPL UART does.
+int usb_trace_printf(const char *fmt, ...) {
+    char buf[160];
+    va_list args;
+    va_start(args, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    if (n > (int)sizeof(buf) - 1) {
+        n = sizeof(buf) - 1;
+    }
+    if (n > 0) {
+        mp_uart_write_strn(buf, (size_t)n);
+    }
+    return n;
+}
+#endif
 
 void mp_usbh_task(void) {
     // Reentrancy guard: tuh_task() is NOT reentrant. It can be reached twice

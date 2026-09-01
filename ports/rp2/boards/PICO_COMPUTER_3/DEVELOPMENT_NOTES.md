@@ -2931,6 +2931,98 @@ the bring-up handshake), gamepad, `USBSerial` — and the num-lock LED push
 `usbh` now underlies. MMBasic stays on 0.20; the kernel and this firmware are on
 0.21.
 
+**The second hcd patch — long control transfers (2026-09-01, same day).** With a
+keyboard, a touch panel and a USB stick all on the hub, only the keyboard came
+up; v0.16 (0.20) brought up all of them. Suspicion fell on the new MSC code
+and on `MULTI_HUB_FIX`; neither was it. A TinyUSB trace build (`PC3_USB_TRACE=1`,
+below) showed the hub handing off correctly — keyboard (addr 1), then the stick
+(addr 2, `/usb` mounted), then the panel (addr 3) — and the panel dying on its
+HID report descriptor: a **525-byte control IN**, nine full-speed packets,
+double-buffered on EPX, which the 0.21 driver completed after the first 64
+bytes with the other buffer still armed; the status stage then hit
+`buf_ctrl @ 0x50100080 already available`, the SDK's `panic()`, and the board
+hung. Two-packet control reads (the keyboard's 67-byte descriptor) and the
+stick's 64 KB double-buffered bulk reads are fine, so the fault is specific to
+long control INs. 0.20 double-buffered EP0 too but synced both halves per
+interrupt instead of trusting `BUF_CPU_SHOULD_HANDLE` — the mechanism the
+RP2040-E4 workaround exists for, compiled out on RP2350. `ports/rp2/
+rp2040_usb.patch` single-buffers host **control** transfers (interrupt
+endpoints already were; bulk is untouched); the CMake block now patches both
+driver files. The Fuzix kernel runs the same 0.21 driver unpatched here: its
+keyboards' descriptors have been short, but a keyboard with a report
+descriptor over 128 bytes would meet the same panic at boot — it needs this
+patch too (v0.27). Upstream master (2026-09-01) has no fix; report it.
+
+Seen working, in a trace build with a per-packet diagnostic in the
+single-buffered path: keyboard, stick (`/usb` mounted) and panel all up on one
+boot, the panel's 525 bytes arriving as eight full packets and a 13-byte last
+(`rem 461 … rem 13`, `xact 13 last 1`), `USB touch -> slot 4`. The same patch
+in the normal build had first stalled once, differently: EPX held a completed
+zero-length IN for the panel's EP0 (`FULL|LAST`, `LEN 0` — a control status
+stage), `BUFF_STATUS` already cleared, the stack waiting forever. That is a
+completion event the ISR could not queue: TinyUSB's host event queue is 16
+entries and a failed `osal_queue_send` is a silent `TU_ASSERT` in a release
+build. Three devices powering up together, plus the stick being mounted, is
+the burst that overflows it; the trace build never saw it because its printing
+paces the burst. `CFG_TUH_TASK_QUEUE_SZ 64` (768 bytes; MMBasic's config
+carries the same idea as a commented-out 32). `PC3_USB_TRACE_LEVEL=1` builds a
+near-normal-timing firmware that prints only TinyUSB's asserts and errors —
+the tool for exactly this kind of fault.
+
+With both patches and the 64-entry queue, the level-1 build brought all three
+devices up on four of five warm resets, with no assert on any of them; the one
+miss was the first reset after the USB switch had just been moved to the hub —
+the devices had been powered for a second or two — and the panel simply never
+appeared, the stack idle and healthy afterwards (reads to the stick fine). The
+two earlier "only the keyboard" observations were in the same situation. A
+device that fails its first enumeration is abandoned by TinyUSB, not retried,
+until it is replugged.
+
+**Then the normal build failed 3 of 3 while the level-1 build passed 4 of 5**,
+the only difference being a UART print inside the interrupt handler — so the
+prints were the cure, not the microscope, and the instrument had to be
+timing-neutral: `PC3_USB_EVLOG=1` (below) records every transfer start,
+buffer completion, interrupt and completion-to-stack in a RAM ring, read back
+over the REPL after the boot. One failed boot's ring settled it: at 196 ms the
+hub finished the second device's port reset; at 207 ms the first transfer to
+the new device at **address 0** drew seven `ERROR_RX_TIMEOUT` interrupts 17 µs
+apart — the controller's own retries — and the hcd reported `FAILED` to the
+stack on each (0.21 stops and fails a transfer on the *first* timeout); the
+stack abandoned the device. The third device then `STALL`ed its 8-byte
+descriptor read at 525 ms, the same not-ready story. `usbh.c` waits
+`ENUM_RESET_RECOVERY_DELAY_MS = 10` after clearing a hub port's reset before
+that first SETUP — the USB 2.0 minimum — and these two devices are not
+answering yet at 10 ms. 0.20 tolerated RX timeouts (its handler did nothing and
+the controller kept retrying until the device answered), which is why they
+enumerate under v0.16; every debug print here stretched the same gap.
+
+A first fix tolerated timeouts in the hcd for a 100 ms budget, as 0.20 did:
+it **hung the board** on hot-attach — on RP2350 an un-stopped timed-out
+transaction does not retry benignly. Reverted. The fix that stands is in
+`usbh.c`: **`ENUM_RESET_RECOVERY_DELAY_MS` 10 → 100** (`ports/rp2/usbh.patch`,
+the third build-time-patched file; +90 ms per device at enumeration). Proven
+the same evening, on the event-log build at normal timing: all three devices
+mounted on one boot, and the ring — 882 events — held **zero** failed
+transfers, zero stalls and zero RX-timeout interrupts.
+
+**`PC3_USB_EVLOG=1`**: a 256-entry × 20-byte ring in the patched driver, four
+stores per event, `CFG_TUSB_DEBUG 0`, so the timing is the normal build's.
+Dump with the scratch `evlog.py` (addresses of `pc3_evlog` / `pc3_evlog_n`
+from `arm-none-eabi-nm`). Tags: S start, C buffer completion, I interrupt,
+X completion to the stack. It costs 5 KB of SRAM; the linker's GcHeap floor
+refused 10.
+
+**`PC3_USB_TRACE=1`** (`make BOARD=PICO_COMPUTER_3 PC3_USB_TRACE=1`, ideally
+with `BUILD=build-PICO_COMPUTER_3-trace`): TinyUSB's level-2 trace — hub port
+events, every enumeration step, class-driver mounts — on the console UART. The
+level is `CFG_TUSB_DEBUG`, which TinyUSB's `family.cmake` puts on the compiler
+command line from the CMake variable `LOG`, so `ports/rp2/CMakeLists.txt` sets
+`LOG 2` before `pico_sdk_init()`; a header cannot override a `-D`. The output
+goes through `mp_uart_write_strn()` only: the first attempt used `mp_printf`,
+which reaches dupterm and the on-screen console and so runs the VM from inside
+`tuh_task()` — with three devices enumerating at once that wedged the board
+solid before a line of the fault was seen.
+
 ### 74. USB flash drives — `usbdrive` + `/usb` (MMBasic's `C:` drive)
 
 A user asked for it; MMBasic has it on RP2350 builds and is known to be slow
@@ -3018,6 +3110,9 @@ exists for, working.
 | `ports/rp2/console_font.h` | **new** vendored MMBasic 8×12 `font1` (console font) |
 | `ports/rp2/mp_usbh.c` | **new** USB host glue: `tuh_init`/task, MMBasic 4-slot HID table + request-based polling (`hid_poll`/`report_timer`), keyboard→`stdin_ringbuf`, touch→`usb_touch.c`; USB-event sound callback; reentrancy guard; `KeyDown[]` held-key state + `kbd_map_code` (§30); num-lock keypad remap; RP2350 `MULTI_HUB_FIX` at init (§73) |
 | `ports/rp2/hcd_rp2040.patch` | **new** one-line fix to TinyUSB 0.21's rp2 host driver (clear the EPX buffer when an RX-timeout fails a transfer), applied at build time by `ports/rp2/CMakeLists.txt` — the SDK's `hcd_rp2040.c` is dropped from `tinyusb_host_base` and the patched copy compiled instead; configure also asserts TinyUSB is 0.21 (§73) |
+| `ports/rp2/rp2040_usb.patch` | **new** single-buffer host control transfers in TinyUSB 0.21's rp2 driver: a nine-packet HID report-descriptor read was completed after its first packet and the status stage panicked "buf_ctrl already available" (a touch panel behind the hub); same build-time mechanism (§73) |
+| `ports/rp2/usbh.patch` | **new** TinyUSB 0.21 `host/usbh.c`: `ENUM_RESET_RECOVERY_DELAY_MS` 10 → 100 — devices behind the hub were not answering their first SETUP 10 ms after the port reset and were abandoned (§73) |
+| `ports/rp2/Makefile` | `PC3_USB_TRACE=1` (+ `PC3_USB_TRACE_LEVEL`) → TinyUSB's trace on the console UART; `PC3_USB_EVLOG=1` → the timing-neutral RAM event ring (§73) |
 | `lib/tinyusb` | submodule → `micropython/tinyusb` `b549ac1d8` (`0.21.0-micropython1`, what upstream v1.29.0 pins); was hathach 0.20.0 (§73) |
 | `ports/rp2/usb_keyboard.c` + `keyboard_maps.h` | **new** `keyboard` module (`keymap()`, `keydown()`, `on_key()`, `on_usb_event()`) + vendored MMBasic layouts; rooted USB-event/key callbacks; key-code constants (§30) |
 | `ports/rp2/usb_touch.c` + `usb_touch.h` | **new** USB multi-touch: HID descriptor parser + report decode/reassembly + digitizer-init handshake + gesture machine (vendored MMBasic) |

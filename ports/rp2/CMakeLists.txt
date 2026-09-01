@@ -16,6 +16,19 @@ endif()
 
 # Use the local tinyusb instead of the one in pico-sdk
 set(PICO_TINYUSB_PATH ${MICROPY_DIR}/lib/tinyusb)
+# PC3_USB_TRACE=1 (USB host debugging): TinyUSB's rp2040 family.cmake turns the
+# CMake variable LOG into CFG_TUSB_DEBUG on the command line (default 0), so
+# the level has to be set here, before pico_sdk_init(); a header cannot
+# override a -D. The printf hook is in shared/tinyusb/tusb_config.h.
+if(PC3_USB_TRACE)
+    # Level 2 narrates every enumeration step; level 1 prints only TinyUSB's
+    # errors and failed asserts (a dropped event, a refused transfer) and is
+    # quiet enough to leave running: PC3_USB_TRACE_LEVEL=1.
+    if(NOT DEFINED PC3_USB_TRACE_LEVEL)
+        set(PC3_USB_TRACE_LEVEL 2)
+    endif()
+    set(LOG ${PC3_USB_TRACE_LEVEL})
+endif()
 # Use the local lwip instead of the one in pico-sdk
 set(PICO_LWIP_PATH ${MICROPY_DIR}/lib/lwip)
 # Use the local btstack instead of the one in pico-sdk
@@ -247,6 +260,16 @@ if(MICROPY_HW_USB_HOST)
         usb_msc.c
         usb_msc_mod.c
     )
+    # PC3_USB_TRACE=1: TinyUSB's enumeration / hub / class trace on the console
+    # (tusb_config.h). Debug builds only; `make BOARD=PICO_COMPUTER_3 PC3_USB_TRACE=1`.
+    if(PC3_USB_TRACE)
+        target_compile_definitions(${MICROPY_TARGET} PRIVATE PC3_USB_TRACE=1)
+    endif()
+    # PC3_USB_EVLOG=1: a timing-neutral in-RAM event ring in the patched driver
+    # (transfer starts, buffer completions, interrupts), read over the REPL.
+    if(PC3_USB_EVLOG)
+        target_compile_definitions(${MICROPY_TARGET} PRIVATE PC3_USB_EVLOG=1)
+    endif()
 endif()
 
 # XMODEM file transfer over the console UART (the `xmodem` module).
@@ -387,28 +410,43 @@ if(MICROPY_HW_USB_HOST)
         message(FATAL_ERROR "lib/tinyusb is TinyUSB 0.${PC3_TUSB_MINOR}; the USB host "
             "build wants 0.21 - git submodule update --init lib/tinyusb")
     endif()
-    set(PC3_HCD_SRC ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/hcd_rp2040.c)
-    set(PC3_HCD_OUT ${CMAKE_BINARY_DIR}/hcd_rp2040_pc3.c)
-    set(PC3_HCD_PATCH ${MICROPY_PORT_DIR}/hcd_rp2040.patch)
+    # Two files of the rp2 driver are patched: hcd_rp2040.c (the RX-timeout
+    # buffer clear, above) and rp2040_usb.c (single-buffered host control
+    # transfers - a nine-packet GET_DESCRIPTOR(report) from a touch panel was
+    # completed after its first packet with the other buffer still armed, and
+    # the status stage panicked "buf_ctrl already available"; see the patch).
+    # Each is dropped from tinyusb_host_base and a patched copy compiled instead.
+    # A third: src/host/usbh.c - the reset-recovery delay before the first SETUP
+    # to a freshly reset device (10 ms in 0.21, 100 here; see the patch).
+    set(PC3_TUSB_RP2 ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040)
     get_target_property(PC3_HOST_SRCS tinyusb_host_base INTERFACE_SOURCES)
-    list(LENGTH PC3_HOST_SRCS PC3_HOST_N)
-    list(FILTER PC3_HOST_SRCS EXCLUDE REGEX "/hcd_rp2040\\.c$")
-    list(LENGTH PC3_HOST_SRCS PC3_HOST_M)
-    if(PC3_HOST_M EQUAL PC3_HOST_N)
-        message(FATAL_ERROR "hcd_rp2040.c is not where tinyusb_host_base used to keep it; "
-            "the build-time patch (ports/rp2/hcd_rp2040.patch) needs looking at")
-    endif()
+    foreach(PC3_REL IN ITEMS portable/raspberrypi/rp2040/hcd_rp2040 portable/raspberrypi/rp2040/rp2040_usb host/usbh)
+        get_filename_component(PC3_F ${PC3_REL} NAME)
+        set(PC3_SRC ${PICO_TINYUSB_PATH}/src/${PC3_REL}.c)
+        set(PC3_OUT ${CMAKE_BINARY_DIR}/${PC3_F}_pc3.c)
+        set(PC3_PATCH ${MICROPY_PORT_DIR}/${PC3_F}.patch)
+        list(LENGTH PC3_HOST_SRCS PC3_HOST_N)
+        list(FILTER PC3_HOST_SRCS EXCLUDE REGEX "/${PC3_F}\\.c$")
+        list(LENGTH PC3_HOST_SRCS PC3_HOST_M)
+        if(PC3_HOST_M EQUAL PC3_HOST_N)
+            message(FATAL_ERROR "${PC3_F}.c is not where tinyusb_host_base used to keep it; "
+                "the build-time patch (ports/rp2/${PC3_F}.patch) needs looking at")
+        endif()
+        add_custom_command(OUTPUT ${PC3_OUT}
+            COMMAND patch -s -o ${PC3_OUT} ${PC3_SRC} ${PC3_PATCH}
+            DEPENDS ${PC3_SRC} ${PC3_PATCH}
+            COMMENT "TinyUSB ${PC3_F}.c with ports/rp2/${PC3_F}.patch applied"
+            VERBATIM)
+        target_sources(${MICROPY_TARGET} PRIVATE ${PC3_OUT})
+    endforeach()
     set_target_properties(tinyusb_host_base PROPERTIES INTERFACE_SOURCES "${PC3_HOST_SRCS}")
-    add_custom_command(OUTPUT ${PC3_HCD_OUT}
-        COMMAND patch -s -o ${PC3_HCD_OUT} ${PC3_HCD_SRC} ${PC3_HCD_PATCH}
-        DEPENDS ${PC3_HCD_SRC} ${PC3_HCD_PATCH}
-        COMMENT "TinyUSB hcd_rp2040.c with ports/rp2/hcd_rp2040.patch applied"
-        VERBATIM)
-    target_sources(${MICROPY_TARGET} PRIVATE ${PC3_HCD_OUT})
-    # the hcd includes "rp2040_usb.h" relative to its own directory
-    target_include_directories(${MICROPY_TARGET} PRIVATE
-        ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040)
-    set_source_files_properties(${PC3_HCD_OUT} PROPERTIES COMPILE_FLAGS "-Wno-conversion")
+    # the driver includes "rp2040_usb.h", and usbh.c its private headers, relative to their own directories
+    target_include_directories(${MICROPY_TARGET} PRIVATE ${PC3_TUSB_RP2} ${PICO_TINYUSB_PATH}/src/host)
+    set_source_files_properties(${CMAKE_BINARY_DIR}/hcd_rp2040_pc3.c PROPERTIES
+        COMPILE_FLAGS "-Wno-conversion")
+    # what the SDK's suppress_tinyusb_warnings() sets on the original rp2040_usb.c
+    set_source_files_properties(${CMAKE_BINARY_DIR}/rp2040_usb_pc3.c PROPERTIES
+        COMPILE_FLAGS "-Wno-conversion -Wno-stringop-overflow -Wno-array-bounds")
 endif()
 
 if(PICO_ARM)

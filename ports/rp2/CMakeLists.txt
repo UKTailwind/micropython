@@ -358,6 +358,56 @@ else()
     list(APPEND PICO_SDK_COMPONENTS tinyusb_device)
 endif()
 
+# USB host: the TinyUSB in lib/tinyusb must be 0.21 - what MicroPython v1.29.0
+# pins (micropython/tinyusb, 0.21.0-micropython1).  0.20's rp2 host driver asked
+# the root port its speed at every transfer start and panicked ("Invalid
+# speed") when a hub or keyboard dropped the link for a moment while
+# enumerating, which they do at power-on; 0.21 rewrote that driver.  The
+# submodule can drift under a merge (it did, at v1.29.0), so assert here rather
+# than compile the wrong stack.
+#
+# 0.21's driver has one bug of its own that stops an RP2350 host behind a hub
+# at boot: its RX-timeout path fails a transfer without clearing the EPX buffer
+# it armed, and the retry panics with "buf_ctrl already available".
+# hcd_rp2040.patch (one line) clears it.  The file cannot be edited in place -
+# lib/tinyusb is upstream's submodule - and a hand-kept copy would drift, so
+# the SDK's copy is dropped from tinyusb_host_base and a patched one is
+# generated into the build directory by patch(1); if TinyUSB changes under the
+# hunk, patch refuses and the build stops HERE.  The same arrangement runs the
+# Fuzix kernel on this board (FUZIX Kernel/platform/platform-rpipico).
+if(MICROPY_HW_USB_HOST)
+    file(STRINGS ${PICO_TINYUSB_PATH}/src/tusb_option.h PC3_TUSB_MINOR_LINE
+        REGEX "^#define[ \t]+TUSB_VERSION_MINOR[ \t]+[0-9]+")
+    string(REGEX REPLACE ".*TUSB_VERSION_MINOR[ \t]+([0-9]+).*" "\\1"
+        PC3_TUSB_MINOR "${PC3_TUSB_MINOR_LINE}")
+    if(NOT PC3_TUSB_MINOR EQUAL 21)
+        message(FATAL_ERROR "lib/tinyusb is TinyUSB 0.${PC3_TUSB_MINOR}; the USB host "
+            "build wants 0.21 - git submodule update --init lib/tinyusb")
+    endif()
+    set(PC3_HCD_SRC ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040/hcd_rp2040.c)
+    set(PC3_HCD_OUT ${CMAKE_BINARY_DIR}/hcd_rp2040_pc3.c)
+    set(PC3_HCD_PATCH ${MICROPY_PORT_DIR}/hcd_rp2040.patch)
+    get_target_property(PC3_HOST_SRCS tinyusb_host_base INTERFACE_SOURCES)
+    list(LENGTH PC3_HOST_SRCS PC3_HOST_N)
+    list(FILTER PC3_HOST_SRCS EXCLUDE REGEX "/hcd_rp2040\\.c$")
+    list(LENGTH PC3_HOST_SRCS PC3_HOST_M)
+    if(PC3_HOST_M EQUAL PC3_HOST_N)
+        message(FATAL_ERROR "hcd_rp2040.c is not where tinyusb_host_base used to keep it; "
+            "the build-time patch (ports/rp2/hcd_rp2040.patch) needs looking at")
+    endif()
+    set_target_properties(tinyusb_host_base PROPERTIES INTERFACE_SOURCES "${PC3_HOST_SRCS}")
+    add_custom_command(OUTPUT ${PC3_HCD_OUT}
+        COMMAND patch -s -o ${PC3_HCD_OUT} ${PC3_HCD_SRC} ${PC3_HCD_PATCH}
+        DEPENDS ${PC3_HCD_SRC} ${PC3_HCD_PATCH}
+        COMMENT "TinyUSB hcd_rp2040.c with ports/rp2/hcd_rp2040.patch applied"
+        VERBATIM)
+    target_sources(${MICROPY_TARGET} PRIVATE ${PC3_HCD_OUT})
+    # the hcd includes "rp2040_usb.h" relative to its own directory
+    target_include_directories(${MICROPY_TARGET} PRIVATE
+        ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/rp2040)
+    set_source_files_properties(${PC3_HCD_OUT} PROPERTIES COMPILE_FLAGS "-Wno-conversion")
+endif()
+
 if(PICO_ARM)
     list(APPEND PICO_SDK_COMPONENTS
         cmsis_core

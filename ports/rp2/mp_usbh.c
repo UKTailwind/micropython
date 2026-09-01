@@ -33,6 +33,7 @@
 #include <string.h>
 #include "tusb.h"
 #include "pico/time.h"
+#include "hardware/structs/usb.h" // LINESTATE_TUNING (RP2350) for MULTI_HUB_FIX
 #include "usb_touch.h" // USB multi-touch digitizer support (usb_touch.c)
 #include "usb_mouse.h" // USB mouse support (usb_mouse.c)
 #include "usb_gamepad.h" // USB HID gamepad support (usb_gamepad.c)
@@ -102,7 +103,19 @@ void mp_usbh_init(void) {
     if (usbh_inited) {
         return;
     }
-    tuh_init(0); // native controller, root-hub port 0
+    // Native controller, root-hub port 0, as host. TinyUSB 0.21 deprecates
+    // tuh_init(rhport) - it still exists, but as a deprecated inline wrapper,
+    // and this port builds with -Werror.
+    tusb_rhport_init_t rh_init = { .role = TUSB_ROLE_HOST, .speed = TUSB_SPEED_AUTO };
+    tuh_rhport_init(0, &rh_init);
+    #ifdef USB_LINESTATE_TUNING_MULTI_HUB_FIX_BITS
+    // RP2350: the controller's own fix for turnaround timeouts through a
+    // hub - the on-board hub is always in the way here. Set alongside the
+    // TinyUSB 0.21 move (see DEVELOPMENT_NOTES §73); the Fuzix kernel on the
+    // same board sets it for the same reason. Reset default is off.
+    hw_set_bits((io_rw_32 *)(USBCTRL_REGS_BASE + USB_LINESTATE_TUNING_OFFSET),
+        USB_LINESTATE_TUNING_MULTI_HUB_FIX_BITS);
+    #endif
     usb_cdc_init(); // set up the CDC receive ring buffers before enumeration
     add_repeating_timer_us(-1000, usbh_wake_cb, NULL, &usbh_wake_timer);
     usbh_inited = true;

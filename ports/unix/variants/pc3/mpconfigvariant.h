@@ -20,7 +20,7 @@
 
 // The REPL banner names the machine, as the firmware's does. Keep the version
 // in step with PICO_COMPUTER_3_VERSION in the board's mpconfigboard.h.
-#define MICROPY_BANNER_MACHINE "PICO COMPUTER 3 v0.16 emulator"
+#define MICROPY_BANNER_MACHINE "PICO COMPUTER 3 v0.17 emulator"
 
 // ...and reads like the firmware's too: the version alone, no `git describe`
 // suffix or build date, and " on " as the separator (the board does the same in

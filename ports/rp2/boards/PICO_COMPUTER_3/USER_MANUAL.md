@@ -1,11 +1,11 @@
 # Pico Computer 3 — MicroPython User Manual
 
 **Firmware:** MicroPython (RP2350B port) for the Pico Computer 3 and Pico
-Computer 2 — version **0.16** (test release).
+Computer 2 — version **0.17** (test release).
 The REPL banner reports the version:
 
 ```
-MicroPython v1.29.0 on PICO COMPUTER 3 v0.16 with RP2350B
+MicroPython v1.29.0 on PICO COMPUTER 3 v0.17 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
@@ -148,7 +148,7 @@ The start-up banner and `os.uname().machine` name the board that was found, so
 a Pico Computer 2 greets you with:
 
 ```
-MicroPython v1.29.0 on PICO COMPUTER 2 v0.16 with RP2350B
+MicroPython v1.29.0 on PICO COMPUTER 2 v0.17 with RP2350B
 ```
 
 > If a Pico Computer 3's RTC battery/chip has failed it can be mistaken for a
@@ -2049,5 +2049,5 @@ draw_jpg("/sd/pic.jpg"); save_image("/sd/screen.bmp")
 settime(2026, 7, 4, 14, 30, 0); print(gettime())
 ```
 
-*Pico Computer 3 firmware v0.16 — based on MicroPython. See
+*Pico Computer 3 firmware v0.17 — based on MicroPython. See
 https://docs.micropython.org/ for the Python language and standard library.*

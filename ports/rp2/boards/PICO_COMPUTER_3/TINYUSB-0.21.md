@@ -235,3 +235,30 @@ its long descriptor went through the patched driver); kernel
 `USB keyboard attached` / `detached` / `attached` in a row: that is the
 real link drop that used to be the 0.20 panic, now handled by
 re-enumeration.
+
+## 9. Hardening on top — the PicoMite validation (2026-09-02)
+
+The PicoMite tree ran its own 0.21 host bring-up on the same hardware and
+validated a hardening set across every reset kind
+(`PicoMite/docs/usb-host-hardening.html`); its root-cause finding — the RP2
+SIE's **single** handshake-result latch, clobbered by interrupt-endpoint
+polls ([#3533](https://github.com/hathach/tinyusb/issues/3533)) — explains
+the spurious RX timeouts underneath §4. Applied to this port on top of
+everything above (DEVELOPMENT_NOTES §75 has the detail):
+
+- `hcd_rp2040.patch` grew an **EP0 RX-timeout grace period** (1 s, window
+  closed by any EP0 completion; expiry takes the original fail path with
+  the §4.1 buffer clear);
+- `usbh.patch` grew **enumeration-exclusive control dispatch** (only
+  address 0, the enumerating address and the hub in use may claim the
+  control slot mid-enumeration; other traffic waits in the pending FIFO)
+  and **hub-port disable on a failed enumeration**
+  (`CLEAR_FEATURE(PORT_ENABLE)`, async no-op callback);
+- the **mount-callback prints moved out of the callbacks** into a ring
+  drained after `tuh_task()` returns (`usb_defer_printf`);
+- `CFG_TUH_CONTROL_PENDING_QUEUE_SZ` 4 → 8.
+
+Deliberately not adopted: the #3533 reference driver — on the PicoMite's
+marginal rig the strict rewrite enumerated *fewer* devices than the
+tolerant set. The §4 patches, `MULTI_HUB_FIX` and the deep event queue all
+stand; the PicoMite doc independently confirms the last two.

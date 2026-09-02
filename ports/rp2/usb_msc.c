@@ -115,14 +115,14 @@ void usb_msc_task(void) {
 
 void tuh_msc_mount_cb(uint8_t dev_addr) {
     if (drive.mounted) {
-        mp_printf(&mp_plat_print, "USB drive: second drive (addr=%u) ignored - one at a time\n", dev_addr);
+        usb_defer_printf("USB drive: second drive (addr=%u) ignored - one at a time\n", dev_addr);
         return;
     }
     uint32_t count = tuh_msc_get_block_count(dev_addr, 0);
     uint32_t size = tuh_msc_get_block_size(dev_addr, 0);
     if (count == 0 || size == 0 || size > 4096) {
         // A card reader with no card, or something we cannot address.
-        mp_printf(&mp_plat_print, "USB drive: addr=%u reports no usable medium\n", dev_addr);
+        usb_defer_printf("USB drive: addr=%u reports no usable medium\n", dev_addr);
         return;
     }
     drive.dev_addr = dev_addr;
@@ -132,7 +132,7 @@ void tuh_msc_mount_cb(uint8_t dev_addr) {
     drive.max_blocks = (uint16_t)(65535u / size);
     xfer_done = true;
     drive.mounted = true;
-    mp_printf(&mp_plat_print, "USB drive: addr=%u, %u blocks of %u bytes (%u MB)\n",
+    usb_defer_printf("USB drive: addr=%u, %u blocks of %u bytes (%u MB)\n",
         dev_addr, (unsigned)count, (unsigned)size,
         (unsigned)(((uint64_t)count * size) >> 20));
     pending_change = 1;
@@ -144,7 +144,7 @@ void tuh_msc_umount_cb(uint8_t dev_addr) {
         // A chain waiting on this drive sees mounted go false and fails.
         xfer_ok = false;
         xfer_done = true;
-        mp_printf(&mp_plat_print, "USB drive removed\n");
+        usb_defer_printf("USB drive removed\n");
         pending_change = -1;
     }
 }

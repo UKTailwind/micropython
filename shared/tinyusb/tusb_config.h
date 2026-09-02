@@ -231,6 +231,11 @@ enum _USBD_EP {
 // entries is 768 bytes. MMBasic's config carries the same suspicion as a
 // commented-out 32.
 #define CFG_TUH_TASK_QUEUE_SZ       (64)
+// Pending-control FIFO (default 4 with hubs). Enumeration-exclusive dispatch
+// (ports/rp2/usbh.patch) parks application control traffic here while a device
+// enumerates - two keyboards' LED writes plus a touch handshake fit with room
+// to spare. 8 entries is ~200 bytes.
+#define CFG_TUH_CONTROL_PENDING_QUEUE_SZ (8)
 #define CFG_TUH_HID                 (4 * CFG_TUH_DEVICE_MAX) // a device may have several HID itfs
 #define CFG_TUH_HID_EPIN_BUFSIZE    (64)
 #define CFG_TUH_HID_EPOUT_BUFSIZE   (64)

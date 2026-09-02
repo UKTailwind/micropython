@@ -49,4 +49,10 @@ void usb_msc_task(void);
 // block device refuses with -MP_EBUSY instead of deadlocking.
 bool mp_usbh_in_task(void);
 
+// Defined in mp_usbh.c: printf for TinyUSB callback context. Formats into a
+// small static ring; mp_usbh_task() prints it once tuh_task() has returned.
+// A print inside a mount callback stalls the bus mid-enumeration (dupterm
+// runs the VM) and can cost a marginal device behind the hub its bring-up.
+void usb_defer_printf(const char *fmt, ...);
+
 #endif // MICROPY_INCLUDED_RP2_USB_MSC_H

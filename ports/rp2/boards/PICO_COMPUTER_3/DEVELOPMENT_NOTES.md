@@ -3100,6 +3100,75 @@ REPL was idle — played the whole 573 KB track to the end with a quiet console,
 device being read from a scheduled callback, the case the reentrancy rule
 exists for, working.
 
+### 75. USB host hardening — the PicoMite validation applied
+
+The PicoMite tree ran its own TinyUSB 0.21 host bring-up on this same
+hardware — two keyboards (one marginal), a touch panel and a flash drive
+behind one hub, across software, hardware and power-on resets — and wrote up
+what survived contact with the rig (`PicoMite/docs/usb-host-hardening.html`).
+Its root-cause finding names the mechanism behind much of §73: the RP2 SIE
+keeps **one** handshake-result latch (`ACK_REC` / `RX_TIMEOUT` /
+`DATA_SEQ_ERROR`) shared between EPX and the interrupt-endpoint poller
+(upstream [#3533](https://github.com/hathach/tinyusb/issues/3533), corroborated
+by #2517 and #2776). An interrupt-endpoint poll landing between a control
+transfer's completion and the IRQ handler's read overwrites the ACK — the
+transfer is misread as `RX_TIMEOUT`. That is why the failures need a HID
+device present, and it is very likely what our 100 ms recovery delay (§73
+fault 3) was outrunning rather than merely device wake-up time.
+
+Applied here from the validated set, 2026-09-02:
+
+- **hcd_rp2040.patch — EP0 RX-timeout grace period.** For endpoint 0 only,
+  within a 1 s window, an RX timeout no longer stops and fails the transfer:
+  it is left armed and the clobbered latch outlasted. The window closes on
+  any EP0 completion (closing it on *any* completion would let hub/HID
+  traffic re-arm it forever). Expiry — a genuinely dead device — takes the
+  original fail path, which keeps the #3874 buffer clear. Bulk and interrupt
+  keep the fast-fail: their slow-path flow control is NAK, which never raises
+  RX_TIMEOUT. Note this is NOT the in-hcd tolerance we tried and reverted on
+  2026-09-01 (that variant hung a hot attach): this one is EP0-only, leaves
+  the transfer armed instead of stopping it, and was validated on the
+  PicoMite rig across every reset kind — but hot attach stays on the board
+  test list for exactly that history.
+- **usbh.patch — enumeration-exclusive control dispatch.** While a device is
+  being enumerated, only control transfers to address 0, to the enumerating
+  address and to the hub in use may claim the single control slot;
+  application traffic (keyboard LED writes, the touch handshake) waits in
+  the pending FIFO. Gated at the slot claim, both drain checks and the
+  dispatcher — the dispatcher *peeks* the FIFO head so a blocked entry stays
+  queued rather than being popped and failed. Restores 0.20's
+  effectively-atomic enumeration.
+- **usbh.patch — a failed enumeration disables its hub port.**
+  `CLEAR_FEATURE(PORT_ENABLE)`, async with a no-op (non-NULL — NULL means
+  sync, which deadlocks inside `tuh_task()`) completion. 0.21 left the
+  abandoned device enabled at address 0, where it answers address-0 traffic
+  in parallel with the next device's bring-up — the mechanism behind
+  "pulling one device reported another disconnecting".
+- **Mount-callback prints deferred** (`usb_defer_printf`, mp_usbh.c). The
+  callbacks formatted-and-printed through dupterm — the on-screen console,
+  i.e. the VM — inside `tuh_task()`, between other devices' enumeration
+  steps. The PicoMite rig measured a single connect chime in that position
+  as the difference between a random 1–3 devices and a stable four. The
+  reentrancy guard of §73 treated the symptom (a wedge); this removes the
+  stall: callbacks write into an 8-entry static ring, `mp_usbh_task()`
+  prints it after `tuh_task()` returns. usb_msc.c's callback prints go the
+  same way.
+- **`CFG_TUH_CONTROL_PENDING_QUEUE_SZ` 4 → 8** (tusb_config.h): the gate
+  parks more traffic in the FIFO during a multi-device enumeration.
+
+Deliberately NOT adopted: the #3533 reference driver (a from-scratch strict
+hcd that removes the race at source). On the PicoMite's marginal rig it
+enumerated *fewer* devices than the tolerant set above — correct diagnosis,
+stricter implementation, worse outcome on real hardware. Revisit when it is
+merged and matured upstream. Already carried and now cross-validated by the
+PicoMite doc: `MULTI_HUB_FIX` and the 64-entry event queue. The 100 ms
+recovery delay (#3876) stays — complementary, and cheap.
+
+Board leg owed before this is believed (the doc's own validation list):
+all three reset kinds repeatedly with the full device set; hot attach and
+detach; MSC read under load with HID live; pulling one device and confirming
+its *own* disconnect is reported, not a neighbour's.
+
 ## Files touched
 
 | File | Purpose |

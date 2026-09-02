@@ -149,6 +149,51 @@ int usb_trace_printf(const char *fmt, ...) {
 }
 #endif
 
+// --- Deferred enumeration prints --------------------------------------------
+// A mount callback runs inside tuh_task(), BETWEEN the enumeration steps of
+// the other devices on the bus. A print there goes through dupterm to the
+// on-screen console - the Python VM - and the pause is long enough for a
+// marginal device behind the hub to lose its enumeration: the PicoMite
+// hardening work measured a single connect chime as the difference between a
+// random 1-3 devices and a stable four (docs/usb-host-hardening). So the
+// callbacks format into this small static ring (no allocation, no output) and
+// mp_usbh_task() prints it after tuh_task() returns. Everything runs in the
+// pump's own context, so plain indexes suffice; on overflow the message is
+// dropped - these are diagnostics, not data.
+#include <stdio.h>
+#define USB_MSG_N 8
+#define USB_MSG_LEN 104
+static char usb_msg_ring[USB_MSG_N][USB_MSG_LEN];
+static uint8_t usb_msg_w, usb_msg_r;
+
+void usb_defer_printf(const char *fmt, ...) {
+    uint8_t next = (uint8_t)((usb_msg_w + 1) % USB_MSG_N);
+    if (next == usb_msg_r) {
+        return; // ring full - drop
+    }
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(usb_msg_ring[usb_msg_w], USB_MSG_LEN, fmt, args);
+    va_end(args);
+    usb_msg_w = next;
+}
+
+static void usb_msgs_flush(void) {
+    // mp_printf below can re-enter mp_usbh_task via the VM hook (dupterm runs
+    // the on-screen console); tuh_task is off the stack by now so that nested
+    // pump is safe, but its own flush must not recurse under this one.
+    static bool flushing;
+    if (flushing) {
+        return;
+    }
+    flushing = true;
+    while (usb_msg_r != usb_msg_w) {
+        mp_printf(&mp_plat_print, "%s", usb_msg_ring[usb_msg_r]);
+        usb_msg_r = (uint8_t)((usb_msg_r + 1) % USB_MSG_N);
+    }
+    flushing = false;
+}
+
 void mp_usbh_task(void) {
     // Reentrancy guard: tuh_task() is NOT reentrant. It can be reached twice
     // because an enumeration mp_printf() goes through dupterm to the on-screen
@@ -163,6 +208,7 @@ void mp_usbh_task(void) {
         kbd_repeat_check();
         usb_touch_task(); // touch digitizer-init handshake + no-report watchdog
         usbh_in_task = false;
+        usb_msgs_flush(); // the callbacks' deferred prints, now that we are outside the stack
         usb_msc_task();   // USB drive mount/unmount notification, now that we are outside the stack
     }
 }
@@ -207,13 +253,13 @@ static void usbh_notify_numlock(uint16_t vid, uint16_t pid, int on) {
 void tuh_mount_cb(uint8_t dev_addr) {
     uint16_t vid = 0, pid = 0;
     tuh_vid_pid_get(dev_addr, &vid, &pid);
-    mp_printf(&mp_plat_print, "USB: mounted addr=%u VID:PID=%04x:%04x\n",
+    usb_defer_printf("USB: mounted addr=%u VID:PID=%04x:%04x\n",
         dev_addr, vid, pid);
     usbh_notify_event(true);
 }
 
 void tuh_umount_cb(uint8_t dev_addr) {
-    mp_printf(&mp_plat_print, "USB: unmounted addr=%u\n", dev_addr);
+    usb_defer_printf("USB: unmounted addr=%u\n", dev_addr);
     usbh_notify_event(false);
 }
 
@@ -444,7 +490,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
     uint8_t proto = tuh_hid_interface_protocol(dev_addr, instance);
     uint16_t vid = 0, pid = 0;
     tuh_vid_pid_get(dev_addr, &vid, &pid); // cached by TinyUSB — no bus traffic
-    mp_printf(&mp_plat_print, "USB HID: addr=%u instance=%u protocol=%u\n",
+    usb_defer_printf("USB HID: addr=%u instance=%u protocol=%u\n",
         dev_addr, instance, proto);
 
     int slot = hid_find_free_slot(proto);
@@ -484,7 +530,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
             // built-in hub) that must NOT be grabbed as a phantom gamepad.
             // MMBasic filters unknown devices the same way.
             if (!usb_gamepad_is_gamepad(vid, pid)) {
-                mp_printf(&mp_plat_print,
+                usb_defer_printf(
                     "USB HID: ignored addr=%u inst=%u VID:PID=%04x:%04x (not a gamepad)\n",
                     dev_addr, instance, vid, pid);
                 return; // leave the interface unclaimed; slot stays free
@@ -522,7 +568,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
         }
         kbd_set_numlock(kbd_numlock_for(vid, pid, kbd_desc_numlock_led ? 1 : 0));
         if (!kbd_desc_numlock_led) {
-            mp_printf(&mp_plat_print,
+            usb_defer_printf(
                 "USB kbd: no Num Lock LED declared -- assuming no numeric keypad\n");
         }
     }
@@ -538,7 +584,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance,
         usb_gamepad_mount(dev_addr, instance, slot + 1); // 1-based channel
     }
     static const char *const type_names[] = { "?", "keyboard", "mouse", "gamepad", "touch" };
-    mp_printf(&mp_plat_print, "USB %s -> slot %d\n", type_names[type], slot + 1);
+    usb_defer_printf("USB %s -> slot %d\n", type_names[type], slot + 1);
     // NOTE: no tuh_hid_receive_report here — hid_poll() issues it on the timer.
 }
 

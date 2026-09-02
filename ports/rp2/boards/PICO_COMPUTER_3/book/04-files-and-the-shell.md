@@ -174,6 +174,13 @@ music, images or code on a PC, sneaker it over, and
 programs across *without* the card (the USB-C console), but for bulk —
 a folder of MP3s, a sprite sheet collection — the card is king.
 
+A **USB memory stick** works the same way: plug one into the hub and it
+appears as `/usb` (the machine says so), pull it out and `/usb` vanishes.
+The card's rule applies here too — the stick must be formatted **FAT32**,
+which big ones usually aren't out of the box — and every command you have
+met works on it unchanged: `cp("/usb/album/*.mp3", "/sd/music")`. Three
+drives, one set of commands.
+
 ## `fm` — the file manager
 
 Typed commands are precise, scriptable (a program can call `cp` too — file

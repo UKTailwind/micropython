@@ -9,7 +9,8 @@ MicroPython v1.29.0 on PICO COMPUTER 3 v0.17 with RP2350B
 ```
 
 This is a customised build of MicroPython that turns the Pico Computer 3 into a
-self-contained computer: HDMI display, USB keyboard/mouse/touch, SD card, audio,
+self-contained computer: HDMI display, USB keyboard/mouse/touch, SD card, USB
+flash drives, audio,
 a real-time clock and Wi-Fi, all usable directly from the Python prompt. Much of
 the functionality is ported from the PicoMite MMBasic firmware.
 
@@ -166,6 +167,8 @@ MicroPython v1.29.0 on PICO COMPUTER 2 v0.17 with RP2350B
 - **Floats:** double precision (64-bit). Integers are arbitrary precision.
 - **Flash filesystem:** 12 MB LittleFS mounted at `/`.
 - **SD card:** FAT, mounted at `/sd`, hot-swappable (section 12).
+- **USB flash drive:** FAT32, mounted at `/usb` while a stick is on the hub
+  (section 12).
 - **PSRAM:** 8 MB — the Python heap lives here, so large data/images/audio
   buffers are fine.
 
@@ -262,7 +265,7 @@ inside a module use the qualified forms shown above.
 ## 4. Shell commands
 
 Unix-like helpers for working with the filesystem from the prompt. Paths may be
-on the flash (`/…`) or the SD card (`/sd/…`).
+on the flash (`/…`), the SD card (`/sd/…`) or a USB flash drive (`/usb/…`).
 
 | Command | Description |
 |---|---|
@@ -1526,7 +1529,7 @@ auto(True)                     # optional: sync automatically at every boot
 
 ---
 
-## 12. SD card
+## 12. SD card and USB drives
 
 A FAT-formatted SD card is mounted at **`/sd`**. Cards are **hot-swappable**: a
 background check (~twice a second) notices when a card is removed and unmounts it
@@ -2042,6 +2045,7 @@ sound(1, "B", "Q", 110)                          # 4-voice synth (see section 9)
 # Files / console
 cls()                                      # clear the console screen
 ls("/sd/*.jpg"); run("/sd/app.py"); edit("/sd/app.py")
+ls("/usb")                                 # USB stick on the hub (section 12)
 xrecv("/sd/app.py"); xsend("/sd/app.py")   # XMODEM over the serial console
 
 # Images / clock

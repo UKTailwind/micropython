@@ -25,6 +25,10 @@ USB-host support across from the existing MMBasic (PicoMite) firmware.
 
 ## Build & flash
 
+**The full build guide, from a clean clone, is `BUILDING.md`** (prerequisites,
+submodules + mpy-cross, firmware, emulator, manual, and the release recipe).
+The quick version follows.
+
 Build runs in **WSL Ubuntu** (Windows 11 host). The editor/terminal tools run on
 Windows, so build commands are wrapped with `wsl`:
 

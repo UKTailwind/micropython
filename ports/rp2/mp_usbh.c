@@ -187,7 +187,12 @@ static void usb_msgs_flush(void) {
         return;
     }
     flushing = true;
-    while (usb_msg_r != usb_msg_w) {
+    // Bounded: at most one ring's worth per call. The nested pumps under each
+    // print run tuh_task, and a device flapping attach/detach there keeps the
+    // ring topped up - an unbounded drain never returned, wedging the main
+    // loop with a live HDMI and a dead console (2026-09-03). Whatever arrives
+    // during this flush waits for the next pump.
+    for (int i = 0; i < USB_MSG_N && usb_msg_r != usb_msg_w; i++) {
         mp_printf(&mp_plat_print, "%s", usb_msg_ring[usb_msg_r]);
         usb_msg_r = (uint8_t)((usb_msg_r + 1) % USB_MSG_N);
     }

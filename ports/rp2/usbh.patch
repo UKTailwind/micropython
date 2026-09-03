@@ -1,6 +1,6 @@
 --- usbh.c	(TinyUSB 0.21.0-micropython1, lib/tinyusb)
 +++ usbh.c	(Pico Computer 3 MicroPython, ports/rp2/usbh.patch)
-@@ -237,6 +237,31 @@
+@@ -237,6 +237,21 @@
  static uint8_t _usbh_controller_id = TUSB_INDEX_INVALID_8;
  static usbh_data_t _usbh_data;
  
@@ -19,42 +19,10 @@
 +         (daddr != _usbh_data.dev0_bus.hub_addr);
 +}
 +
-+/* True when the pending-control FIFO has a head entry that may be dispatched
-+ * now.  Peek, not read: a blocked head stays queued for after enumeration. */
-+static bool pending_ctrl_dispatchable(void) {
-+  usbh_pending_ctrl_t head;
-+  if (tu_fifo_peek_n(&_usbh_pending_ctrl_q, &head, sizeof(head)) != sizeof(head)) {
-+    return false;
-+  }
-+  return !ctrl_blocked_by_enum(head.daddr);
-+}
-+
  typedef struct {
    TUH_EPBUF_TYPE_DEF(tusb_control_request_t, request);
    TUH_EPBUF_DEF(ctrl, CFG_TUH_ENUMERATION_BUFSIZE);
-@@ -674,9 +699,10 @@
-   }
-   #endif
- 
--  // Pending control xfer waiting for an idle slot
-+  // Pending control xfer waiting for an idle slot (PC3: and not blocked by
-+  // an enumeration in progress, or a queued transfer would spin the loop)
-   if (_usbh_data.ctrl_xfer_info.stage == CONTROL_STAGE_IDLE &&
--      !tu_fifo_empty(&_usbh_pending_ctrl_q)) {
-+      pending_ctrl_dispatchable()) {
-     return true;
-   }
- 
-@@ -759,7 +785,7 @@
-     // event loop. The check is a fast non-mutex sanity gate; the dispatcher
-     // itself re-checks under the mutex.
-     if (_usbh_data.ctrl_xfer_info.stage == CONTROL_STAGE_IDLE &&
--        !tu_fifo_empty(&_usbh_pending_ctrl_q)) {
-+        pending_ctrl_dispatchable()) { // PC3: a head blocked by enumeration stays queued
-       control_xfer_dispatch_pending();
-     }
- 
-@@ -928,7 +954,10 @@
+@@ -928,7 +943,10 @@
      bool claimed = false;
      bool is_queued = false;
      (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
@@ -66,15 +34,55 @@
        ctrl_info->stage        = CONTROL_STAGE_SETUP;
        ctrl_info->daddr        = daddr;
        ctrl_info->actual_len   = 0;
-@@ -1024,6 +1053,7 @@
+@@ -1023,17 +1041,36 @@
+     bool has_xfer = false;
  
      (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-     if (ctrl_info->stage == CONTROL_STAGE_IDLE &&
-+        pending_ctrl_dispatchable() && // PC3: a head blocked by enumeration stays queued
-         tu_fifo_read_n(&_usbh_pending_ctrl_q, &xfer, sizeof(xfer)) == sizeof(xfer)) {
-       ctrl_info->stage        = CONTROL_STAGE_SETUP;
-       ctrl_info->daddr        = xfer.daddr;
-@@ -1695,7 +1725,18 @@
+-    if (ctrl_info->stage == CONTROL_STAGE_IDLE &&
+-        tu_fifo_read_n(&_usbh_pending_ctrl_q, &xfer, sizeof(xfer)) == sizeof(xfer)) {
+-      ctrl_info->stage        = CONTROL_STAGE_SETUP;
+-      ctrl_info->daddr        = xfer.daddr;
+-      ctrl_info->actual_len   = 0;
+-      ctrl_info->failed_count = 0;
+-      ctrl_info->buffer       = xfer.buffer;
+-      ctrl_info->complete_cb  = xfer.complete_cb;
+-      ctrl_info->user_data    = xfer.user_data;
+-      _usbh_epbuf.request     = xfer.setup;
+-      has_xfer = true;
++    if (ctrl_info->stage == CONTROL_STAGE_IDLE) {
++      /* PC3: entries blocked by an enumeration in progress rotate to the
++       * back of the FIFO rather than gating the drain at the head - the
++       * enumeration's own transfers can queue BEHIND a blocked entry (they
++       * go async whenever an allowed transfer holds the slot), and a
++       * blocked head only unblocks when that enumeration completes, so
++       * head-blocking is a deadlock (seen 2026-09-03: four devices up,
++       * then the board wedged).  One bounded pass; per-device order is
++       * preserved, since one device's entries are all equally blocked. */
++      usbh_pending_ctrl_t rot;
++      uint16_t rot_n = (uint16_t)(tu_fifo_count(&_usbh_pending_ctrl_q) / sizeof(rot));
++      while (rot_n-- > 0 &&
++             tu_fifo_peek_n(&_usbh_pending_ctrl_q, &rot, sizeof(rot)) == sizeof(rot) &&
++             ctrl_blocked_by_enum(rot.daddr)) {
++        (void) tu_fifo_read_n(&_usbh_pending_ctrl_q, &rot, sizeof(rot));
++        (void) tu_fifo_write_n(&_usbh_pending_ctrl_q, &rot, sizeof(rot));
++      }
++      if (!(tu_fifo_peek_n(&_usbh_pending_ctrl_q, &rot, sizeof(rot)) == sizeof(rot) &&
++            ctrl_blocked_by_enum(rot.daddr)) &&
++          tu_fifo_read_n(&_usbh_pending_ctrl_q, &xfer, sizeof(xfer)) == sizeof(xfer)) {
++        ctrl_info->stage        = CONTROL_STAGE_SETUP;
++        ctrl_info->daddr        = xfer.daddr;
++        ctrl_info->actual_len   = 0;
++        ctrl_info->failed_count = 0;
++        ctrl_info->buffer       = xfer.buffer;
++        ctrl_info->complete_cb  = xfer.complete_cb;
++        ctrl_info->user_data    = xfer.user_data;
++        _usbh_epbuf.request     = xfer.setup;
++        has_xfer = true;
++      }
+     }
+     (void) osal_mutex_unlock(_usbh_mutex);
+ 
+@@ -1695,7 +1732,18 @@
    ENUM_RESET_ROOT_DELAY_MS           = 50,  // T(DRSTr)  minimum 50 ms for reset from root port
    ENUM_RESET_ROOT_POST_DELAY_MS      = 2,   // 2 ms delay after root port reset before getting speed/status
    ENUM_RESET_HUB_DELAY_MS            = 20,  // T(DRST)   10-20 ms for hub reset
@@ -94,7 +102,7 @@
    ENUM_SET_ADDRESS_RECOVERY_DELAY_MS = 2,   // USB 2.0 Spec 9.2.6.3 min is 2 ms
  };
  
-@@ -2228,6 +2269,15 @@
+@@ -2228,6 +2276,15 @@
    }
  }
  
@@ -110,7 +118,7 @@
  static void enum_full_complete(bool success) {
    (void)success;
    TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
-@@ -2236,8 +2286,15 @@
+@@ -2236,8 +2293,15 @@
    _usbh_data.call_after.func = NULL;
  
    #if CFG_TUH_HUB

@@ -3164,10 +3164,37 @@ merged and matured upstream. Already carried and now cross-validated by the
 PicoMite doc: `MULTI_HUB_FIX` and the 64-entry event queue. The 100 ms
 recovery delay (#3876) stays — complementary, and cheap.
 
-Board leg owed before this is believed (the doc's own validation list):
-all three reset kinds repeatedly with the full device set; hot attach and
-detach; MSC read under load with HID live; pulling one device and confirming
-its *own* disconnect is reported, not a neighbour's.
+**Board leg, 2026-09-03 — done, after two of my own deadlock bugs.** The
+first hardened build wedged on the boot straight after flashing: four
+devices enumerated (their mount lines reached the console), then the
+keyboards went dead and COM11 went silent while HDMI kept scanning — core0
+stuck, DMA-fed video alive. Two bugs, both mine, neither in the doc's
+design:
+
+1. **Unbounded deferred-print drain.** `usb_msgs_flush()` looped until the
+   ring was empty, but each `mp_printf` re-enters the USB pump through
+   dupterm (the on-screen console is the VM), and a device flapping
+   attach/detach in those nested pumps kept refilling the ring — the drain
+   never returned. A BOOTSEL flash is exactly when the hub flaps hardest
+   (the attach/detach/attach storm), which is why it bit on the post-flash
+   boot and not on a clean reset. Fix: drain at most one ring's worth per
+   pump; whatever arrives during a flush waits for the next.
+2. **Head-blocked pending FIFO.** Enumeration-exclusive dispatch gated the
+   drain at the FIFO *head*, but an enumeration's own control transfers go
+   async (queue) whenever an allowed transfer holds the slot, so they can
+   sit *behind* a blocked application entry — and a blocked head only frees
+   when that enumeration completes: a deadlock. Fix: blocked entries rotate
+   to the FIFO tail (one bounded pass) instead of gating the head; the two
+   drain-condition gates revert to stock.
+
+With both fixed: empty boot, incremental attach, hot attach, **software,
+hard and cold power-on reset** all bring up the full set (two keyboards
+1b1c:1b3d + 04b3:3025, touch 0484:5750 → slot 4, stick 03f0:a240 → `/usb`).
+Cold power-on readback: `SIE_STATUS=0x50801205`, `INT_EP_CTRL=0x7e` (six
+interrupt pipes — every HID interface up), the message ring drained
+(`r==w`), stick read 903 KB/s, touch tracked 288 points across the panel.
+Still owed: pull one device and confirm its *own* disconnect is reported
+(the failed-enum port-disable path) — cheap, do it next.
 
 ## Files touched
 

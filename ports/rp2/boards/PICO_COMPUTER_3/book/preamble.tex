@@ -28,15 +28,21 @@
 \makeatother
 
 % ---------------------------------------------------------------------------
-% Full-bleed cover page. Replaces the generated \maketitle title block with
-% the hi-tech cover image (cover.png, A4 aspect). The book class already gives
-% a titlepage an empty page style; \newgeometry drops the 2.5cm margins so the
-% image bleeds to the paper edge, and \restoregeometry hands the body its
-% margins back. The image is placed flush -- no centering wrapper and no
-% \vfill: those add \topsep/\parskip glue that, on top of an already
-% full-height image, spills onto a second page and leaves a blank page 1.
-% Sizing to both \paperwidth and \paperheight (the cover is drawn at A4
-% aspect) fills the sheet edge to edge with no letterbox slivers.
+% Full-bleed cover page, WITHOUT changing the page geometry.
+%
+% This used to drop the margins with \newgeometry for the cover and hand
+% them back with \restoregeometry. The image bled correctly, but the
+% restore did not reach the page that followed: the first contents page
+% came out with the cover's zero-margin footskip, its folio printed
+% 0.7pt from the paper edge (841.2 of A4's 841.9) where every other page
+% ends at 762, and a reader noticed it looked wrong beside the rest.
+%
+% eso-pic hangs the image on the shipout of THIS page only, behind the
+% text, in paper coordinates. No dimension changes, so nothing can leak:
+% the contents page after it is laid out exactly like every other page.
+% \null gives the page a body to ship; the image is placed from the
+% paper's lower left at \paperwidth x \paperheight, which is the cover's
+% own aspect, so it fills the sheet with no letterbox slivers.
 %
 % NOT the titlepage ENVIRONMENT, and that is the whole point. book.cls
 % ends `titlepage' with \setcounter{page}\@ne -- it puts the page
@@ -51,12 +57,12 @@
 % cover shows no number itself: it is a full-bleed image with an empty
 % page style.
 \usepackage{graphicx}
+\usepackage{eso-pic}
 \renewcommand{\maketitle}{%
-  \begingroup
-    \newgeometry{margin=0pt}%
-    \thispagestyle{empty}%
-    \noindent\includegraphics[width=\paperwidth,height=\paperheight]{cover.png}%
-    \clearpage
-    \restoregeometry
-  \endgroup
+  \thispagestyle{empty}%
+  \AddToShipoutPictureBG*{%
+    \AtPageLowerLeft{%
+      \includegraphics[width=\paperwidth,height=\paperheight]{cover.png}}}%
+  \null
+  \clearpage
 }

@@ -54,7 +54,8 @@ screen(hdmi.RGB640)             set + save mode (RGB320/512/1024)
 d = hdmi.fb()                   Display -- AFTER hdmi.write()!
 d.colour(0xRRGGBB)              convert colour FIRST, always
 d.fill(c)  d.pixel(x,y,c)  d.line(x1,y1,x2,y2,c,w)
-d.rect / fill_rect(x,y,w,h,c)   d.ellipse(x,y,rx,ry,c,True)
+d.rect / fill_rect(x,y,w,h,c)   d.ellipse(x,y,rx,ry,c)   outline
+d.ellipse(x,y,rx,ry,c,True)     solid: True is a flag, not a fill colour
 d.rbox(x,y,w,h,r,c[,fill]) d.arc(x,y,r1,r2,a1,a2,c) d.flood(x,y,c)
 hdmi.text(s,x,y,fg,bg,scale,font)  fonts 1..9; 6=digits; bg=-1
 draw_jpg/png/bmp(path)          save_image(path)

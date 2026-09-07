@@ -79,6 +79,7 @@ adjustment: **indentation replaces END-markers**, **`=` assigns and
 | `CLS` | `cls()` (console) or `d.fill(c)` (graphics) | 3, 15 |
 | `RGB(r,g,b)` / colour names | `0xRRGGBB` or the same 16 names + extras — **wrap in `d.colour()`** | 15 |
 | `PIXEL LINE BOX RBOX CIRCLE ARC POLYGON` | `Display` methods: `pixel line rect/rbox ellipse arc poly` | 15 |
+| `CIRCLE x, y, r, lw, a, c, fill` | `d.ellipse(x, y, r, r, c, True)` — stock MicroPython `framebuf`: the sixth argument is a **`True`/`False` flag**, not a fill colour, and it's positional (`f=True` is a `TypeError`). Two colours: solid in the fill colour first, then the outline | 15 |
 | `TEXT x, y, s$` / `FONT n` | `hdmi.text(s, x, y, fg, bg, scale, font)` — same font numbers | 15 |
 | `PRINT @(x, y)` | `hdmi.text(...)` at the pixel | 15 |
 | `LOAD JPG/PNG/BMP` | `draw_jpg/png/bmp(path)` (+ `dither=True`) | 16 |

@@ -72,7 +72,9 @@ d = hdmi.fb()
 ```
 
 `hdmi.fb()` hands you a **`Display`** object — the framebuffer with a
-toolbox of methods bolted on (a class, as you now know full well).
+toolbox of methods bolted on (a class, as you now know full well):
+MicroPython's standard `framebuf` drawing calls, plus a few extras of
+our own.
 One caution for later: after any `screen()` change, call `hdmi.fb()`
 again — the old `d` describes a screen that no longer exists.
 
@@ -140,10 +142,27 @@ Everything draws through `d`. The core set:
 | `d.line(x1, y1, x2, y2, c, w)` | a line, `w` pixels thick |
 | `d.rect(x, y, w, h, c)` / `d.fill_rect(...)` | rectangle, outline / solid |
 | `d.rbox(x, y, w, h, r, c, fill=None)` | rounded rectangle, optional fill |
-| `d.ellipse(x, y, rx, ry, c, f)` | ellipse at centre `x,y` (`f=True` filled) |
+| `d.ellipse(x, y, rx, ry, c, True)` | ellipse at centre `x,y`; a sixth argument `True` makes it solid (leave it off for an outline) |
 | `d.arc(x, y, r1, r2, a1, a2, c)` | a solid ring segment, angles in degrees (0° = up, clockwise; `a1 == a2` = full ring) |
 | `d.bezier(points, c)` | a smooth curve through `(x, y)` control points |
 | `d.flood(x, y, c)` | paint-bucket fill from a point |
+
+> **Coming from MMBasic:** `Display` is two toolboxes in one, and it
+> pays to know which you're holding. `pixel`, `rect`, `fill_rect`,
+> `ellipse` and `poly` are MicroPython's own standard `framebuf` calls,
+> unchanged — documented at docs.micropython.org, *positional only*,
+> and where they take a "fill" it is a **`True`/`False` flag, not a
+> colour**. MMBasic's `CIRCLE x, y, r, , , c, fill` ended in a fill
+> *colour*; here it's `d.ellipse(x, y, r, r, c, True)` — solid, in `c`.
+> Two traps follow. Writing `f=True` by name is a `TypeError`
+> ("function doesn't take keyword arguments"). And a colour dropped
+> into that slot doesn't fill *with* it — any non-zero number just
+> counts as "yes, fill", in `c` (and `BLACK`, being 0, counts as
+> "no"). For a disc with a contrasting edge, draw it solid in the fill
+> colour, then again as an outline in the edge colour. The extras we
+> added — `rbox`, `arc`, `bezier`, `flood`, the thick `line`, and
+> `text`'s `font=` — are ours, so those *do* take keywords and, where
+> it makes sense, a fill colour.
 
 Try a build-up at the prompt — a landscape in six lines:
 

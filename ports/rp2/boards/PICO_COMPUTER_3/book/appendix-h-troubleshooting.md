@@ -18,6 +18,8 @@ Symptom → cause → cure. The chapter references hold the fuller story.
 | "No signal" / unsupported mode | A persisted mode your monitor dislikes. Via serial console: `screen(hdmi.RGB640)` — or `rm("/settings.json")` and power-cycle. (ch. 2, 15) |
 | Blank for a few seconds after `screen()` | Monitors take ~3 s to re-lock. Programs: `time.sleep(3)` after a mode change. (ch. 15) |
 | Colours are wrong/swampy | A raw RGB number given to a drawing call — wrap it: `d.colour(0xRRGGBB)`. (ch. 15) |
+| `TypeError: function doesn't take keyword arguments` from `d.ellipse(..., f=True)` | The stock `framebuf` calls (`rect`, `ellipse`, `poly`) are positional only — put `True` in the next slot: `d.ellipse(x, y, rx, ry, c, True)`. (ch. 15) |
+| A "filled" ellipse or rect comes out in the outline colour | A fill *colour* was given where `framebuf` expects a `True`/`False` flag, so it only meant "yes, fill" — in `c`. Draw it solid in the fill colour, then the outline over it. (ch. 15) |
 | Drawing lands on the wrong screen / smears accumulate | `d = hdmi.fb()` taken *before* `hdmi.write("F")` — target first, Display second. (ch. 17) |
 | `ValueError: framebuffer already exists` | A previous run left F open — `hdmi.close("F")` before `create()`. (ch. 17) |
 | **Prompt has vanished entirely** | Console is routed to an invisible buffer or `"none"`. Type blind: `hdmi.write("N")` Enter, `console()` Enter. Or RESET. (ch. 17) |

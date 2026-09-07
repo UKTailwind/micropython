@@ -37,11 +37,26 @@
 % full-height image, spills onto a second page and leaves a blank page 1.
 % Sizing to both \paperwidth and \paperheight (the cover is drawn at A4
 % aspect) fills the sheet edge to edge with no letterbox slivers.
+%
+% NOT the titlepage ENVIRONMENT, and that is the whole point. book.cls
+% ends `titlepage' with \setcounter{page}\@ne -- it puts the page
+% counter back to 1 -- so with pandoc's \frontmatter (roman) the cover
+% was page i and the first contents page was page i AGAIN. hyperref
+% writes those numbers into the PDF as page labels, so a print dialog
+% offered two pages called i and printing "page i" fetched the cover as
+% well. Reported by a reader trying to print the contents.
+%
+% Numbering the cover i and running on -- contents ii, iii, ... -- gives
+% every sheet a label of its own, which is what a printer needs. The
+% cover shows no number itself: it is a full-bleed image with an empty
+% page style.
 \usepackage{graphicx}
 \renewcommand{\maketitle}{%
-  \begin{titlepage}%
+  \begingroup
     \newgeometry{margin=0pt}%
+    \thispagestyle{empty}%
     \noindent\includegraphics[width=\paperwidth,height=\paperheight]{cover.png}%
-    \restoregeometry%
-  \end{titlepage}%
+    \clearpage
+    \restoregeometry
+  \endgroup
 }

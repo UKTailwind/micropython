@@ -172,9 +172,12 @@
     <text x="700" y="1648" font-size="34">keystroke to games, graphics and real applications</text>
   </g>
 
-  <!-- author -->
+  <!-- author, and the assistance said plainly: a reader should not have
+       to open the book to learn how it was written -->
   <text x="700" y="1782" text-anchor="middle" font-size="42" letter-spacing="4"
         fill="#e6edf5" font-weight="600">PETER MATHER</text>
+  <text x="700" y="1836" text-anchor="middle" font-size="26" letter-spacing="1"
+        fill="#a9c2d4" font-weight="400">with the assistance of Claude AI</text>
 
   <!-- corner brackets for a framed, technical feel -->
   <g stroke="#2ee6ff" stroke-width="3" fill="none" opacity="0.6">

@@ -44,7 +44,18 @@ figures:
 	    rsvg-convert -w $(FIG_WIDTH) "$$s" -o "$${s%.svg}.png" && echo "rendered $$s"; \
 	done
 
+# The cover, on the same terms as the figures: cover.svg is the source,
+# cover.png is committed, and this renders one from the other.  Kept out
+# of the book targets so a normal build still needs only pandoc and
+# xelatex.  2800 is twice the SVG's own width, which is what the
+# committed PNG has always been - print wants the pixels.
+COVER_WIDTH ?= 2800
+
+cover:
+	rsvg-convert -w $(COVER_WIDTH) cover.svg -o cover.png
+	@echo "rendered cover.svg -> cover.png ($(COVER_WIDTH) px wide)"
+
 clean:
 	rm -f $(BOOK).html $(BOOK).epub $(BOOK).pdf $(BOOK).docx
 
-.PHONY: all html epub pdf docx figures clean
+.PHONY: all html epub pdf docx figures cover clean

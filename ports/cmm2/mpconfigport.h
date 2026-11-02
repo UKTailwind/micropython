@@ -16,6 +16,9 @@
 // the Pico Computer 3's modules, on CMM2 back ends: hdmi (hdmi_cmm2.c), keyboard (kbd_cmm2.c) and mouse (mouse_cmm2.c)
 #define MICROPY_HW_ENABLE_HDMI                  (1)
 #define MICROPY_HW_USB_HOST                     (1)
+#define MICROPY_PY_OS_DUPTERM                   (1)   // (pcconsole's on-screen console)
+// the PC3's Python libraries and the start-up, frozen (manifest.py: the build defines MICROPY_MODULE_FROZEN_MPY)
+#define MICROPY_PERSISTENT_CODE_LOAD            (1)
 
 // memory and the compiler
 #define MICROPY_ENABLE_GC                       (1)
@@ -70,7 +73,11 @@
 #define MICROPY_PY_MACHINE_PWM_INCLUDEFILE      "ports/cmm2/machine_pwm.c"
 #define MICROPY_PY_MACHINE_UART                 (1)
 #define MICROPY_PY_MACHINE_UART_INCLUDEFILE     "ports/cmm2/machine_uart.c"
+#define MICROPY_PY_MACHINE_TIMER                (1)   // (soft timers, run from the VM's hook)
+#define MICROPY_PY_PENDSV_ENTER                 (void)0   // (their handler is the VM's hook's, not an
+#define MICROPY_PY_PENDSV_EXIT                  (void)0   // interrupt's: nothing to hold off)
 #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
+    { MP_ROM_QSTR(MP_QSTR_Timer), MP_ROM_PTR(&machine_timer_type) }, \
     { MP_ROM_QSTR(MP_QSTR_I2S), MP_ROM_PTR(&machine_i2s_type) }, \
     { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },
 

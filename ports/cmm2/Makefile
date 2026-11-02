@@ -19,6 +19,9 @@ MICROPY_ROM_TEXT_COMPRESSION ?= 1
 # the Pico Computer 3's library modules: ulab (numpy-like arrays) and usqlite (SQLite 3.47), from lib/ as its build has
 # them. SQLite's pool is taken from the GC heap on the first connect(): 2 MB here (the PC3, with 8 MB of PSRAM, has 4).
 USER_C_MODULES ?= $(TOP)/lib/ulab/code $(TOP)/lib/usqlite
+
+# the PC3's Python libraries and the CMM2's start-up, frozen into the program
+FROZEN_MANIFEST ?= manifest.py
 CFLAGS_EXTRA += -DMEMSYS5_HEAP_SIZE=0x200000
 
 include $(TOP)/py/py.mk
@@ -51,6 +54,8 @@ SRC_C = \
 	shared/runtime/interrupt_char.c \
 	shared/runtime/gchelper_native.c \
 	shared/timeutils/timeutils.c \
+	shared/runtime/softtimer.c \
+	shared/runtime/mpirq.c \
 	hdmi_cmm2.c \
 	kbd_cmm2.c \
 	mouse_cmm2.c \
@@ -74,7 +79,7 @@ SRC_S = shared/runtime/gchelper_thumb2.s
 SDK_O = $(BUILD)/sdk/crt0.o $(BUILD)/sdk/syscalls.o
 
 SRC_QSTR += main.c mphalport.c vfs_cmm2.c vfs_cmm2_file.c modmachine.c modtime.c \
-	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c \
+	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c shared/runtime/mpirq.c \
 	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c machine_i2s_cmm2.c machine_pin_cmm2.c machine_i2c_cmm2.c machine_spi_cmm2.c \
 	machine_adc.c machine_pwm.c machine_uart.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
 

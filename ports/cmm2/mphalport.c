@@ -14,6 +14,8 @@
 #include "py/stream.h"
 #include "shared/runtime/interrupt_char.h"
 #include "shared/timeutils/timeutils.h"
+#include "shared/runtime/softtimer.h"
+#include "extmod/misc.h"
 #include "cmm2.h"
 
 #include "py/ringbuf.h"
@@ -24,8 +26,23 @@ extern void cmm2_mouse_poll(void);
 extern void cmm2_i2s_poll(void);
 extern void cmm2_pin_poll(void);
 
-// from the VM's hook: a finished sound write's callback scheduled; then, at most every 2 ms, the USB devices seen
-// to, the keys taken, the mouse's clicks and the pins' irq edges
+static bool sercon_muted;                   // the serial console's output muted (_sercon, below)
+
+// soft timers (machine.Timer, pcconsole's cursor): their handler is run from the VM's hook, so there is nothing to
+// schedule
+uint32_t soft_timer_get_ms(void) {
+    return mp_hal_ticks_ms();
+}
+
+void soft_timer_schedule_at_ms(uint32_t ticks_ms) {
+    (void)ticks_ms;
+}
+
+void soft_timer_init(void) {
+}
+
+// from the VM's hook and while stdin waits: a finished sound write's callback scheduled; then, at most every 2 ms,
+// the USB devices seen to, the keys taken, the mouse's clicks, the pins' irq edges and the soft timers
 void cmm2_vm_poll(void) {
     static uint64_t last;
     cmm2_i2s_poll();
@@ -38,6 +55,7 @@ void cmm2_vm_poll(void) {
     cmm2_kbd_pump();
     cmm2_mouse_poll();
     cmm2_pin_poll();
+    soft_timer_handler();
 }
 
 int mp_hal_stdin_rx_chr(void) {
@@ -46,9 +64,11 @@ int mp_hal_stdin_rx_chr(void) {
         if (c != -1) {
             return c;
         }
-        cmm2->poll();
-        cmm2_kbd_pump();
-        cmm2_mouse_poll();
+        c = mp_os_dupterm_rx_chr();
+        if (c >= 0) {
+            return c;
+        }
+        cmm2_vm_poll();
         if (ringbuf_avail(&stdin_ringbuf)) {
             continue;
         }
@@ -57,12 +77,45 @@ int mp_hal_stdin_rx_chr(void) {
     }
 }
 
+// the console's output: MMBasic's console (the serial port; and the screen while the hdmi module's display is off),
+// unless _sercon muted it, and os.dupterm's (pcconsole's on-screen console)
 mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-        cmm2->con_putc((unsigned char)str[i]);
+    mp_uint_t ret = len;
+    if (!sercon_muted) {
+        for (size_t i = 0; i < len; i++) {
+            cmm2->con_putc((unsigned char)str[i]);
+        }
     }
-    return len;
+    int dupterm_res = mp_os_dupterm_tx_strn(str, len);
+    if (dupterm_res >= 0) {
+        ret = MIN((mp_uint_t)dupterm_res, ret);
+    }
+    return ret;
 }
+
+// _sercon.mute(True/False) mutes the serial console's output (the REPL's and stdout's), for pcconsole's
+// console("screen"); _sercon.mute() reads it. As the Pico Computer 3's sercon.c.
+static mp_obj_t sercon_mute(size_t n_args, const mp_obj_t *args) {
+    if (n_args == 0) {
+        return mp_obj_new_bool(sercon_muted);
+    }
+    sercon_muted = mp_obj_is_true(args[0]);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(sercon_mute_obj, 0, 1, sercon_mute);
+
+static const mp_rom_map_elem_t sercon_module_globals_table[] = {
+    { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR__sercon) },
+    { MP_ROM_QSTR(MP_QSTR_mute), MP_ROM_PTR(&sercon_mute_obj) },
+};
+static MP_DEFINE_CONST_DICT(sercon_module_globals, sercon_module_globals_table);
+
+const mp_obj_module_t sercon_module = {
+    .base = { &mp_type_module },
+    .globals = (mp_obj_dict_t *)&sercon_module_globals,
+};
+
+MP_REGISTER_MODULE(MP_QSTR__sercon, sercon_module);
 
 uintptr_t mp_hal_stdio_poll(uintptr_t poll_flags) {
     uintptr_t ret = 0;
@@ -72,6 +125,7 @@ uintptr_t mp_hal_stdio_poll(uintptr_t poll_flags) {
             ret |= MP_STREAM_POLL_RD;
         }
     }
+    ret |= mp_os_dupterm_poll(poll_flags);
     if (poll_flags & MP_STREAM_POLL_WR) {
         ret |= MP_STREAM_POLL_WR;
     }

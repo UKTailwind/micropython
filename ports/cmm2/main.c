@@ -25,6 +25,7 @@
 #include "shared/readline/readline.h"
 #include "shared/runtime/gchelper.h"
 #include "shared/runtime/pyexec.h"
+#include "shared/runtime/softtimer.h"
 #include "cmm2.h"
 #include "vfs_cmm2.h"
 
@@ -75,10 +76,15 @@ int main(int argc, char **argv) {
         mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(MP_QSTR__slash_lib));
         readline_init0();
         mount_drives();
+        soft_timer_init();
+        // the CMM2's start-up (modules/_boot.py, frozen): the PC3's libraries ready at the REPL, the display and the
+        // on-screen console up
+        pyexec_frozen_module("_boot.py", false);
 
         if (argc > 1) {
             // a script named after RUN's comma: run it, then back to MMBasic
             int ret = pyexec_file(argv[1]);
+            soft_timer_deinit();
             cmm2_i2s_deinit_all();
             gc_sweep_all();
             mp_deinit();
@@ -110,6 +116,7 @@ int main(int argc, char **argv) {
 
     soft_reset_exit:
         mp_printf(MP_PYTHON_PRINTER, "MPY: soft reboot\n");
+        soft_timer_deinit();
         cmm2_i2s_deinit_all();              // (the sound's fill reads the heap)
         gc_sweep_all();
         mp_deinit();

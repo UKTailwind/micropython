@@ -24,6 +24,13 @@ make CMM2_SDK=/path/to/CMM2V1.5-loader/tools/sdk
 
 ## What there is
 
+At start-up (`modules/_boot.py`, as the Pico Computer 3's `_boot_board.py`) the display comes up in RGB640 (or the
+mode `screen()` saved), the PC3's on-screen console shows the REPL on it, and the PC3's libraries and functions are
+ready at the prompt: `ls()`, `cd()`, `cat()`, `edit()` (pye), `run()`, `fm()`, `plot()`, `Turtle()`, `play()`,
+`tone()`, `draw_jpg()`, the colour names, `keydown()`, `mouse()`, `pcgui`... They are the PC3's own `pc*.py`, frozen
+unchanged (`manifest.py`); `board`, `touch` and `gamepad` are the CMM2's stand-ins with the PC3's API (no touch panel
+or gamepad is given to programs yet).
+
 - **The REPL** on MMBasic's console: the serial port, the screen and the USB keyboard.
   - Ctrl-C cancels a line, or raises KeyboardInterrupt in running code. The firmware's break key is taken through `break_take()`, so a BASIC program that ran MicroPython carries on afterwards.
   - Ctrl-D is a soft reset, and `machine.reset()` goes back to MMBasic.
@@ -55,6 +62,11 @@ make CMM2_SDK=/path/to/CMM2V1.5-loader/tools/sdk
 - **`usqlite`** (SQLite 3.47, `lib/usqlite`), its databases on the card or the USB drive; its pool of 2 MB is taken
   from the heap on the first `connect()`. Its regression tests (`lib/usqlite/tests`) pass on the G2.
 - **`ulab`** (numpy-like arrays, `lib/ulab`).
+- **I/O by the PicoMite's GP numbers** (as the PC3's): `Pin` (in, out, open drain, analog, pulls; `irq()` polled
+  every 2 ms), `ADC` (0-2: GP26-28), `PWM` (GP2-5), `I2C` (0: GP16/17, 1: GP14/15), `SPI` (0: GP18-20, 1: GP10-12),
+  `UART` (0: COM1 on GP0/1, 1: COM2 on GP36/37), `SoftI2C`, `SoftSPI`, `time_pulse_us`, through the loader's services
+  version 7, which run the firmware's own I/O routines.
+- **`machine.Timer`** (soft timers, run from the VM's hook) and `os.dupterm`.
 - **`machine`:** `reset()`, `soft_reset()`, `freq()`, `unique_id()`, `idle()`, `lightsleep()`, `I2S`.
 - **The language:** double-precision floats (the M7's FPU), big integers, and the EXTRA_FEATURES set of modules (json, re, struct, random, math, collections, asyncio, framebuf...).
 - **About 5.5 MB of heap** (3.4 MB while a database is open). The program is 1.1 MB.
@@ -63,5 +75,6 @@ make CMM2_SDK=/path/to/CMM2V1.5-loader/tools/sdk
 
 ## What is to come
 
-- the PC3's frozen `pc*.py` libraries (its console on the screen, graphics, sprites, GUI, sound...);
-- `machine.Pin` and the buses, which need new loader services.
+- touch panels and gamepads given to programs (the firmware has the drivers);
+- `@micropython.native` and `@micropython.viper`;
+- `machine.RTC`.

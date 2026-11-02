@@ -1,10 +1,11 @@
 /*
- * MicroPython for the Colour Maximite 2 G2: a loadable program on the CMM2's firmware.
+ * MicroPython for the Colour Maximite 2 (G2 and G1): a loadable program on the CMM2's firmware.
  *
  *   RUN "micropython.app"              boot.py and main.py (if they are there), then the REPL
  *   RUN "micropython.app", script.py   the script, then back to MMBasic
  *
- * The heap is the loader's (the G2's 8 MB for programs, less the program and its stack), all but 1 MB of it the GC's.
+ * The heap is the loader's, less the program and its stack: a G2's 8 MB for programs, or the heap a G1 lends (about
+ * 4 MB from its prompt). All but newlib's share of it is the GC's.
  * The SD card (A:) is mounted at / and at /sd (as the Pico Computer 3 has its card), the USB drive (C:) at /usb when
  * there is one. Ctrl-D at the prompt is a soft reset, as on every MicroPython board; machine.reset() goes back to
  * MMBasic, which puts its screen back.
@@ -32,7 +33,10 @@
 extern void cmm2_i2s_deinit_all(void);      // machine_i2s_cmm2.c
 
 #define CMM2_STACK_SIZE   (262144)          // as the Makefile's --stack
-#define CMM2_NEWLIB_HEAP  (1024 * 1024)     // left to newlib's malloc
+
+// SQLite's pool (cmm2_sqlite.h): 2 MB of the GC heap where there is room (a G2), 512 KB on a G1, which lends a program
+// about 4 MB in all
+int cmm2_sqlite_pool = 0x200000;
 
 static void mount(const char *drive, qstr point) {
     mp_obj_t vfs = mp_vfs_cmm2_new(drive);
@@ -58,12 +62,17 @@ static void mount_drives(void) {
 }
 
 int main(int argc, char **argv) {
-    // the stack: the loader's, at the top of the 8 MB, CMM2_STACK_SIZE long
+    // the stack: the loader's, at the top of its area (a G2's 8 MB, a G1's borrowed heap), CMM2_STACK_SIZE long
     char *stack_top = (char *)cmm2_start->heap + cmm2_start->heap_size + CMM2_STACK_SIZE;
     mp_cstack_init_with_top(stack_top, CMM2_STACK_SIZE);
 
-    // the GC heap: the loader's heap but for newlib's share
-    uint32_t heap_size = cmm2_start->heap_size - CMM2_NEWLIB_HEAP;
+    // the GC heap: the loader's heap but for newlib's share (1 MB, or 256 KB from a G1's smaller heap: the sound
+    // decoders' blocks are its main use)
+    int small = cmm2_start->heap_size < 4 * 1024 * 1024;
+    uint32_t heap_size = cmm2_start->heap_size - (small ? 256 * 1024 : 1024 * 1024);
+    if (small) {
+        cmm2_sqlite_pool = 512 * 1024;
+    }
     char *heap = cmm2_heap_take(heap_size);
     if (heap == NULL) {
         printf("MPY: no room for the heap\n");

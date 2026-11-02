@@ -1,7 +1,7 @@
-# MicroPython for the Colour Maximite 2 G2
+# MicroPython for the Colour Maximite 2
 
-MicroPython as a **loadable program** on the Colour Maximite 2 G2. It runs on top of the CMM2's MMBasic firmware,
-which loads it into the G2's 8 MB for programs:
+MicroPython as a **loadable program** on the Colour Maximite 2, G2 or G1. It runs on top of the CMM2's MMBasic
+firmware, which loads it into the G2's 8 MB for programs, or on a G1 into the heap it lends while a program runs:
 
 ```
 RUN "micropython.app"                 boot.py and main.py if they are there, then the REPL
@@ -59,8 +59,9 @@ or gamepad is given to programs yet).
   - `audio` (its decoders and synths) and **`machine.I2S`** (`machine_i2s_cmm2.c`) on the loader's sound stream, with
     the PC3's non-blocking contract, so the PC3's `pcaudio.py` plays tones, the synth, WAV, MP3, FLAC and MOD.
     `machine.Pin` is only a pin's number for now.
-- **`usqlite`** (SQLite 3.47, `lib/usqlite`), its databases on the card or the USB drive; its pool of 2 MB is taken
-  from the heap on the first `connect()`. Its regression tests (`lib/usqlite/tests`) pass on the G2.
+- **`usqlite`** (SQLite 3.47, `lib/usqlite`), its databases on the card or the USB drive; its pool (2 MB on a G2,
+  512 KB on a G1: `cmm2_sqlite.h`) is taken from the heap on the first `connect()`. Its regression tests
+  (`lib/usqlite/tests`) pass on the G2.
 - **`ulab`** (numpy-like arrays, `lib/ulab`).
 - **I/O by the PicoMite's GP numbers** (as the PC3's): `Pin` (in, out, open drain, analog, pulls; `irq()` polled
   every 2 ms), `ADC` (0-2: GP26-28), `PWM` (GP2-5), `I2C` (0: GP16/17, 1: GP14/15), `SPI` (0: GP18-20, 1: GP10-12),
@@ -69,7 +70,9 @@ or gamepad is given to programs yet).
 - **`machine.Timer`** (soft timers, run from the VM's hook) and `os.dupterm`.
 - **`machine`:** `reset()`, `soft_reset()`, `freq()`, `unique_id()`, `idle()`, `lightsleep()`, `I2S`.
 - **The language:** double-precision floats (the M7's FPU), big integers, and the EXTRA_FEATURES set of modules (json, re, struct, random, math, collections, asyncio, framebuf...).
-- **About 5.5 MB of heap** (3.4 MB while a database is open). The program is 1.1 MB.
+- **About 5.5 MB of heap on a G2** (3.4 MB while a database is open). The program is 1.1 MB.
+- **On a G1** (the same `micropython.app`, from the firmware's prompt): about 2.3 MB of heap with the display up
+  (1.8 MB with a database open), at 400 MHz. Run from inside a BASIC program, it has what that program leaves.
 
 `hdmitest.py` shows each display mode and the mouse and keys; `imgtest.py` the image loaders.
 

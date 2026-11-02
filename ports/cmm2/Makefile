@@ -17,12 +17,13 @@ QSTR_DEFS = qstrdefsport.h
 MICROPY_ROM_TEXT_COMPRESSION ?= 1
 
 # the Pico Computer 3's library modules: ulab (numpy-like arrays) and usqlite (SQLite 3.47), from lib/ as its build has
-# them. SQLite's pool is taken from the GC heap on the first connect(): 2 MB here (the PC3, with 8 MB of PSRAM, has 4).
+# them. SQLite's pool is taken from the GC heap on the first connect(): 2 MB on a G2, 512 KB on a G1 (cmm2_sqlite.h;
+# the PC3, with 8 MB of PSRAM, has 4).
 USER_C_MODULES ?= $(TOP)/lib/ulab/code $(TOP)/lib/usqlite
+CFLAGS_EXTRA += -include $(TOP)/ports/cmm2/cmm2_sqlite.h
 
 # the PC3's Python libraries and the CMM2's start-up, frozen into the program
 FROZEN_MANIFEST ?= manifest.py
-CFLAGS_EXTRA += -DMEMSYS5_HEAP_SIZE=0x200000
 
 include $(TOP)/py/py.mk
 include $(TOP)/extmod/extmod.mk
@@ -115,6 +116,6 @@ $(BUILD)/firmware.elf: $(OBJ)
 
 $(BUILD)/micropython.app: $(BUILD)/firmware.elf
 	$(ECHO) "Create $@"
-	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 7 --stack 262144
+	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 7 --stack 262144 --heap 1572864
 
 include $(TOP)/py/mkrules.mk

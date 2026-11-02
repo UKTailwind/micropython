@@ -9,7 +9,7 @@
 // A full Python: the features rp2 and stm32 have, less the hardware this port has no access to yet.
 #define MICROPY_CONFIG_ROM_LEVEL                (MICROPY_CONFIG_ROM_LEVEL_EXTRA_FEATURES)
 
-#define MICROPY_HW_BOARD_NAME                   "Colour Maximite 2 G2"
+#define MICROPY_HW_BOARD_NAME                   "Colour Maximite 2"     // (G1 or G2: the same program runs on both)
 #define MICROPY_HW_MCU_NAME                     "STM32H743"
 #define MICROPY_PY_SYS_PLATFORM                 "cmm2"
 

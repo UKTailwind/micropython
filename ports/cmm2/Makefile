@@ -27,7 +27,7 @@ INC += -I$(CMM2_SDK)
 CFLAGS_MCU = -mthumb -mcpu=cortex-m7 -mfpu=fpv5-d16 -mfloat-abi=hard
 CFLAGS += $(INC) -Wall -Werror -std=gnu99 $(CFLAGS_MCU) $(COPT)
 CFLAGS += -fdata-sections -ffunction-sections -fno-common
-CFLAGS += -g -O2 -DNDEBUG
+CFLAGS += -g -O2 -DNDEBUG $(CFLAGS_EXTRA)
 
 LDFLAGS = $(CFLAGS_MCU) --specs=nano.specs -nostartfiles -T $(CMM2_SDK)/app.ld \
 	-Wl,--defsym=__app_base=0xD1800000 -Wl,--gc-sections -Wl,--emit-relocs \
@@ -67,6 +67,12 @@ SDK_O = $(BUILD)/sdk/crt0.o $(BUILD)/sdk/syscalls.o
 SRC_QSTR += main.c mphalport.c vfs_cmm2.c vfs_cmm2_file.c modmachine.c modtime.c \
 	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c \
 	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c machine_i2s_cmm2.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
+
+# make PROF=1: with _prof (prof_cmm2.c), a sampling profiler for working on the port
+ifeq ($(PROF),1)
+SRC_C += prof_cmm2.c
+SRC_QSTR += prof_cmm2.c
+endif
 
 OBJ += $(PY_O)
 OBJ += $(addprefix $(BUILD)/, $(SRC_C:.c=.o))

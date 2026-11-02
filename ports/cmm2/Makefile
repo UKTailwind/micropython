@@ -46,6 +46,13 @@ SRC_C = \
 	shared/runtime/interrupt_char.c \
 	shared/runtime/gchelper_native.c \
 	shared/timeutils/timeutils.c \
+	hdmi_cmm2.c \
+	kbd_cmm2.c \
+	mouse_cmm2.c \
+
+# the Pico Computer 3's modules, used unchanged from ports/rp2 (their objects in $(BUILD)/pc3): hdmi, keyboard, mouse
+PC3_DIR = ../rp2
+SRC_PC3 = hdmi.c usb_keyboard.c kbd_backend.c usb_mouse_mod.c
 
 SRC_S = shared/runtime/gchelper_thumb2.s
 
@@ -53,11 +60,13 @@ SRC_S = shared/runtime/gchelper_thumb2.s
 SDK_O = $(BUILD)/sdk/crt0.o $(BUILD)/sdk/syscalls.o
 
 SRC_QSTR += main.c mphalport.c vfs_cmm2.c vfs_cmm2_file.c modmachine.c modtime.c \
-	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c
+	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c \
+	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
 
 OBJ += $(PY_O)
 OBJ += $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
 OBJ += $(addprefix $(BUILD)/, $(SRC_S:.s=.o))
+OBJ += $(addprefix $(BUILD)/pc3/, $(SRC_PC3:.c=.o))
 OBJ += $(SDK_O)
 
 all: $(BUILD)/micropython.app
@@ -67,6 +76,9 @@ $(BUILD)/sdk/%.o: $(CMM2_SDK)/%.c
 	$(Q)mkdir -p $(dir $@)
 	$(Q)$(CC) $(CFLAGS_MCU) -O2 -std=gnu11 -ffunction-sections -fdata-sections -I$(CMM2_SDK) -c $< -o $@
 
+$(BUILD)/pc3/%.o: $(PC3_DIR)/%.c
+	$(call compile_c)
+
 $(BUILD)/firmware.elf: $(OBJ)
 	$(ECHO) "LINK $@"
 	$(Q)$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
@@ -74,6 +86,6 @@ $(BUILD)/firmware.elf: $(OBJ)
 
 $(BUILD)/micropython.app: $(BUILD)/firmware.elf
 	$(ECHO) "Create $@"
-	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 5 --stack 262144
+	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 6 --stack 262144
 
 include $(TOP)/py/mkrules.mk

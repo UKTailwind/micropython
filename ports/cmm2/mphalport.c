@@ -2,8 +2,9 @@
  * MicroPython for the Colour Maximite 2 G2: the hardware abstraction, on the loader's services (cmm2.h).
  *
  * The console is MMBasic's (the serial port and the screen); its keys come from the serial port and the USB keyboard,
- * which the loader's poll() sees to. Ctrl-C never reaches the console's queue (the firmware takes it as its break key):
- * the loader's break_take() reports it, as a KeyboardInterrupt while code runs and as Ctrl-C itself to readline.
+ * which the loader's poll() sees to. They are taken into stdin_ringbuf by the keyboard's pump (kbd_cmm2.c), as the Pico
+ * Computer 3's USB pump fills it, with Ctrl-C from break_take(): a KeyboardInterrupt while code runs, and Ctrl-C itself
+ * to readline.
  *
  * The MIT License (MIT), as MicroPython.
  */
@@ -15,11 +16,13 @@
 #include "shared/timeutils/timeutils.h"
 #include "cmm2.h"
 
-#define CHAR_CTRL_C (3)
+#include "py/ringbuf.h"
 
-static int stdin_peek = -1;                 // a key read by a poll of stdin, not yet taken
+extern ringbuf_t stdin_ringbuf;
+extern void cmm2_kbd_pump(void);
+extern void cmm2_mouse_poll(void);
 
-// the USB devices seen to, and Ctrl-C made a KeyboardInterrupt: from the VM's hook, at most every 2 ms
+// the USB devices seen to, the keys taken and the mouse's clicks: from the VM's hook, at most every 2 ms
 void cmm2_vm_poll(void) {
     static uint64_t last;
     uint64_t now = cmm2->micros();
@@ -28,25 +31,21 @@ void cmm2_vm_poll(void) {
     }
     last = now;
     cmm2->poll();
-    if (cmm2->break_take() && mp_interrupt_char != -1) {
-        mp_sched_keyboard_interrupt();
-    }
+    cmm2_kbd_pump();
+    cmm2_mouse_poll();
 }
 
 int mp_hal_stdin_rx_chr(void) {
     for (;;) {
-        int c;
-        if (stdin_peek >= 0) {
-            c = stdin_peek;
-            stdin_peek = -1;
-            return c;
-        }
-        if ((c = cmm2->con_getc()) >= 0) {
+        int c = ringbuf_get(&stdin_ringbuf);
+        if (c != -1) {
             return c;
         }
         cmm2->poll();
-        if (cmm2->break_take()) {
-            return CHAR_CTRL_C;
+        cmm2_kbd_pump();
+        cmm2_mouse_poll();
+        if (ringbuf_avail(&stdin_ringbuf)) {
+            continue;
         }
         mp_handle_pending(true);
         cmm2->delay_us(200);
@@ -63,10 +62,8 @@ mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
 uintptr_t mp_hal_stdio_poll(uintptr_t poll_flags) {
     uintptr_t ret = 0;
     if (poll_flags & MP_STREAM_POLL_RD) {
-        if (stdin_peek < 0) {
-            stdin_peek = cmm2->con_getc();
-        }
-        if (stdin_peek >= 0) {
+        cmm2_kbd_pump();
+        if (ringbuf_avail(&stdin_ringbuf)) {
             ret |= MP_STREAM_POLL_RD;
         }
     }

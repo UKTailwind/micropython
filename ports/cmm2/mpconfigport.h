@@ -13,6 +13,10 @@
 #define MICROPY_HW_MCU_NAME                     "STM32H743"
 #define MICROPY_PY_SYS_PLATFORM                 "cmm2"
 
+// the Pico Computer 3's modules, on CMM2 back ends: hdmi (hdmi_cmm2.c), keyboard (kbd_cmm2.c) and mouse (mouse_cmm2.c)
+#define MICROPY_HW_ENABLE_HDMI                  (1)
+#define MICROPY_HW_USB_HOST                     (1)
+
 // memory and the compiler
 #define MICROPY_ENABLE_GC                       (1)
 #define MICROPY_ENABLE_FINALISER                (1)

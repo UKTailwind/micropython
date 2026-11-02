@@ -55,6 +55,10 @@ SRC_C = \
 	kbd_cmm2.c \
 	mouse_cmm2.c \
 	machine_i2s_cmm2.c \
+	machine_pin_cmm2.c \
+	machine_i2c_cmm2.c \
+	machine_spi_cmm2.c \
+	drivers/bus/softspi.c \
 
 # the Pico Computer 3's modules, used unchanged from ports/rp2 (their objects in $(BUILD)/pc3): hdmi, draw3d,
 # keyboard, mouse, audio (its decoders and synths) and the image loaders. The vendored decoders' signed shifts and
@@ -71,7 +75,8 @@ SDK_O = $(BUILD)/sdk/crt0.o $(BUILD)/sdk/syscalls.o
 
 SRC_QSTR += main.c mphalport.c vfs_cmm2.c vfs_cmm2_file.c modmachine.c modtime.c \
 	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c \
-	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c machine_i2s_cmm2.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
+	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c machine_i2s_cmm2.c machine_pin_cmm2.c machine_i2c_cmm2.c machine_spi_cmm2.c \
+	machine_adc.c machine_pwm.c machine_uart.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
 
 # make PROF=1: with _prof (prof_cmm2.c), a sampling profiler for working on the port
 ifeq ($(PROF),1)
@@ -105,6 +110,6 @@ $(BUILD)/firmware.elf: $(OBJ)
 
 $(BUILD)/micropython.app: $(BUILD)/firmware.elf
 	$(ECHO) "Create $@"
-	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 6 --stack 262144
+	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 7 --stack 262144
 
 include $(TOP)/py/mkrules.mk

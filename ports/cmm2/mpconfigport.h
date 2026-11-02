@@ -57,11 +57,19 @@
 #define MICROPY_PY_MACHINE_RESET                (1)
 #define MICROPY_PY_MACHINE_BARE_METAL_FUNCS     (1)
 #define MICROPY_PY_MACHINE_PIN_BASE             (0)
-#define MICROPY_PY_MACHINE_PULSE                (0)
-#define MICROPY_PY_MACHINE_I2C                  (0)
-#define MICROPY_PY_MACHINE_SOFTI2C              (0)
-#define MICROPY_PY_MACHINE_SPI                  (0)
-#define MICROPY_PY_MACHINE_SOFTSPI              (0)
+// I/O through the loader's services (version 7), by the PicoMite's GP numbers: Pin, ADC, PWM, I2C, SPI, UART
+#define MICROPY_PY_MACHINE_PULSE                (1)
+#define MICROPY_PY_MACHINE_I2C                  (1)
+#define MICROPY_PY_MACHINE_SOFTI2C              (1)
+#define MICROPY_PY_MACHINE_SPI                  (1)
+#define MICROPY_PY_MACHINE_SOFTSPI              (1)
+#define MICROPY_PY_MACHINE_ADC                  (1)
+#define MICROPY_PY_MACHINE_ADC_INCLUDEFILE      "ports/cmm2/machine_adc.c"
+#define MICROPY_PY_MACHINE_ADC_READ_UV          (1)
+#define MICROPY_PY_MACHINE_PWM                  (1)
+#define MICROPY_PY_MACHINE_PWM_INCLUDEFILE      "ports/cmm2/machine_pwm.c"
+#define MICROPY_PY_MACHINE_UART                 (1)
+#define MICROPY_PY_MACHINE_UART_INCLUDEFILE     "ports/cmm2/machine_uart.c"
 #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
     { MP_ROM_QSTR(MP_QSTR_I2S), MP_ROM_PTR(&machine_i2s_type) }, \
     { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },

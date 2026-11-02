@@ -22,9 +22,10 @@ extern ringbuf_t stdin_ringbuf;
 extern void cmm2_kbd_pump(void);
 extern void cmm2_mouse_poll(void);
 extern void cmm2_i2s_poll(void);
+extern void cmm2_pin_poll(void);
 
 // from the VM's hook: a finished sound write's callback scheduled; then, at most every 2 ms, the USB devices seen
-// to, the keys taken and the mouse's clicks
+// to, the keys taken, the mouse's clicks and the pins' irq edges
 void cmm2_vm_poll(void) {
     static uint64_t last;
     cmm2_i2s_poll();
@@ -36,6 +37,7 @@ void cmm2_vm_poll(void) {
     cmm2->poll();
     cmm2_kbd_pump();
     cmm2_mouse_poll();
+    cmm2_pin_poll();
 }
 
 int mp_hal_stdin_rx_chr(void) {

@@ -12,8 +12,6 @@
  * silence, as the PC3's DMA plays it. One I2S plays at a time: a new one ends the last. The firmware's PLAY VOLUME
  * applies after pcaudio's own volume.
  *
- * machine.Pin is only a pin's number for now, for I2S's sck, ws and sd: the CMM2's I/O pins need services of their own.
- *
  * The MIT License (MIT), as MicroPython.
  */
 #include <string.h>
@@ -272,36 +270,4 @@ MP_DEFINE_CONST_OBJ_TYPE(
     MP_TYPE_FLAG_NONE,
     make_new, machine_i2s_make_new,
     locals_dict, &machine_i2s_locals
-    );
-
-// machine.Pin: a pin's number only, for now
-typedef struct _machine_pin_obj_t {
-    mp_obj_base_t base;
-    mp_obj_t id;
-} machine_pin_obj_t;
-
-static mp_obj_t machine_pin_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
-    mp_arg_check_num(n_args, n_kw, 1, MP_OBJ_FUN_ARGS_MAX, true);
-    if (n_args > 1 || n_kw > 0) {
-        mp_raise_NotImplementedError(MP_ERROR_TEXT("the CMM2's I/O pins are not in MicroPython yet"));
-    }
-    machine_pin_obj_t *self = mp_obj_malloc(machine_pin_obj_t, type);
-    self->id = args[0];
-    return MP_OBJ_FROM_PTR(self);
-}
-
-static void machine_pin_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
-    machine_pin_obj_t *self = MP_OBJ_TO_PTR(self_in);
-    (void)kind;
-    mp_print_str(print, "Pin(");
-    mp_obj_print_helper(print, self->id, PRINT_REPR);
-    mp_print_str(print, ")");
-}
-
-MP_DEFINE_CONST_OBJ_TYPE(
-    machine_pin_type,
-    MP_QSTR_Pin,
-    MP_TYPE_FLAG_NONE,
-    make_new, machine_pin_make_new,
-    print, machine_pin_print
     );

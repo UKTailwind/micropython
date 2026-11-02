@@ -16,6 +16,11 @@ QSTR_DEFS = qstrdefsport.h
 
 MICROPY_ROM_TEXT_COMPRESSION ?= 1
 
+# the Pico Computer 3's library modules: ulab (numpy-like arrays) and usqlite (SQLite 3.47), from lib/ as its build has
+# them. SQLite's pool is taken from the GC heap on the first connect(): 2 MB here (the PC3, with 8 MB of PSRAM, has 4).
+USER_C_MODULES ?= $(TOP)/lib/ulab/code $(TOP)/lib/usqlite
+CFLAGS_EXTRA += -DMEMSYS5_HEAP_SIZE=0x200000
+
 include $(TOP)/py/py.mk
 include $(TOP)/extmod/extmod.mk
 
@@ -88,6 +93,8 @@ $(BUILD)/sdk/%.o: $(CMM2_SDK)/%.c
 	$(Q)$(CC) $(CFLAGS_MCU) -O2 -std=gnu11 -ffunction-sections -fdata-sections -I$(CMM2_SDK) -c $< -o $@
 
 $(BUILD)/pc3/%.o: CFLAGS += -Wno-shift-negative-value -Wno-sign-compare
+# (SQLite's amalgamation and its glue: their warnings are theirs, as the PC3 emulator has them)
+$(BUILD)/usqlite/%.o: CFLAGS += -w
 $(BUILD)/pc3/%.o: $(PC3_DIR)/%.c
 	$(call compile_c)
 

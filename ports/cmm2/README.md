@@ -52,9 +52,12 @@ make CMM2_SDK=/path/to/CMM2V1.5-loader/tools/sdk
   - `audio` (its decoders and synths) and **`machine.I2S`** (`machine_i2s_cmm2.c`) on the loader's sound stream, with
     the PC3's non-blocking contract, so the PC3's `pcaudio.py` plays tones, the synth, WAV, MP3, FLAC and MOD.
     `machine.Pin` is only a pin's number for now.
+- **`usqlite`** (SQLite 3.47, `lib/usqlite`), its databases on the card or the USB drive; its pool of 2 MB is taken
+  from the heap on the first `connect()`. Its regression tests (`lib/usqlite/tests`) pass on the G2.
+- **`ulab`** (numpy-like arrays, `lib/ulab`).
 - **`machine`:** `reset()`, `soft_reset()`, `freq()`, `unique_id()`, `idle()`, `lightsleep()`, `I2S`.
 - **The language:** double-precision floats (the M7's FPU), big integers, and the EXTRA_FEATURES set of modules (json, re, struct, random, math, collections, asyncio, framebuf...).
-- **About 6.5 MB of heap.** The program is 440 KB.
+- **About 5.5 MB of heap** (3.4 MB while a database is open). The program is 1.1 MB.
 
 `hdmitest.py` shows each display mode and the mouse and keys; `imgtest.py` the image loaders.
 

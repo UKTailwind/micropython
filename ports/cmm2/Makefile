@@ -49,10 +49,15 @@ SRC_C = \
 	hdmi_cmm2.c \
 	kbd_cmm2.c \
 	mouse_cmm2.c \
+	machine_i2s_cmm2.c \
 
-# the Pico Computer 3's modules, used unchanged from ports/rp2 (their objects in $(BUILD)/pc3): hdmi, keyboard, mouse
+# the Pico Computer 3's modules, used unchanged from ports/rp2 (their objects in $(BUILD)/pc3): hdmi, draw3d,
+# keyboard, mouse, audio (its decoders and synths) and the image loaders. The vendored decoders' signed shifts and
+# sign compares are allowed, as the PC3's emulator allows them.
 PC3_DIR = ../rp2
-SRC_PC3 = hdmi.c usb_keyboard.c kbd_backend.c usb_mouse_mod.c
+SRC_PC3 = hdmi.c draw3d.c usb_keyboard.c kbd_backend.c usb_mouse_mod.c \
+	audio.c dr_wav.c dr_mp3.c dr_flac.c hxcmod.c \
+	jpeg.c picojpeg.c bmp.c bmp_decoder.c png.c upng.c dither.c
 
 SRC_S = shared/runtime/gchelper_thumb2.s
 
@@ -61,7 +66,7 @@ SDK_O = $(BUILD)/sdk/crt0.o $(BUILD)/sdk/syscalls.o
 
 SRC_QSTR += main.c mphalport.c vfs_cmm2.c vfs_cmm2_file.c modmachine.c modtime.c \
 	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c \
-	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
+	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c machine_i2s_cmm2.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
 
 OBJ += $(PY_O)
 OBJ += $(addprefix $(BUILD)/, $(SRC_C:.c=.o))
@@ -76,6 +81,7 @@ $(BUILD)/sdk/%.o: $(CMM2_SDK)/%.c
 	$(Q)mkdir -p $(dir $@)
 	$(Q)$(CC) $(CFLAGS_MCU) -O2 -std=gnu11 -ffunction-sections -fdata-sections -I$(CMM2_SDK) -c $< -o $@
 
+$(BUILD)/pc3/%.o: CFLAGS += -Wno-shift-negative-value -Wno-sign-compare
 $(BUILD)/pc3/%.o: $(PC3_DIR)/%.c
 	$(call compile_c)
 

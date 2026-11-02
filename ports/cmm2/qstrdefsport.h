@@ -2,3 +2,4 @@
 // MP_QSTR__slash_sd would be the string "_slash_sd")
 Q(/sd)
 Q(/usb)
+Q(/lib)

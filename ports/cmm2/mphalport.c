@@ -21,10 +21,13 @@
 extern ringbuf_t stdin_ringbuf;
 extern void cmm2_kbd_pump(void);
 extern void cmm2_mouse_poll(void);
+extern void cmm2_i2s_poll(void);
 
-// the USB devices seen to, the keys taken and the mouse's clicks: from the VM's hook, at most every 2 ms
+// from the VM's hook: a finished sound write's callback scheduled; then, at most every 2 ms, the USB devices seen
+// to, the keys taken and the mouse's clicks
 void cmm2_vm_poll(void) {
     static uint64_t last;
+    cmm2_i2s_poll();
     uint64_t now = cmm2->micros();
     if (now - last < 2000) {
         return;

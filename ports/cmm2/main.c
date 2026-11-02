@@ -28,6 +28,8 @@
 #include "cmm2.h"
 #include "vfs_cmm2.h"
 
+extern void cmm2_i2s_deinit_all(void);      // machine_i2s_cmm2.c
+
 #define CMM2_STACK_SIZE   (262144)          // as the Makefile's --stack
 #define CMM2_NEWLIB_HEAP  (1024 * 1024)     // left to newlib's malloc
 
@@ -77,6 +79,7 @@ int main(int argc, char **argv) {
         if (argc > 1) {
             // a script named after RUN's comma: run it, then back to MMBasic
             int ret = pyexec_file(argv[1]);
+            cmm2_i2s_deinit_all();
             gc_sweep_all();
             mp_deinit();
             return ret ? 0 : 1;
@@ -107,6 +110,7 @@ int main(int argc, char **argv) {
 
     soft_reset_exit:
         mp_printf(MP_PYTHON_PRINTER, "MPY: soft reboot\n");
+        cmm2_i2s_deinit_all();              // (the sound's fill reads the heap)
         gc_sweep_all();
         mp_deinit();
     }

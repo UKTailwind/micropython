@@ -62,6 +62,9 @@
 #define MICROPY_PY_MACHINE_SOFTI2C              (0)
 #define MICROPY_PY_MACHINE_SPI                  (0)
 #define MICROPY_PY_MACHINE_SOFTSPI              (0)
+#define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
+    { MP_ROM_QSTR(MP_QSTR_I2S), MP_ROM_PTR(&machine_i2s_type) }, \
+    { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },
 
 #define MICROPY_PY_RANDOM_SEED_INIT_FUNC        (cmm2_random_seed())
 #define MICROPY_PY_SELECT                       (1)

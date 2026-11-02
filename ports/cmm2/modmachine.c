@@ -1,11 +1,15 @@
 /*
  * MicroPython for the Colour Maximite 2 G2: the machine module's port functions (included by extmod/modmachine.c).
- * A loadable program has no hardware of its own yet: reset() goes back to MMBasic, freq() is the CMM2's clock.
+ * reset() goes back to MMBasic, freq() is the CMM2's clock; I2S (on the loader's sound stream) and Pin (only a pin's
+ * number so far) are machine_i2s_cmm2.c's.
  *
  * The MIT License (MIT), as MicroPython.
  */
 #include "py/mphal.h"
 #include "cmm2.h"
+
+extern const mp_obj_type_t machine_i2s_type;   // machine_i2s_cmm2.c: I2S on the loader's sound stream, and Pin's number
+extern const mp_obj_type_t machine_pin_type;
 
 static void mp_machine_idle(void) {
     mp_event_handle_nowait();

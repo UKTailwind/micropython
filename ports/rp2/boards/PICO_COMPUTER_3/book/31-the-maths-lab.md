@@ -42,7 +42,7 @@ A ulab array is a list that took physics. Import the dialect and make
 one:
 
 ```python
-import ulab.numpy as np
+from ulab import numpy as np
 
 x = np.linspace(0, 2 * math.pi, 128)    # 128 evenly spaced values
 # sin of ALL of them, at once
@@ -138,7 +138,7 @@ experiment ends with a picture. `edit("mathlab.py")`:
 import math
 import random
 import pcmath
-import ulab.numpy as np
+from ulab import numpy as np
 
 def ask_float(prompt, fallback):
     try:

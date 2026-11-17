@@ -75,10 +75,10 @@ def _build():
             for xx in range(w):
                 if row & (1 << xx):
                     i = yy * (bw >> 1) + (xx >> 1)
-                    if xx & 1:
-                        spr[i] = (spr[i] & 0x0F) | ((c & 0x0F) << 4)
-                    else:
+                    if xx & 1:  # GS4_HMSB: odd x is the low nibble
                         spr[i] = (spr[i] & 0xF0) | (c & 0x0F)
+                    else:
+                        spr[i] = (spr[i] & 0x0F) | ((c & 0x0F) << 4)
     elif bpp == 8:
         spr = bytearray(bw * h)
         if skip:

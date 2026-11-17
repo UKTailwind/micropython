@@ -181,7 +181,7 @@ import pctilemap
 __main__.TileMap = pctilemap.TileMap
 
 # Maths helpers over ulab (quaternions, vectors, DSP, correl/chi, PID). ulab
-# itself (import ulab.numpy as np) covers stats/linalg/FFT/complex.
+# itself (from ulab import numpy as np) covers stats/linalg/FFT/complex.
 import pcmath
 
 __main__.pcmath = pcmath
@@ -214,6 +214,7 @@ import pcnet
 __main__.wifi = pcnet.wifi
 __main__.ntpsync = pcnet.ntpsync
 __main__.tz = pcnet.tz
+__main__.auto = pcnet.auto
 
 # Bring up the HDMI display (saved mode/clock, default 640x480x8 @ 252) and start
 # the on-screen console. A bad saved value falls back safely.

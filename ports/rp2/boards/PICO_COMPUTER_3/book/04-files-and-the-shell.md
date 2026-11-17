@@ -59,7 +59,8 @@ like `"hello"` in chapter 3. `ls` alone names the command; `ls()` runs it.
 > through the `os` module (`os.listdir()`, `os.remove()`, `os.rename()`,
 > `os.mkdir()`, `os.chdir()`…), which works here too if you prefer it. The
 > friendly names are for comfort at the prompt; the `os` names are what
-> travel to other boards.
+> travel to other boards. A Colour Maximite 2's MicroPython app has both
+> (Appendix K).
 
 ## Making some files to practise on
 

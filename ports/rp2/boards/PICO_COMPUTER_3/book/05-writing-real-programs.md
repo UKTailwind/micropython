@@ -57,7 +57,8 @@ I can calculate: 42
 > built-in editor or `run` command. On other boards you write `.py` files
 > in an editor on your PC and copy them across with a tool like `mpremote`,
 > then `import` or `exec()` them. Here the machine is self-contained,
-> editor and all.
+> editor and all — and so is a Colour Maximite 2 running its MicroPython
+> app (Appendix K).
 
 ## Getting comfortable in the editor
 

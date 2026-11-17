@@ -188,7 +188,7 @@ Regenerate after editing chapters with:
 ## ch25 -- Chapter 25 — The adventure: NPCs, dialogue and saved worlds
 
 - `01-maketiles2.py` (54 lines)
-- `02-adventure.py` (251 lines)
+- `02-adventure.py` (253 lines)
 - `03-listing.py` (3 lines)
 
 ## ch26 -- Chapter 26 — Polish: the last ten percent
@@ -210,7 +210,7 @@ Regenerate after editing chapters with:
 ## ch29 -- Chapter 29 — Time and schedules: the real-time clock
 
 - `01-listing.py` (2 lines)
-- `02-listing.py` (7 lines)
+- `02-listing.py` (8 lines)
 - `03-timer.py` (62 lines)
 - `04-alarm.py` (100 lines)
 - `05-listing.py` (5 lines)
@@ -220,7 +220,7 @@ Regenerate after editing chapters with:
 - `01-listing.py` (2 lines)
 - `02-listing.py` (1 lines)
 - `03-listing.py` (5 lines)
-- `04-listing.py` (7 lines)
+- `04-listing.py` (9 lines)
 - `05-listing.py` (6 lines)
 - `06-weather.py` (108 lines)
 - `07-listing.py` (24 lines)

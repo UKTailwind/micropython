@@ -1,7 +1,7 @@
 import math
 import random
 import pcmath
-import ulab.numpy as np
+from ulab import numpy as np
 
 def ask_float(prompt, fallback):
     try:

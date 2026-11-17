@@ -1,6 +1,6 @@
 # Maths helpers for the Pico Computer 3 -- the parts of MMBasic's MATH command
 # that ulab doesn't already cover. Statistics, linear algebra, FFT and complex
-# math are all in ulab (`import ulab.numpy as np`) + `cmath`, so this module only
+# math are all in ulab (`from ulab import numpy as np`) + `cmath`, so this module only
 # adds the missing verbs: quaternions, 3-D vector helpers, a few DSP conveniences
 # (window / sinc / zero-crossing / power spectrum), correlation, chi-square, and
 # a PID controller.

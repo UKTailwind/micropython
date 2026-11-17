@@ -41,6 +41,12 @@ type as a command you can put in a program.
 > instead of BASIC. Throughout this book, boxes like this one translate
 > MMBasic ideas into their Python equivalents.
 
+> **Also on a Colour Maximite 2.** Everything in this book also runs on a
+> Colour Maximite 2 — the G1, G2 or G3 — with its MicroPython app: the
+> same MicroPython, the same libraries, every example program.
+> Appendix K lists the few differences: how you start it, where your
+> files are, and which connector pin is which.
+
 ## A tour of the hardware
 
 Under the hood, the Pico Computer 3 is built around the **RP2350B**, a chip

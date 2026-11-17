@@ -57,6 +57,12 @@ alarm and 32 kHz outputs — chapter 29 met the first.) The manual's
 section 2 lists the machine's own reserved pins; the header simply
 never exposes them.
 
+> **On a Colour Maximite 2** the same GP numbers work, on its rear
+> connector: GP0 is pin 8, GP1 pin 10, GP2 pin 12, the knob's GP40 is
+> pin 26, and GP20/GP21 are pins 21 and 33 (pins 3 and 5 on a board
+> with the Wi-Fi module). `Pin("LED")` is its SD card light. Appendix K
+> has the whole table.
+
 ![The I/O header, colour-coded. `GP20`/`GP21` are the shared I2C bus; `GP40`–`GP46` can also read analogue voltages; every `GP` pin can do PWM. The board is 3.3 V logic — the 5 V pin powers things only, never a `GP` input.](figs/32-pinout.png)
 
 ## Output: your first electron

@@ -4,6 +4,11 @@ In this chapter you will put the firmware onto the board, wire everything
 up, and prove the machine is alive by making it speak, beep and blink. By
 the end you will be sitting at a working Python computer.
 
+> **On a Colour Maximite 2** there is nothing to flash: MicroPython is an
+> app on its SD card, started from the MMBasic prompt with
+> `RUN "micropython.app"`. Appendix K says how; then pick up again at
+> step 4.
+
 ## What you will need
 
 - The Pico Computer 3 board.

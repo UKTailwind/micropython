@@ -39,7 +39,9 @@ wifi("MyNetwork", "MyPassword", save=False)
 > network.WLAN(...)` and friends) for the day you need signal strength or
 > a static address, and `ntptime` for the clock — the manual points the
 > way. `tz()` in particular is just a saved hour offset that this machine
-> applies for you; core MicroPython has no timezone support at all.
+> applies for you; core MicroPython has no timezone support at all. A
+> Colour Maximite 2 has all of this with its Wi-Fi module, once
+> `OPTION WIFI` is set at the MMBasic prompt (Appendix K).
 
 With Wi-Fi up, one more door opens: the `mip` installer from chapter 11
 can now reach the internet, so `import mip; mip.install("...")` will
@@ -73,7 +75,9 @@ frozen `requests` module does it, HTTPS included:
 ```python
 import requests
 
-r = requests.get("https://api.github.com")
+# GitHub turns away a request that does not say who is asking
+r = requests.get("https://api.github.com",
+                 headers={"User-Agent": "pc3"})
 print(r.status_code)               # 200 means "here you are"
 print(r.text[:120])                # the reply is text...
 # ALWAYS -- replies hold real memory

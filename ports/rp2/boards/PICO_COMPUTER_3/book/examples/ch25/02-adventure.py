@@ -123,6 +123,8 @@ e_was = False
 edir = 1
 
 clock = pcgame.Clock(vsync=True)
+hdmi.close("F")                    # start clean (rerun-proof)
+hdmi.create()                      # the back buffer, after screen()
 console("none")
 
 try:
@@ -205,7 +207,7 @@ try:
         # --- draw (the world shows under every state)
         vx = px + 7 - W // 2
         vy = py + 7 - H // 2
-        tm.view(vx, vy)
+        tm.view(int(vx), int(vy))      # whole pixels (px is a float)
         cvx = max(0, min(vx, 64 * 16 - W))
         cvy = max(0, min(vy, 48 * 16 - H))
         hdmi.write("F")

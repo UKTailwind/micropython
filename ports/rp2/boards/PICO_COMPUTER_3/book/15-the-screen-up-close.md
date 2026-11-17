@@ -12,7 +12,8 @@ just the good stuff, built out of what you know.
 > MicroPython and won't be found on a bare board. That is the point: this
 > is what turns a chip into a *computer*. The *language* you use to drive
 > it — variables, loops, functions, classes — is the portable part; these
-> chapters are the home hardware it drives.
+> chapters are the home hardware it drives. A Colour Maximite 2's
+> MicroPython app has all of it too (Appendix K).
 
 We start with the screen, because you have been drawing on it for six
 chapters without ever being introduced. The turtle and `plot()` were

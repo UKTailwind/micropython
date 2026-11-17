@@ -30,6 +30,23 @@ import board
 
 __main__.board = board
 
+# The clock, as the PC3's DS3231 helpers: settime()/gettime()/synctime() (modules/ds3231.py: the CMM2's DS3231 through
+# the firmware's DATE$ and TIME$).
+import ds3231
+
+__main__.settime = ds3231.settime
+__main__.gettime = ds3231.gettime
+__main__.synctime = ds3231.synctime
+
+# Wi-Fi + NTP time, as the PC3's: wifi()/ntpsync()/tz()/auto() (pcnet, unchanged, on the network module: the
+# firmware's Wi-Fi). auto() too, which the PC3 book uses at the prompt; its boot_sync runs at the end, below.
+import pcnet
+
+__main__.wifi = pcnet.wifi
+__main__.ntpsync = pcnet.ntpsync
+__main__.tz = pcnet.tz
+__main__.auto = pcnet.auto
+
 # On-screen console: console() mirrors REPL output to the HDMI screen.
 import pcconsole
 
@@ -132,5 +149,8 @@ try:
 except Exception:
     pass
 pcconsole.console()
+
+# NTP at start-up, as the PC3's: only with auto() on and Wi-Fi credentials saved (pcnet)
+pcnet.boot_sync()
 
 del _name

@@ -28,6 +28,8 @@
 #include "shared/runtime/pyexec.h"
 #include "shared/runtime/softtimer.h"
 #include "cmm2.h"
+#include "cmm2io.h"
+#include "modcmm2.h"
 #include "vfs_cmm2.h"
 
 extern void cmm2_i2s_deinit_all(void);      // machine_i2s_cmm2.c
@@ -37,6 +39,22 @@ extern void cmm2_i2s_deinit_all(void);      // machine_i2s_cmm2.c
 // SQLite's pool (cmm2_sqlite.h): 2 MB of the GC heap where there is room (a G2), 512 KB on a G1, which lends a program
 // about 4 MB in all
 int cmm2_sqlite_pool = 0x200000;
+
+// The pool is set aside when MicroPython starts (and after each soft reset), in one piece, and handed to usqlite when
+// its first connect() asks for it: the Makefile points usqlite_mem.c's one m_malloc_maybe() here. Taken at that
+// moment, as usqlite does on a PC3, it could not be found after a long session, when the heap's live objects end up
+// scattered through it (17 Nov 2026, after chapters 15-27 of the PC3 book: 5 MB free, the largest piece 967 KB, and
+// "cannot reserve 2097152 bytes for the SQLite engine"). It stays in the GC heap, as usqlite has it, so the GC still
+// sees what SQLite's memory refers to.
+MP_REGISTER_ROOT_POINTER(void *cmm2_sqlite_pool_mem);
+
+void *cmm2_sqlite_pool_take(size_t n) {
+    void *p = MP_STATE_PORT(cmm2_sqlite_pool_mem);
+    if (p != NULL && n <= (size_t)cmm2_sqlite_pool) {
+        return p;                           // (kept in the root as well: usqlite may ask again after a re-import)
+    }
+    return m_malloc_maybe(n);
+}
 
 static void mount(const char *drive, qstr point) {
     mp_obj_t vfs = mp_vfs_cmm2_new(drive);
@@ -82,6 +100,7 @@ int main(int argc, char **argv) {
 
     for (;;) {
         mp_init();
+        MP_STATE_PORT(cmm2_sqlite_pool_mem) = m_malloc_maybe(cmm2_sqlite_pool);   // (first, while the heap is empty)
         mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(MP_QSTR__slash_lib));
         readline_init0();
         mount_drives();
@@ -93,8 +112,13 @@ int main(int argc, char **argv) {
         if (argc > 1) {
             // a script named after RUN's comma: run it, then back to MMBasic
             int ret = pyexec_file(argv[1]);
+            if (cmm2_wdt_ms) {              // (machine.WDT's WATCHDOG stopped: MMBasic goes on)
+                cmm2->basic_cmd("WATCHDOG OFF");
+                cmm2_wdt_ms = 0;
+            }
             soft_timer_deinit();
             cmm2_i2s_deinit_all();
+            cmm2_io_reset();
             gc_sweep_all();
             mp_deinit();
             return ret ? 0 : 1;
@@ -127,6 +151,7 @@ int main(int argc, char **argv) {
         mp_printf(MP_PYTHON_PRINTER, "MPY: soft reboot\n");
         soft_timer_deinit();
         cmm2_i2s_deinit_all();              // (the sound's fill reads the heap)
+        cmm2_io_reset();                    // (pins, ports and buses let go; the tables of objects emptied)
         gc_sweep_all();
         mp_deinit();
     }

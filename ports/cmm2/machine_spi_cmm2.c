@@ -6,6 +6,7 @@
  * The MIT License (MIT), as MicroPython.
  */
 #include "py/runtime.h"
+#include "py/mperrno.h"
 #include "extmod/modmachine.h"
 #include "cmm2.h"
 #include "cmm2io.h"
@@ -14,8 +15,18 @@ typedef struct _machine_spi_obj_t {
     mp_obj_base_t base;
     uint8_t bus;
     uint8_t polarity, phase;
+    bool open;
     uint32_t baudrate;
 } machine_spi_obj_t;
+
+// another object took one of its pins (cmm2io.h): the bus closed; SPI(n) or init() opens it again
+static void machine_spi_release(mp_obj_t o) {
+    machine_spi_obj_t *self = MP_OBJ_TO_PTR(o);
+    if (self->open) {
+        cmm2->spi_close(self->bus);
+        self->open = false;
+    }
+}
 
 static void machine_spi_print(const mp_print_t *print, mp_obj_t self_in, mp_print_kind_t kind) {
     machine_spi_obj_t *self = MP_OBJ_TO_PTR(self_in);
@@ -25,7 +36,16 @@ static void machine_spi_print(const mp_print_t *print, mp_obj_t self_in, mp_prin
 }
 
 static void machine_spi_open(machine_spi_obj_t *self) {
+    if (self->open) {
+        cmm2->spi_close(self->bus);
+        self->open = false;
+    }
+    int gp = self->bus ? 10 : 18;
+    for (int i = 0; i < 3; i++) {
+        cmm2_gp_claim(gp + i, MP_OBJ_FROM_PTR(self), machine_spi_release);
+    }
     cmm2_io_check(cmm2->spi_open(self->bus, self->baudrate, self->polarity << 1 | self->phase), -1);
+    self->open = true;
 }
 
 enum { ARG_id, ARG_baudrate, ARG_polarity, ARG_phase, ARG_bits, ARG_firstbit, ARG_sck, ARG_mosi, ARG_miso };
@@ -70,11 +90,17 @@ static mp_obj_t machine_spi_make_new(const mp_obj_type_t *type, size_t n_args, s
     if (bus < 0 || bus > 1) {
         mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("SPI(%d) doesn't exist"), bus);
     }
-    machine_spi_obj_t *self = mp_obj_malloc(machine_spi_obj_t, &machine_spi_type);
-    self->bus = bus;
-    self->baudrate = 1000000;
-    self->polarity = 0;
-    self->phase = 0;
+    // one object per bus, as on rp2: SPI(0) made again is the same bus, set up afresh with what is given
+    machine_spi_obj_t *self = MP_OBJ_TO_PTR(MP_STATE_PORT(cmm2_bus_obj)[CMM2_BUS_SPI(bus)]);
+    if (self == NULL) {
+        self = mp_obj_malloc(machine_spi_obj_t, &machine_spi_type);
+        self->bus = bus;
+        self->baudrate = 1000000;
+        self->polarity = 0;
+        self->phase = 0;
+        self->open = false;
+        MP_STATE_PORT(cmm2_bus_obj)[CMM2_BUS_SPI(bus)] = MP_OBJ_FROM_PTR(self);
+    }
     machine_spi_set(self, args);
     return MP_OBJ_FROM_PTR(self);
 }
@@ -88,11 +114,15 @@ static void machine_spi_init(mp_obj_base_t *self_in, size_t n_args, const mp_obj
 }
 
 static void machine_spi_deinit(mp_obj_base_t *self_in) {
-    cmm2->spi_close(((machine_spi_obj_t *)self_in)->bus);
+    machine_spi_release(MP_OBJ_FROM_PTR(self_in));
+    cmm2_gp_unclaim(MP_OBJ_FROM_PTR(self_in));
 }
 
 static void machine_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
     machine_spi_obj_t *self = (machine_spi_obj_t *)self_in;
+    if (!self->open) {
+        mp_raise_OSError(MP_EIO);               // (its pins were taken by another object since)
+    }
     cmm2_io_check(cmm2->spi_xfer(self->bus, src, dest, len), -1);
 }
 

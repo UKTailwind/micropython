@@ -36,13 +36,29 @@
 #define MICROPY_REPL_EMACS_KEYS                 (1)
 #define MICROPY_ENABLE_SCHEDULER                (1)
 #define MICROPY_SCHEDULER_DEPTH                 (8)
+// `import ulab.numpy` (a built-in module's submodule by its dotted name): MicroPython has it on from FULL_FEATURES,
+// above this port's EXTRA_FEATURES (and rp2's: the PC3 lacks it too). The PC3 book's chapter 31 imports so.
+#define MICROPY_MODULE_BUILTIN_SUBPACKAGES      (1)
+
+// @micropython.native, @micropython.viper and @micropython.asm_thumb (the PC3 book's chapter 35), as rp2 has them. The
+// code is put in the GC heap in the SDRAM, from which the program itself runs; cmm2_commit_exec (mphalport.c) writes
+// it back from the D-cache and drops the I-cache before it runs. Defining MP_PLAT_COMMIT_EXEC would stop the tracking
+// of a loaded .mpy's native text on the GC heap (py/mpconfig.h assumes the port allocates it then): set as for the GC
+// heap's allocator.
+#define MICROPY_EMIT_THUMB                      (1)
+#define MICROPY_EMIT_INLINE_THUMB               (1)
+#define MICROPY_MAKE_POINTER_CALLABLE(p)        ((void *)((uintptr_t)(p) | 1))   // (Thumb code: bit 0 set, as rp2)
+#define MP_PLAT_COMMIT_EXEC(buf, len, reloc)    cmm2_commit_exec((buf), (len), (reloc))
+#define MICROPY_PERSISTENT_CODE_TRACK_FUN_DATA  (1)
+#define MICROPY_PERSISTENT_CODE_TRACK_BSS_RODATA (0)
+void *cmm2_commit_exec(void *buf, unsigned int len, void *reloc);
 
 // files: the loader's file services (vfs_cmm2.c), on the SD card (A:) and the USB drive (C:)
 #define MICROPY_VFS                             (1)
 #define MICROPY_READER_VFS                      (1)
 #define MICROPY_PY_OS                           (1)
 #define MICROPY_PY_OS_UNAME                     (1)
-#define MICROPY_PY_OS_URANDOM                   (0)
+#define MICROPY_PY_OS_URANDOM                   (1)   // (the H743's RNG: mphalport.c)
 #define MICROPY_PY_OS_STATVFS                   (0)
 #define MICROPY_PY_IO                           (1)
 #define MICROPY_PY_SYS_STDFILES                 (1)
@@ -74,15 +90,24 @@
 #define MICROPY_PY_MACHINE_UART                 (1)
 #define MICROPY_PY_MACHINE_UART_INCLUDEFILE     "ports/cmm2/machine_uart.c"
 #define MICROPY_PY_MACHINE_TIMER                (1)   // (soft timers, run from the VM's hook)
+#define MICROPY_PY_MACHINE_WDT                  (1)   // (the firmware's WATCHDOG: machine_wdt.c)
+#define MICROPY_PY_MACHINE_WDT_INCLUDEFILE      "ports/cmm2/machine_wdt.c"
 #define MICROPY_PY_PENDSV_ENTER                 (void)0   // (their handler is the VM's hook's, not an
 #define MICROPY_PY_PENDSV_EXIT                  (void)0   // interrupt's: nothing to hold off)
 #define MICROPY_PY_MACHINE_EXTRA_GLOBALS \
     { MP_ROM_QSTR(MP_QSTR_Timer), MP_ROM_PTR(&machine_timer_type) }, \
     { MP_ROM_QSTR(MP_QSTR_I2S), MP_ROM_PTR(&machine_i2s_type) }, \
-    { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) },
+    { MP_ROM_QSTR(MP_QSTR_Pin), MP_ROM_PTR(&machine_pin_type) }, \
+    { MP_ROM_QSTR(MP_QSTR_RTC), MP_ROM_PTR(&machine_rtc_type) },
 
 #define MICROPY_PY_RANDOM_SEED_INIT_FUNC        (cmm2_random_seed())
 #define MICROPY_PY_SELECT                       (1)
+
+// the network: socket (modsocket_cmm2.c) on the firmware's Wi-Fi and lwIP (the loader's services, version 21), the
+// network module's WLAN (modules/network.py), and tls on mbedTLS (the Makefile's MICROPY_PY_SSL and
+// MICROPY_SSL_MBEDTLS, which define them for the compiler), as rp2 has them
+#define MICROPY_TRACKED_ALLOC                   (1)   // (mbedTLS's allocations)
+#define MICROPY_PY_SOCKET                       (1)
 #define MICROPY_PY_THREAD                       (0)
 
 // Ctrl-C (the loader's break_take) and the USB keyboard are seen to every so many VM steps, and while waiting

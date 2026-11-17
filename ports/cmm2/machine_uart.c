@@ -30,6 +30,15 @@ static void mp_machine_uart_print(const mp_print_t *print, mp_obj_t self_in, mp_
         (unsigned)self->timeout, (unsigned)self->timeout_char);
 }
 
+// another object took one of its GPs (cmm2io.h): the port closed; init() opens it again
+static void mp_machine_uart_release(mp_obj_t o) {
+    machine_uart_obj_t *self = MP_OBJ_TO_PTR(o);
+    if (self->open) {
+        cmm2->com_close(self->id + 1);
+        self->open = false;
+    }
+}
+
 static void mp_machine_uart_init_helper(machine_uart_obj_t *self, size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_baudrate, ARG_bits, ARG_parity, ARG_stop, ARG_tx, ARG_rx, ARG_rxbuf, ARG_timeout, ARG_timeout_char };
     static const mp_arg_t allowed_args[] = {
@@ -74,26 +83,39 @@ static void mp_machine_uart_init_helper(machine_uart_obj_t *self, size_t n_args,
     if (args[ARG_timeout_char].u_int >= 0) {
         self->timeout_char = args[ARG_timeout_char].u_int;
     }
+    if (self->open) {                           // (init() again: opened afresh with the new settings)
+        cmm2->com_close(self->id + 1);
+        self->open = false;
+    }
+    // its two GPs taken from whatever had them (cmm2io.h), as the newest user of a pin takes it on a PC3
+    int gp = self->id ? 36 : 0;
+    cmm2_gp_claim(gp, MP_OBJ_FROM_PTR(self), mp_machine_uart_release);
+    cmm2_gp_claim(gp + 1, MP_OBJ_FROM_PTR(self), mp_machine_uart_release);
     cmm2_io_check(cmm2->com_open(self->id + 1, self->baudrate, self->bits, self->parity, self->stop, self->rxbuf), -1);
     self->open = true;
 }
 
+// one object per port, as on rp2: UART(0) made again is the same UART, set up afresh with what is given
 static mp_obj_t mp_machine_uart_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw, const mp_obj_t *args) {
     mp_arg_check_num(n_args, n_kw, 1, MP_OBJ_FUN_ARGS_MAX, true);
     mp_int_t id = mp_obj_get_int(args[0]);
     if (id < 0 || id > 1) {
         mp_raise_msg_varg(&mp_type_ValueError, MP_ERROR_TEXT("UART(%d) doesn't exist"), (int)id);
     }
-    machine_uart_obj_t *self = mp_obj_malloc(machine_uart_obj_t, &machine_uart_type);
-    self->id = id;
-    self->baudrate = 115200;
-    self->bits = 8;
-    self->parity = 0;
-    self->stop = 1;
-    self->rxbuf = 1024;
-    self->timeout = 0;
-    self->timeout_char = 1;
-    self->open = false;
+    machine_uart_obj_t *self = MP_OBJ_TO_PTR(MP_STATE_PORT(cmm2_bus_obj)[CMM2_BUS_UART(id)]);
+    if (self == NULL) {
+        self = mp_obj_malloc(machine_uart_obj_t, &machine_uart_type);
+        self->id = id;
+        self->baudrate = 115200;
+        self->bits = 8;
+        self->parity = 0;
+        self->stop = 1;
+        self->rxbuf = 1024;
+        self->timeout = 0;
+        self->timeout_char = 1;
+        self->open = false;
+        MP_STATE_PORT(cmm2_bus_obj)[CMM2_BUS_UART(id)] = MP_OBJ_FROM_PTR(self);
+    }
     mp_map_t kw_args;
     mp_map_init_fixed_table(&kw_args, n_kw, args + n_args);
     mp_machine_uart_init_helper(self, n_args - 1, args + 1, &kw_args);
@@ -105,6 +127,7 @@ static void mp_machine_uart_deinit(machine_uart_obj_t *self) {
         cmm2->com_close(self->id + 1);
         self->open = false;
     }
+    cmm2_gp_unclaim(MP_OBJ_FROM_PTR(self));
 }
 
 static mp_int_t mp_machine_uart_any(machine_uart_obj_t *self) {

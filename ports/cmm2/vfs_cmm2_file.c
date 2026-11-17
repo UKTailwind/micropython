@@ -8,6 +8,7 @@
 #include "py/runtime.h"
 #include "py/stream.h"
 #include "py/mperrno.h"
+#include "py/gc.h"
 #include "cmm2.h"
 #include "vfs_cmm2.h"
 
@@ -70,6 +71,13 @@ mp_obj_t mp_vfs_cmm2_file_open(const mp_obj_type_t *type, const char *path, mp_o
     mp_obj_vfs_cmm2_file_t *o = mp_obj_malloc_with_finaliser(mp_obj_vfs_cmm2_file_t, type);
     o->h = -1;
     int h = cmm2->file_open(path, mode);
+    if (h == -18) {
+        // FR_TOO_MANY_OPEN_FILES: the loader keeps eight, and a file a program dropped without closing it (the common
+        // exec(open(name).read()), the PC3's tests/test_all.py) holds one until a collection runs its finaliser.
+        // VfsFat on a PC3 has no such limit, so collect and try once more, as the GC does for memory.
+        gc_collect();
+        h = cmm2->file_open(path, mode);
+    }
     if (h < 0) {
         mp_raise_OSError(mp_vfs_cmm2_errno(h));
     }

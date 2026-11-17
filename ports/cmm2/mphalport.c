@@ -17,6 +17,7 @@
 #include "shared/runtime/softtimer.h"
 #include "extmod/misc.h"
 #include "cmm2.h"
+#include "modcmm2.h"
 
 #include "py/ringbuf.h"
 
@@ -52,6 +53,9 @@ void cmm2_vm_poll(void) {
     }
     last = now;
     cmm2->poll();
+    if (cmm2_net_used) {                    // (the network: the firmware pumps it only so while a program runs)
+        cmm2->net_poll();
+    }
     cmm2_kbd_pump();
     cmm2_mouse_poll();
     cmm2_pin_poll();
@@ -167,6 +171,41 @@ void mp_hal_delay_ms(mp_uint_t ms) {
     }
 }
 
+// the H743's RNG, which the firmware runs (its RND and noise): its data register read once a word is ready
+static uint32_t rng_word(void) {
+    volatile uint32_t *rng = (volatile uint32_t *)0x48021800;   // RNG: CR, SR (bit 0 DRDY), DR
+    for (int i = 0; i < 1000 && !(rng[1] & 1); i++) {
+    }
+    return rng[2] ^ (uint32_t)cmm2->micros();
+}
+
 uint32_t cmm2_random_seed(void) {
-    return (uint32_t)cmm2->micros() * 2654435761u;
+    return rng_word();
+}
+
+// random bytes for mbedTLS's entropy (extmod/mbedtls/mbedtls_alt.c) and os.urandom
+void mp_hal_get_random(size_t n, void *buf) {
+    uint8_t *p = buf;
+    while (n) {
+        uint32_t w = rng_word();
+        for (int i = 0; i < 4 && n; i++, n--) {
+            *p++ = w;
+            w >>= 8;
+        }
+    }
+}
+
+// native code just written (@micropython.native, viper, asm_thumb): written back from the D-cache to the SDRAM and the
+// I-cache emptied, so the M7 fetches what was written (the Cortex-M7's SCB: DCCMVAC by 32-byte line, then ICIALLU)
+void *cmm2_commit_exec(void *buf, unsigned int len, void *reloc) {
+    (void)reloc;                                // (a loaded .mpy's relocations: done by then, in place)
+    uintptr_t a = (uintptr_t)buf & ~(uintptr_t)31, end = (uintptr_t)buf + len;
+    __asm volatile ("dsb" ::: "memory");
+    for (; a < end; a += 32) {
+        *(volatile uint32_t *)0xE000EF68 = a;   // SCB->DCCMVAC
+    }
+    __asm volatile ("dsb" ::: "memory");
+    *(volatile uint32_t *)0xE000EF50 = 0;       // SCB->ICIALLU
+    __asm volatile ("dsb\n isb" ::: "memory");
+    return buf;
 }

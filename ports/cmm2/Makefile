@@ -8,7 +8,7 @@
 
 include ../../py/mkenv.mk
 
-CMM2_SDK ?= /mnt/d/Dropbox/VSCode-STM32/CMM2V1.5-loader/tools/sdk
+CMM2_SDK ?= /mnt/d/Dropbox/VSCode-STM32/CMM2V1.5/tools/sdk
 CROSS_COMPILE ?= arm-none-eabi-
 
 # qstr definitions (must come before including py.mk)
@@ -25,6 +25,10 @@ CFLAGS_EXTRA += -include $(TOP)/ports/cmm2/cmm2_sqlite.h
 # the PC3's Python libraries and the CMM2's start-up, frozen into the program
 FROZEN_MANIFEST ?= manifest.py
 
+# tls (and ssl) on mbedTLS, as rp2 has them: extmod builds lib/mbedtls with mbedtls/mbedtls_config_port.h
+MICROPY_PY_SSL = 1
+MICROPY_SSL_MBEDTLS = 1
+
 include $(TOP)/py/py.mk
 include $(TOP)/extmod/extmod.mk
 
@@ -40,7 +44,7 @@ CFLAGS += -g -O2 -DNDEBUG $(CFLAGS_EXTRA)
 
 LDFLAGS = $(CFLAGS_MCU) --specs=nano.specs -nostartfiles -T $(CMM2_SDK)/app.ld \
 	-Wl,--defsym=__app_base=0xD1800000 -Wl,--gc-sections -Wl,--emit-relocs \
-	-Wl,-Map=$(BUILD)/firmware.map -Wl,--no-warn-rwx-segments
+	-Wl,-Map=$(BUILD)/firmware.map -Wl,--no-warn-rwx-segments -L$(BUILD)
 LIBS = -Wl,--start-group -lc -lm -lgcc -Wl,--end-group
 
 SRC_C = \
@@ -64,6 +68,10 @@ SRC_C = \
 	machine_pin_cmm2.c \
 	machine_i2c_cmm2.c \
 	machine_spi_cmm2.c \
+	modcmm2.c \
+	modsocket_cmm2.c \
+	machine_rtc_cmm2.c \
+	mbedtls/mbedtls_port.c \
 	drivers/bus/softspi.c \
 
 # the Pico Computer 3's modules, used unchanged from ports/rp2 (their objects in $(BUILD)/pc3): hdmi, draw3d,
@@ -82,7 +90,7 @@ SDK_O = $(BUILD)/sdk/crt0.o $(BUILD)/sdk/syscalls.o
 SRC_QSTR += main.c mphalport.c vfs_cmm2.c vfs_cmm2_file.c modmachine.c modtime.c \
 	shared/readline/readline.c shared/runtime/pyexec.c shared/runtime/sys_stdio_mphal.c shared/runtime/mpirq.c \
 	hdmi_cmm2.c kbd_cmm2.c mouse_cmm2.c machine_i2s_cmm2.c machine_pin_cmm2.c machine_i2c_cmm2.c machine_spi_cmm2.c \
-	machine_adc.c machine_pwm.c machine_uart.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
+	machine_adc.c machine_pwm.c machine_uart.c machine_wdt.c modcmm2.c modsocket_cmm2.c machine_rtc_cmm2.c $(addprefix $(PC3_DIR)/, $(SRC_PC3))
 
 # make PROF=1: with _prof (prof_cmm2.c), a sampling profiler for working on the port
 ifeq ($(PROF),1)
@@ -106,16 +114,23 @@ $(BUILD)/sdk/%.o: $(CMM2_SDK)/%.c
 $(BUILD)/pc3/%.o: CFLAGS += -Wno-shift-negative-value -Wno-sign-compare
 # (SQLite's amalgamation and its glue: their warnings are theirs, as the PC3 emulator has them)
 $(BUILD)/usqlite/%.o: CFLAGS += -w
+# usqlite takes its pool with m_malloc_maybe() at the first connect(); here it gets the one main.c set aside at start-up
+$(BUILD)/usqlite/usqlite_mem.o: CFLAGS += '-Dm_malloc_maybe(n)=cmm2_sqlite_pool_take(n)'
 $(BUILD)/pc3/%.o: $(PC3_DIR)/%.c
 	$(call compile_c)
 
-$(BUILD)/firmware.elf: $(OBJ)
+# the SDK's app.ld takes the objects to put in the ITCM and the AXI RAM from two lists build.py writes: none here
+$(BUILD)/cmm2itcm.ld $(BUILD)/cmm2axi.ld:
+	$(Q)mkdir -p $(dir $@)
+	$(Q)touch $@
+
+$(BUILD)/firmware.elf: $(OBJ) $(BUILD)/cmm2itcm.ld $(BUILD)/cmm2axi.ld
 	$(ECHO) "LINK $@"
-	$(Q)$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(Q)$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LIBS)
 	$(Q)$(SIZE) $@
 
 $(BUILD)/micropython.app: $(BUILD)/firmware.elf
 	$(ECHO) "Create $@"
-	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 7 --stack 262144 --heap 1572864
+	$(Q)$(PYTHON) $(CMM2_SDK)/mkimage.py $< $@ --name micropython --api 22 --stack 262144 --heap 1572864
 
 include $(TOP)/py/mkrules.mk

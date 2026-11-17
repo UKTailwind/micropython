@@ -16,6 +16,7 @@ mp_uint_t mp_hal_ticks_cpu(void);
 uint64_t mp_hal_time_ns(void);
 void mp_hal_delay_ms(mp_uint_t ms);
 void mp_hal_delay_us(mp_uint_t us);
+void mp_hal_get_random(size_t n, void *buf);   // (the H743's RNG: os.urandom, mbedTLS's entropy)
 
 // the pins of SoftI2C, SoftSPI and time_pulse_us: GP numbers, through the loader's I/O services (machine_pin_cmm2.c)
 #include "cmm2.h"

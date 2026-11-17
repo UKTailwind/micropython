@@ -7,9 +7,11 @@
  */
 #include "py/mphal.h"
 #include "cmm2.h"
+#include "modcmm2.h"
 
 extern const mp_obj_type_t machine_i2s_type;   // machine_i2s_cmm2.c: I2S on the loader's sound stream, and Pin's number
 extern const mp_obj_type_t machine_pin_type;
+extern const mp_obj_type_t machine_rtc_type;   // machine_rtc_cmm2.c: the firmware's clock
 
 static void mp_machine_idle(void) {
     mp_event_handle_nowait();
@@ -17,6 +19,10 @@ static void mp_machine_idle(void) {
 }
 
 MP_NORETURN static void mp_machine_reset(void) {
+    if (cmm2_wdt_ms) {              // (machine.WDT's WATCHDOG stopped, as a PC3's reset stops its watchdog)
+        cmm2->basic_cmd("WATCHDOG OFF");
+        cmm2_wdt_ms = 0;
+    }
     cmm2->leave(0);                 // back to MMBasic, which puts its screen back
     for (;;) {
     }

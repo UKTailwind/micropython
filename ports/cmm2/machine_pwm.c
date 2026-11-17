@@ -16,8 +16,18 @@ typedef struct _machine_pwm_obj_t {
     uint32_t duty;                              // 0-65535
 } machine_pwm_obj_t;
 
+// another object took its GP (cmm2io.h): the output stopped; setting freq or duty starts it again
+static void pwm_release(mp_obj_t o) {
+    machine_pwm_obj_t *self = MP_OBJ_TO_PTR(o);
+    if (self->running) {
+        cmm2->pwm_stop(self->gp);
+        self->running = 0;
+    }
+}
+
 static void pwm_apply(machine_pwm_obj_t *self) {
     if (self->freq) {
+        cmm2_gp_claim(self->gp, MP_OBJ_FROM_PTR(self), pwm_release);
         cmm2_io_check(cmm2->pwm_set(self->gp, self->freq, self->duty), self->gp);
         self->running = 1;
     }
@@ -57,11 +67,17 @@ static mp_obj_t mp_machine_pwm_make_new(const mp_obj_type_t *type, size_t n_args
     if (gp < 2 || gp > 5) {
         mp_raise_ValueError(MP_ERROR_TEXT("the CMM2's PWM is on GP2-5"));
     }
-    machine_pwm_obj_t *self = mp_obj_malloc(machine_pwm_obj_t, &machine_pwm_type);
-    self->gp = gp;
-    self->running = 0;
-    self->freq = 0;
-    self->duty = 0;
+    // one object per output, as on rp2: PWM(Pin(2)) made again is the same output, its settings kept
+    machine_pwm_obj_t *self = MP_OBJ_TO_PTR(MP_STATE_PORT(cmm2_bus_obj)[CMM2_BUS_PWM(gp)]);
+    if (self == NULL) {
+        self = mp_obj_malloc(machine_pwm_obj_t, &machine_pwm_type);
+        self->gp = gp;
+        self->running = 0;
+        self->freq = 0;
+        self->duty = 0;
+        MP_STATE_PORT(cmm2_bus_obj)[CMM2_BUS_PWM(gp)] = MP_OBJ_FROM_PTR(self);
+    }
+    cmm2_gp_claim(gp, MP_OBJ_FROM_PTR(self), pwm_release);   // (the pin is the PWM's from now, as on rp2)
     mp_map_t kw_args;
     mp_map_init_fixed_table(&kw_args, n_kw, args + n_args);
     mp_machine_pwm_init_helper(self, n_args - 1, args + 1, &kw_args);
@@ -69,10 +85,8 @@ static mp_obj_t mp_machine_pwm_make_new(const mp_obj_type_t *type, size_t n_args
 }
 
 static void mp_machine_pwm_deinit(machine_pwm_obj_t *self) {
-    if (self->running) {
-        cmm2->pwm_stop(self->gp);
-        self->running = 0;
-    }
+    pwm_release(MP_OBJ_FROM_PTR(self));
+    cmm2_gp_unclaim(MP_OBJ_FROM_PTR(self));
 }
 
 static mp_obj_t mp_machine_pwm_freq_get(machine_pwm_obj_t *self) {

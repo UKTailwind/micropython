@@ -11,6 +11,7 @@
 #include "py/runtime.h"
 #include "py/mperrno.h"
 #include "py/mphal.h"
+#include "py/gc.h"
 #include "extmod/vfs.h"
 #include "shared/timeutils/timeutils.h"
 #include "cmm2.h"
@@ -257,7 +258,12 @@ static mp_obj_t vfs_cmm2_ilistdir(mp_obj_t self_in, mp_obj_t path_in) {
     iter->finaliser = vfs_cmm2_ilistdir_it_del;
     iter->is_str = mp_obj_get_type(path_in) == &mp_type_str;
     iter->dir = -1;
-    int h = cmm2->dir_open(vfs_cmm2_path(self, path_in, buf));
+    const char *path = vfs_cmm2_path(self, path_in, buf);
+    int h = cmm2->dir_open(path);
+    if (h == -18) {                 // FR_TOO_MANY_OPEN_FILES: the loader's four may be held by iterators a program
+        gc_collect();               // dropped unfinished; their finalisers close them in a collection (as
+        h = cmm2->dir_open(path);   // mp_vfs_cmm2_file_open does for files)
+    }
     if (h < 0) {
         raise_status(h);
     }

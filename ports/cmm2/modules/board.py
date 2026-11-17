@@ -27,8 +27,14 @@ def name():
 
 
 def has_wifi():
-    """True if a Wi-Fi radio is fitted: never on the CMM2."""
-    return False
+    """True if the CMM2's Wi-Fi is there: the Wi-Fi module, V8 firmware and
+    OPTION WIFI (which starts it at power-up)."""
+    try:
+        import cmm2
+
+        return cmm2.net_poll() != 0
+    except Exception:
+        return False
 
 
 def led_pin():

@@ -1,0 +1,39 @@
+<style>
+  /* Fonts for the two HTML editions (html and web). metadata.yaml names the
+     DejaVu fonts for the PDF, and pandoc copies those names into the HTML
+     with no fallback. A reader without DejaVu installed (most Windows and
+     macOS machines) then got the browser's default serif for everything,
+     code included, which breaks the line-up of Python's indentation.
+     These rules come after pandoc's own, so they win. */
+  html {
+    font-family: "DejaVu Serif", Georgia, "Times New Roman", serif;
+  }
+  code, pre, kbd, samp {
+    font-family: "DejaVu Sans Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  /* Chapter navigation, at the top and bottom of each page of the web
+     edition (web-template.html). Unused by the single-page edition. */
+  nav.booknav {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0.4em 1em;
+    align-items: baseline;
+    padding: 0.6em 0;
+    font-family: system-ui, -apple-system, "Segoe UI", "DejaVu Sans", sans-serif;
+    font-size: 0.9em;
+  }
+  nav.booknav.top { border-bottom: 1px solid #d8d8d8; margin-bottom: 2em; }
+  nav.booknav.bottom { border-top: 1px solid #d8d8d8; margin-top: 3em; }
+  nav.booknav a { text-decoration: none; }
+  nav.booknav a:hover { text-decoration: underline; }
+  nav.booknav .prev { grid-column: 1; justify-self: start; }
+  nav.booknav .contents { grid-column: 2; }
+  nav.booknav .next { grid-column: 3; justify-self: end; text-align: right; }
+  @media (max-width: 600px) {
+    nav.booknav { grid-template-columns: 1fr 1fr; }
+    nav.booknav .contents { grid-column: 1 / -1; grid-row: 1; justify-self: center; }
+    nav.booknav .prev { grid-column: 1; grid-row: 2; }
+    nav.booknav .next { grid-column: 2; grid-row: 2; }
+  }
+</style>

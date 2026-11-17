@@ -14,17 +14,39 @@ COMMON := --metadata-file=metadata.yaml --toc --toc-depth=2 \
 # split as cover.svg / cover.png.)
 FIGURES := $(wildcard figs/*.png)
 
-all: html epub pdf
+# The web edition: one page per chapter and appendix, with a contents page
+# (index.html), for a website. A folder, not a file.
+WEB := $(BOOK)-web
+
+all: html epub pdf web
 
 html: $(BOOK).html
 epub: $(BOOK).epub
 pdf:  $(BOOK).pdf
 docx: $(BOOK).docx
+web:  $(WEB)/index.html
 
-$(BOOK).html: metadata.yaml cover.png cover-head.html cover-body.html $(FIGURES) $(CHAPTERS)
+# web-head.html gives both HTML editions fonts that every reader has
+# (metadata.yaml's DejaVu names are for the PDF) and the web edition's
+# chapter navigation.
+$(BOOK).html: metadata.yaml cover.png cover-head.html cover-body.html web-head.html $(FIGURES) $(CHAPTERS)
 	$(PANDOC) $(COMMON) --standalone --embed-resources \
 	    --include-in-header=cover-head.html \
+	    --include-in-header=web-head.html \
 	    --include-before-body=cover-body.html -o $@ $(CHAPTERS)
+
+# pandoc's chunkedhtml (pandoc 3.0 or later) splits at each chapter and
+# copies the figures it uses into $(WEB)/figs. web-template.html puts the
+# cover on the contents page, so cover.png is copied in after. The folder
+# is made afresh each time, so a renamed chapter leaves no old page behind.
+# Upload the whole folder; its links are relative, so it works anywhere.
+$(WEB)/index.html: metadata.yaml cover.png cover-head.html web-head.html web-template.html $(FIGURES) $(CHAPTERS)
+	rm -rf $(WEB)
+	$(PANDOC) $(COMMON) -t chunkedhtml --split-level=1 \
+	    --template=web-template.html \
+	    --include-in-header=cover-head.html \
+	    --include-in-header=web-head.html -o $(WEB) $(CHAPTERS)
+	cp cover.png $(WEB)/cover.png
 
 $(BOOK).epub: metadata.yaml cover.png $(FIGURES) $(CHAPTERS)
 	$(PANDOC) $(COMMON) --epub-cover-image=cover.png -o $@ $(CHAPTERS)
@@ -57,5 +79,6 @@ cover:
 
 clean:
 	rm -f $(BOOK).html $(BOOK).epub $(BOOK).pdf $(BOOK).docx
+	rm -rf $(WEB)
 
-.PHONY: all html epub pdf docx figures cover clean
+.PHONY: all html epub pdf docx web figures cover clean

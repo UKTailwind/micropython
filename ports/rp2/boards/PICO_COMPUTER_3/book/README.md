@@ -11,11 +11,20 @@ the beginner-to-advanced course book. The chapter plan is in
   fixes the build order.
 - `appendix-X-slug.md` — appendices A–H, built after the chapters.
 - `metadata.yaml` — title page / Pandoc metadata shared by every output.
+- `cover-head.html`, `cover-body.html` — the cover at the top of the
+  single-page HTML edition.
+- `web-head.html` — styles for both HTML editions: fonts with fallbacks
+  (the DejaVu names in `metadata.yaml` are for the PDF; without a fallback
+  a reader who lacks DejaVu sees code in a proportional serif), and the web
+  edition's chapter navigation.
+- `web-template.html` — the web edition's page template: pandoc's own
+  `chunkedhtml` template with Previous / Contents / Next at the top and
+  bottom of each page, and the cover on the contents page.
 - `Makefile` — builds the finished formats with Pandoc.
 
 ## Building
 
-Requires [Pandoc](https://pandoc.org) (and TeX Live for the PDF). In WSL Ubuntu:
+Requires [Pandoc](https://pandoc.org) 3.0 or later (and TeX Live for the PDF). In WSL Ubuntu:
 
 ```bash
 sudo apt install pandoc                      # HTML / EPUB / docx
@@ -29,12 +38,18 @@ Then:
 
 ```bash
 make html    # pico-computer-3-book.html  (single self-contained file)
+make web     # pico-computer-3-book-web/  (one page per chapter, for a website)
 make epub    # pico-computer-3-book.epub
 make pdf     # pico-computer-3-book.pdf
 make docx    # pico-computer-3-book.docx  (export for reviewers)
-make         # html + epub + pdf
+make         # html + epub + pdf + web
 make clean
 ```
+
+The web edition is a folder: `index.html` (the cover and contents), a page
+for each chapter and appendix, `figs/` and `cover.png`. Its links are
+relative, so copy the whole folder to any directory of a website. `make web`
+builds it afresh each time, so a renamed chapter leaves no stale page.
 
 The Markdown itself renders fine on GitHub, so the book is readable without
 building anything. Plain-text chapters can also be copied to an SD card and

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+$-- The web edition's page template (make web): pandoc's own chunkedhtml
+$-- template (pandoc -D chunkedhtml) with four changes:
+$--   - a chapter page's title ends with the book's, for browser tabs and
+$--     search results;
+$--   - the navigation is Previous / Contents / Next, at the top and the bottom
+$--     of every page (pandoc's has it at the top only, with Up and Top, which
+$--     are the same page at --split-level=1);
+$--   - the contents page shows the cover in place of the title block, as the
+$--     single-page edition does (cover-body.html); make web copies cover.png;
+$--   - the navigation's style is in web-head.html.
+<html xmlns="http://www.w3.org/1999/xhtml" lang="$lang$" xml:lang="$lang$"$if(dir)$ dir="$dir$"$endif$>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+$for(author-meta)$
+  <meta name="author" content="$author-meta$" />
+$endfor$
+$if(date-meta)$
+  <meta name="dcterms.date" content="$date-meta$" />
+$endif$
+$if(keywords)$
+  <meta name="keywords" content="$for(keywords)$$keywords$$sep$, $endfor$" />
+$endif$
+$if(description-meta)$
+  <meta name="description" content="$description-meta$" />
+$endif$
+  <title>$if(title-prefix)$$title-prefix$ – $endif$$pagetitle$$if(top)$ – $top.title$$endif$</title>
+  <style>
+    $styles.html()$
+  </style>
+$for(css)$
+  <link rel="stylesheet" href="$css$" />
+$endfor$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+$if(math)$
+  $math$
+$endif$
+</head>
+<body>
+$for(include-before)$
+$include-before$
+$endfor$
+<nav class="booknav top" aria-label="Chapters">
+$if(previous.url)$
+<a class="prev" href="$previous.url$" rel="prev" accesskey="p">←&nbsp;$previous.title$</a>
+$endif$
+$if(top)$
+<a class="contents" href="$top.url$" rel="top" accesskey="t">Contents</a>
+$endif$
+$if(next.url)$
+<a class="next" href="$next.url$" rel="next" accesskey="n">$next.title$&nbsp;→</a>
+$endif$
+</nav>
+$if(top)$
+$-- a chapter page: no cover
+$else$
+<div class="book-cover">
+  <img src="cover.png" alt="$pagetitle$ — cover" />
+</div>
+$endif$
+$if(toc)$
+<nav id="$idprefix$TOC" role="doc-toc">
+$if(toc-title)$
+<h2 id="$idprefix$toc-title">$toc-title$</h2>
+$endif$
+$table-of-contents$
+</nav>
+$endif$
+$body$
+<nav class="booknav bottom" aria-label="Chapters">
+$if(previous.url)$
+<a class="prev" href="$previous.url$" rel="prev">←&nbsp;$previous.title$</a>
+$endif$
+$if(top)$
+<a class="contents" href="$top.url$" rel="top">Contents</a>
+$endif$
+$if(next.url)$
+<a class="next" href="$next.url$" rel="next">$next.title$&nbsp;→</a>
+$endif$
+</nav>
+$for(include-after)$
+$include-after$
+$endfor$
+</body>
+</html>

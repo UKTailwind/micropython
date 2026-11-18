@@ -18,6 +18,41 @@ __main__.framebuf = framebuf
 for _name in pcshell.COMMANDS:
     setattr(__main__, _name, getattr(pcshell, _name))
 
+
+# run() as the PC3's, and at the program's end, however it ends, what it left in the GC heap let go: the CMM2's own.
+# The book's games make an off-screen F buffer (hdmi.create(), 300 KB at 640x480, rooted until hdmi.close("F")) and
+# never close it, and pcsprite keeps its sprites and its "F" mode between programs; and without a collection here the
+# next program's long-lived objects land among the last one's garbage. On a Generation 1 (1.6 MB of GC heap, 512 KB of
+# it SQLite's) the free space was then in pieces and the next game's buffer failed with MemoryError (18 Nov 2026,
+# Peter: "free the buffer on end"). So: pcsprite reset (its mode forgotten, so the next update() sets up afresh), the F
+# buffer closed, the heap collected. The PC3's PSRAM heap holds them all. pcshell.run is replaced too, for the file
+# manager (pcfm), which calls it by that name.
+_pcshell_run = pcshell.run
+
+
+def _run(path, *args):
+    try:
+        return _pcshell_run(path, *args)
+    finally:
+        import sys
+        import gc
+
+        sp = sys.modules.get("pcsprite")
+        if sp is not None:
+            try:
+                sp.reset()
+            except Exception:
+                pass
+        try:
+            hdmi.close("F")
+        except Exception:
+            pass
+        gc.collect()
+
+
+pcshell.run = _run
+__main__.run = _run
+
 # Graphics: Display class + the named colour palette (RED, WHITE, ...).
 import pcgfx
 
